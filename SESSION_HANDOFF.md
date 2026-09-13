@@ -1,7 +1,7 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-13
-Checkpoint: branch `main`; PH-1.1 commit (scaffold, gate, CI workflow, runbook, checker, evidence, approval metadata); no intended local delta after it
+Checkpoint: branch `main` at `a80e7ae` (PH-1.1 `b38f54b` + checker fix) plus this CI-verdict record as the following commit; no intended local delta after it
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
@@ -11,8 +11,8 @@ None observed. Dev servers were never started in this session. Builds ran to com
 None in code. PH-1.2 not started. Local `node_modules/` came from `npm install`; a fresh environment should use `npm ci`.
 
 ## Evidence and limits
-- `docs/evidence/PH-1.1-verification.md`: all local layers EXECUTED, exit 0. The CI verdict for the PH-1.1 commit is in that file's "CI" section (pending until the run completed).
-- Post-approval context check: `npm run check:context` after the approval-only edits — result recorded in the PH-1.1 commit message.
+- `docs/evidence/PH-1.1-verification.md`: all local layers EXECUTED, exit 0. CI: first run on `b38f54b` failed (FND-0001 — checker depended on local build artifacts), fixed in `a80e7ae`; CI run `34790518842` on `a80e7ae` success.
+- Post-approval context check: `npm run check:context` after the approval-only edits — result recorded in the `b38f54b` commit message.
 - Warning, not a failure: npm 11 `allow-scripts` reports the `unrs-resolver` postinstall as not allowed; ESLint still passes (BL-006).
 
 ## Resume here
