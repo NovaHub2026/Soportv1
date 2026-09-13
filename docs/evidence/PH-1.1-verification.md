@@ -30,4 +30,6 @@ Limitations / reuse boundary: valid for this tree only. Any change to `package.j
 The approval-only metadata edits that followed (statuses, state, handoff, index, log) were checked with `npm run check:context` — result recorded in the commit message of the PH-1.1 commit and in `SESSION_HANDOFF.md`.
 
 ## CI
-Pending push.
+- Run `34790416448` on `b38f54b` (PH-1.1 commit): **failure** in 21 s at `npm run verify`. `check-context` reported `apps/api/dist/` and `apps/web/.next/` (mentioned in `SESSION_HANDOFF.md`) as missing. Finding **FND-0001** (MATERIAL, process): the checker required every referenced path to exist, and those are gitignored build artifacts that exist only where a build ran — the local `verify` pass depended on leftover artifacts, exactly what `GOVERNANCE.md` §7.3 forbids. Reproduced EXECUTED in a clean `git worktree` of `b38f54b` without build artifacts (same two findings).
+- Remediation: `check-context` now skips missing paths that Git ignores (`git check-ignore`), so the verdict no longer depends on local artifacts. Verified EXECUTED against the clean worktree of `b38f54b` with the fixed script (OK) and on the working tree. Committed as the next commit after `b38f54b` on `main`; its CI run is the corroboration for the gate.
+- Run on the fix commit: recorded below once completed.

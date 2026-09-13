@@ -14,9 +14,12 @@
  * Limitations: syntax and links only. It cannot judge prose freshness, semantic correctness, product
  * alignment or audit debt (not implemented yet — no approvals exist). Bare filenames without a directory
  * component are only checked when they are a known root document or resolve next to the referencing file.
- * docs/evidence and docs/audits are historical and are not link-checked.
+ * Paths Git ignores (build outputs, node_modules, env files) are skipped when missing: they depend on the
+ * environment, not on the repository, and the check must give the same verdict locally and in a clean CI
+ * checkout (FND-0001). docs/evidence and docs/audits are historical and are not link-checked.
  * Failure signal: non-zero exit, one line per finding. Maintenance owner: Agent (introduced in PH-1.1, BL-003).
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +45,16 @@ const fail = (doc, msg) => findings.push(`${rel(doc)}: ${msg}`);
 const strip = (cell) => cell.replace(/`/g, '').trim();
 const read = (p) => readFileSync(p, 'utf8').split('\n');
 
+// True when Git would ignore the path (exit 0 from `git check-ignore`). Without Git, nothing is ignored.
+function gitIgnored(relPath) {
+  try {
+    execFileSync('git', ['check-ignore', '-q', relPath], { cwd: ROOT, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir)) {
@@ -59,6 +72,7 @@ const liveDocs = [
 ].filter(existsSync);
 
 let linksChecked = 0;
+let linksIgnored = 0;
 for (const doc of liveDocs) {
   read(doc).forEach((line, i) => {
     if (SKIP_LINE.test(line)) return;
@@ -69,6 +83,7 @@ for (const doc of liveDocs) {
       const candidates = [join(ROOT, tok), join(dirname(doc), tok)];
       if (tok.includes('/') || ROOT_DOCS.includes(tok)) {
         if (candidates.some(existsSync)) linksChecked++;
+        else if (gitIgnored(tok)) linksIgnored++;
         else fail(doc, `line ${i + 1}: referenced path not found: ${tok}`);
       } else if (existsSync(candidates[1])) {
         linksChecked++;
@@ -165,7 +180,7 @@ else {
 }
 
 // ---------- Report ----------
-const summary = `check-context: ${liveDocs.length} documents, ${linksChecked} links, ${phases.size} phases, ${subphases.size} subphases, active: ${[...activePhases, ...activeSubs].join(' / ') || 'none'}`;
+const summary = `check-context: ${liveDocs.length} documents, ${linksChecked} links (${linksIgnored} gitignored skipped), ${phases.size} phases, ${subphases.size} subphases, active: ${[...activePhases, ...activeSubs].join(' / ') || 'none'}`;
 if (findings.length) {
   console.error(summary);
   for (const f of findings) console.error(`  FAIL ${f}`);

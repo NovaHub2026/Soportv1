@@ -36,3 +36,5 @@ Evidence: `../evidence/PH-1.1-verification.md` — every local layer EXECUTED wi
 Limitations: no browser/e2e UI tests; e2e API profile outside CI; check-context does not yet compute audit debt (BL-004).
 Context updated: `ROADMAP.md`, `PH-1.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `CONTEXT_INDEX.md`, `CLAUDE.md`, `../BACKLOG.md`, `../decisions/DECISION_LOG.md`.
 Approved on 2026-09-13 by the Agent (evidence-based delivery decision, §6.3; not a human review).
+
+Correction 2026-09-13 (FND-0001, MATERIAL): the first CI run on the approved commit failed because `check-context` treated gitignored build artifacts as required paths, so the local pass had depended on leftover artifacts (§7.3). Fixed in the following commit (checker skips Git-ignored paths; reproduced and re-verified in a clean worktree — see the evidence file, section "CI"). Approval retained with this dated correction; the acceptance criterion "CI executes the gate" is satisfied by the fix commit's run.
