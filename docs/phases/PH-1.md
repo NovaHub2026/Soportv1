@@ -1,6 +1,6 @@
 # PH-1 — Foundation and end-to-end case skeleton
 Type: PHASE CONTEXT
-Status: PLANNED
+Status: ACTIVE
 Objective / Feature IDs: OBJ-SUP-01, OBJ-SUP-03; FEAT-CASE, FEAT-CHAT, FEAT-STAFF (contexts created during this phase)
 Cycle: 1 (see `ROADMAP.md`)
 
@@ -28,7 +28,7 @@ Acceptance: context §14 situation 2, demonstrated in both UIs — API success a
 ## Planned subphases, adjusted as evidence arrives
 | ID | Block | Status |
 |---|---|---|
-| PH-1.1 | Workspace scaffold, verification gate (lint, typecheck, unit tests), CI workflow, verification runbook, state/link checker (BL-003) | PLANNED |
+| PH-1.1 | Workspace scaffold, verification gate (lint, typecheck, unit tests), CI workflow, verification runbook, state/link checker (BL-003) — `PH-1.1.md`, approved 2026-09-13 | APPROVED |
 | PH-1.2 | Case domain and API: create case with first message, list own cases, read conversation, staff unassigned queue, take, reply; persistence | PLANNED |
 | PH-1.3 | Customer "Suporte" panel (Next.js, pt-BR): entry, new request, conversation, own cases | PLANNED |
 | PH-1.4 | Minimal staff workspace: unassigned queue, conversation view, take, reply | PLANNED |

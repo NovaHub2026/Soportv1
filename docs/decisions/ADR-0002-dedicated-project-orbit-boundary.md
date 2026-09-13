@@ -9,6 +9,8 @@ Related: OBJ-SUP-02; RULE-SUP-01, RULE-SUP-05, RULE-SUP-07; PH-1, PH-4; BL-001
 ## Context and evidence
 This repository contains no Orbit source code, and no Orbit API, schema or environment has been made available (inspected 2026-09-13). The Owner created a separate repository (`Soportv1`) for this work. The product requires integration with Orbit identity and records (context §6).
 
+Owner confirmation, 2026-09-13 (DEC-0003): «Actualmente no hay ningún repositorio asi que tendremos que hacer todo con datos simulados». Alternative (a) below is therefore not available today; the boundary is the plan, not a fallback.
+
 ## Decision and alternatives
 Build Orbit Support as a dedicated project in this repository. All access to Orbit identity and records goes through one explicit integration boundary (ports/adapters owned by FEAT-ORBIT). PH-1 uses a simulated identity provider behind that boundary, labeled as simulation in UI and docs; the real adapter is implemented when access exists (BL-001).
 Alternatives: (a) implement inside Orbit's own modules — not possible without access to that code; revisit if the Owner grants it. (b) Postpone all work until access exists — rejected: the customer/staff experiences and the case lifecycle do not depend on the adapter.

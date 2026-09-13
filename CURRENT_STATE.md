@@ -1,20 +1,20 @@
 # CURRENT STATE
 Type: CURRENT STATE
 Synchronized on: 2026-09-13
-Derived from: `docs/phases/ROADMAP.md` (initial); base checkpoint: adoption commit on `main`
+Derived from: `docs/phases/ROADMAP.md`, `docs/phases/PH-1.md`; base checkpoint: PH-1.1 commit on `main` (child of `4da2ac2`)
 
 | Field | Value |
 |---|---|
-| Active objective / feature | Governance adoption complete. Next: PH-1 end-to-end case skeleton (OBJ-SUP-01, OBJ-SUP-03). |
-| Active phase / subphase | None active. PH-1 `PLANNED`; PH-1.1 `PLANNED` (not started). |
-| Audit | Cycle 1: 0/3 first-time approvals counted; not due; no inherited debt. |
-| Blocking decisions / dependencies | None blocking PH-1.1. Open, non-blocking: BL-001 (Orbit integration access). |
-| Integration / CI / release | Candidate: adoption commit on `main`. Local verification: documentation only (manual link review, INSPECTED). CI: not configured. Release: not applicable. |
-| Context route | `CONTEXT_INDEX.md` → `docs/phases/PH-1.md`. No feature contexts exist yet. |
+| Active objective / feature | PH-1 end-to-end case skeleton (OBJ-SUP-01, OBJ-SUP-03). Feature contexts not yet written (planned in PH-1.5). |
+| Active phase / subphase | PH-1 `ACTIVE`. PH-1.1 `APPROVED` (2026-09-13). PH-1.2 `PLANNED`, next. No subphase active. |
+| Audit | Cycle 1: 0/3 first-time phase approvals; not due; no inherited debt. Subphase approvals do not count. |
+| Blocking decisions / dependencies | None. The persistence choice (database) must be recorded as an ADR at the start of PH-1.2. |
+| Integration / CI / release | Candidate: PH-1.1 commit on `main`. Local: `npm run verify` exit 0; `verify:full` layers exit 0 (`docs/evidence/PH-1.1-verification.md`). CI: first run awaiting corroboration — verdict in that evidence file, section "CI". Release: not applicable. |
+| Context route | `CONTEXT_INDEX.md` → `docs/phases/PH-1.md` → `docs/phases/PH-1.1.md`; commands in `docs/runbooks/VERIFICATION.md` |
 
 ## Next valid action
-Action: Start PH-1.1 — workspace scaffold and verification gate. Set PH-1 and PH-1.1 to `ACTIVE` in `docs/phases/ROADMAP.md` and `docs/phases/PH-1.md`; create `docs/phases/PH-1.1.md`.
-Why now: Nothing is implemented; every product objective depends on an executable, verifiable foundation, and §15.1 requires meaningful verification alongside the first slice.
-Preconditions: Working tree clean or attributable; `main` in sync with `origin/main`; no Owner redirection since 2026-09-13.
-Evidence/read first: `docs/phases/PH-1.md`; `PROJECT_CONTEXT.md` §11 (stack); `CLAUDE.md` local constraints.
-If preconditions fail: Targeted recovery (§4.3) — inspect the Git delta, attribute unknown changes, reconcile this file before acting.
+Action: Start PH-1.2 — case domain and API (create case with first message, list own cases, read conversation, staff unassigned queue, take, reply; persistence). Set PH-1.2 `ACTIVE` in `docs/phases/PH-1.md`, create its subphase document, and record the persistence decision as an ADR before writing code.
+Why now: PH-1's outcome needs a persistent case before any UI (PH-1.3 / PH-1.4) can show it; the PH-1.1 gate exists to verify it.
+Preconditions: `npm run verify` passes on HEAD; tree clean or attributable; CI for the PH-1.1 commit green, or its failure diagnosed first (§9.2).
+Evidence/read first: `docs/phases/PH-1.md` (rules, acceptance); `PROJECT_CONTEXT.md` §4.1, §4.3, §6.1, §7; `docs/decisions/ADR-0002-dedicated-project-orbit-boundary.md`.
+If preconditions fail: CI red → diagnose and fix before new work. Unknown local changes → attribute and preserve (§4.3) before editing.

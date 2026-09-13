@@ -26,5 +26,7 @@ No feature context exists yet. Feature IDs are reserved here so phase documents 
 | Backlog | `docs/BACKLOG.md` | Repository fallback (DEC-0001) |
 | Features | `docs/features/<FEAT-ID>/CONTEXT.md` | None yet |
 | Architecture | `docs/architecture/` | Created when real structure exists |
-| Runbooks | `docs/runbooks/` | Created with the first executable slice |
-| Evidence / audits | `docs/evidence/`, `docs/audits/` | Created with the first run / audit |
+| Runbooks | `docs/runbooks/VERIFICATION.md` | Setup, gate profiles, running the apps, CI |
+| Controls | `scripts/check-context.mjs` | Link + lifecycle consistency; limits in the script header |
+| Evidence | `docs/evidence/` | One record per work item or material run, e.g. `docs/evidence/PH-1.1-verification.md` |
+| Audits | `docs/audits/` | Created with the first Cycle Audit |
