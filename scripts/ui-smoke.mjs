@@ -592,6 +592,34 @@ try {
     await desktop.getByRole('button', { name: 'Voltar' }).click();
     await desktop.getByText('Conversas em andamento').waitFor();
 
+    // PH-10.2 (DEC-0039 g): a formal complaint is a topic the customer chooses; an agent sees it locked, a supervisor finds it in supervision with its deadline.
+    await desktop.getByRole('button', { name: 'Falar com o suporte' }).click();
+    await desktop.getByText('Reclamação formal', { exact: true }).click();
+    await desktop.getByTestId('complaint-hint').waitFor();
+    await desktop.getByLabel('Conte o que está acontecendo').fill('Quero registrar uma reclamação formal sobre a demora do meu saque.');
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    const complaintRef = await shownReference(desktop, [reference, followUpRef, recordRef, attachedRef]);
+    const complaintStaff = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await complaintStaff.goto(`${WEB}/staff`);
+    await complaintStaff.getByRole('tab', { name: 'Não atribuídos' }).waitFor();
+    const complaintItem = complaintStaff.getByRole('button', { name: new RegExp(complaintRef) });
+    await complaintItem.waitFor({ timeout: 10_000 });
+    await complaintItem.getByTestId('complaint-tag').waitFor();
+    await complaintItem.click();
+    await complaintStaff.getByTestId('complaint-locked').waitFor({ timeout: 5000 });
+    if (await complaintStaff.getByRole('button', { name: 'Assumir caso' }).count()) throw new Error('An agent could take a formal complaint');
+    note('complaint-agent', `${complaintRef} opened as "Reclamação formal" from the customer's topic chips (with the 5-business-day note); in the queue it carries the tag and its deadline, and Ana (an agent) sees it locked: no "Assumir caso", no composer, the supervisor-only note (DEC-0039 g)`);
+    await shot(complaintStaff, '32-staff-complaint-locked');
+    await complaintStaff.getByLabel('Atendente simulado').selectOption('staff-carla');
+    await complaintStaff.getByRole('button', { name: 'Supervisão' }).click();
+    await complaintStaff.getByTestId('complaints').getByRole('button', { name: new RegExp(complaintRef) }).waitFor({ timeout: 10_000 });
+    await complaintStaff.getByTestId('complaints').getByText(/Prazo de resposta:/).first().waitFor();
+    note('complaint-supervisor', `Carla's supervision page lists ${complaintRef} under "Reclamações formais (prazo de 5 dias úteis)" with its response deadline`);
+    await shot(complaintStaff, '33-supervision-complaints');
+    await complaintStaff.close();
+    await desktop.getByRole('button', { name: 'Voltar' }).click();
+    await desktop.getByText('Conversas em andamento').waitFor();
+
     // PH-7.1: "Não consigo acessar minha conta" from the host, without any session; staff handle it in their own page.
     await desktop.getByRole('button', { name: 'Não consigo acessar minha conta' }).click();
     await desktop.getByLabel(/E-mail ou telefone/).fill('recupera@example.com');

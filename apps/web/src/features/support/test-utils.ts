@@ -66,6 +66,7 @@ export function summary(overrides: Partial<import("@orbit-support/shared").CaseS
     recordReference: null,
     awaitingReplySince: null,
     waitingInternalSince: null,
+    complaintDeadlineAt: null,
     ...overrides,
   };
 }

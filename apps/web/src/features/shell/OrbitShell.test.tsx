@@ -30,7 +30,8 @@ describe("OrbitShell", () => {
     });
     render(<OrbitShell />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Segredo da Alice/ }));
+    // The first render of the file pays jsdom's warm-up: under the gate's load it exceeded the 1 s default (PH-10.2 gate refusal).
+    fireEvent.click(await screen.findByRole("button", { name: /Segredo da Alice/ }, { timeout: 5000 }));
     expect(await screen.findByText("Meu saldo é confidencial")).toBeDefined();
 
     fireEvent.change(screen.getByLabelText("Conta simulada"), { target: { value: "cust-bruno" } });

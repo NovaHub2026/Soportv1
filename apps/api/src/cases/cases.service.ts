@@ -1,44 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, min, ne, or, sql } from 'drizzle-orm';
-import {
-  type AnswerConsultationInput,
-  type AssignCaseInput,
-  type CaseConsultation,
-  type CaseEvent,
-  type CaseMessage,
-  type CaseRecord,
-  type CaseRecordRef,
-  type CaseStatus,
-  type CaseSummary,
-  type CreateCaseInput,
-  type CreateIncidentInput,
-  type CustomerCaseDetail,
-  type CustomerCaseSummary,
-  deriveSubject,
-  type FollowUpInput,
-  formatCaseReference,
-  type Incident,
-  type IncidentNoteInput,
-  type IncidentStatus,
-  type MessageAuthorType,
-  OPEN_CASE_STATUSES,
-  type OrbitRecord,
-  type OrbitRecordKind,
-  type OrbitUnavailableReason,
-  type PostMessageInput,
-  type PostNoteInput,
-  type RequestConsultationInput,
-  type ResolutionReason,
-  type ResolveCaseInput,
-  type StaffCaseDetail,
-  STAFF_LIST_LIMITS,
-  type StaffListQuery,
-  type StaffQueueView,
-  type StaffStatusTarget,
-  type SystemMessageKind,
-  toCustomerCaseSummary,
-  type UpdateCaseInput,
-} from '@orbit-support/shared';
+import { type AnswerConsultationInput, type AssignCaseInput, type CaseConsultation, type CaseEvent, type CaseMessage, type CaseRecord, type CaseRecordRef, type CaseStatus, type CaseSummary, type CreateCaseInput, type CreateIncidentInput, type CustomerCaseDetail, type CustomerCaseSummary, deriveSubject, type FollowUpInput, formatCaseReference, type Incident, type IncidentNoteInput, type IncidentStatus, type MessageAuthorType, OPEN_CASE_STATUSES, type OrbitRecord, type OrbitRecordKind, type OrbitUnavailableReason, type PostMessageInput, type PostNoteInput, type RequestConsultationInput, type ResolutionReason, type ResolveCaseInput, type StaffCaseDetail, STAFF_LIST_LIMITS, type StaffListQuery, type StaffQueueView, type StaffStatusTarget, type SystemMessageKind, toCustomerCaseSummary, type UpdateCaseInput, businessDaysAfter, COMPLAINT_DEADLINE_BUSINESS_DAYS, staffMayWorkComplaint, type StaffRole } from '@orbit-support/shared';
 import { AttachmentsService, toAttachment } from '../attachments/attachments.service.js';
 import { positiveNumberEnv } from '../common/env.js';
 import { type Db, isUniqueViolation } from '../database/database.js';
@@ -103,6 +65,7 @@ export class CasesService {
     // Contextual entry (§4.2): capture what the record looked like now; an unavailable answer still opens the
     // case — as an investigation, with the reason on the card (RULE-SUP-07, §14 item 7).
     const record = input.record ? await this.captureRecord(customer, input.record) : null;
+    const complaintDeadlineAt = input.category === 'formal_complaint' ? this.complaintDeadline(new Date(), await this.operationTimezone()) : null;
     try {
       const { row, message, linked } = await this.db.transaction(async (tx) => {
         const now = new Date();
@@ -112,6 +75,7 @@ export class CasesService {
             customerId: customer.id,
             subject: input.subject ?? deriveSubject(input.message),
             category: input.category,
+            complaintDeadlineAt,
             clientMessageId: input.clientMessageId ?? null,
             ...(record
               ? {
@@ -208,6 +172,7 @@ export class CasesService {
     }
     const parentReference = formatCaseReference(parent.referenceNumber);
     try {
+      const timezone = await this.operationTimezone();
       const { child, firstMessage } = await this.db.transaction(async (tx) => {
         const lockedParent = await this.lock(tx, parent.id);
         if (lockedParent.status !== 'closed') throw new ConflictException('case_not_closed');
@@ -218,6 +183,7 @@ export class CasesService {
             customerId: customer.id,
             subject: deriveSubject(input.message),
             category: lockedParent.category,
+            complaintDeadlineAt: lockedParent.category === 'formal_complaint' ? this.complaintDeadline(now, timezone) : null,
             parentCaseId: lockedParent.id,
             clientMessageId: input.clientMessageId ?? null,
             createdAt: now,
@@ -458,6 +424,7 @@ export class CasesService {
   /** An internal note: a message only staff can see. It does not change the case's customer-facing timeline. */
   async postInternalNote(staff: StaffActor, caseId: string, input: PostNoteInput): Promise<CaseMessage> {
     const row = await this.requireCase(caseId);
+    this.assertMayWorkComplaint(row, staff);
     // A retried note returns the stored one instead of a second copy, like replies do (RULE-SUP-03, BL-013).
     if (input.clientMessageId) {
       const duplicate = await this.findMessageByClientId(row.id, 'staff', staff.id, input.clientMessageId);
@@ -651,6 +618,7 @@ export class CasesService {
 
   async takeCase(staff: StaffActor, caseId: string): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
+    this.assertMayWorkComplaint(row, staff);
     if (!OPEN.includes(row.status)) throw new ConflictException('case_not_open');
     if (row.assignedAgentId && row.assignedAgentId !== staff.id) throw new ConflictException('case_assigned_to_other');
     if (row.assignedAgentId === staff.id) return this.summaryOf(row);
@@ -668,6 +636,7 @@ export class CasesService {
   async postStaffMessage(staff: StaffActor, caseId: string, input: PostMessageInput): Promise<CaseMessage> {
     const row = await this.requireCase(caseId);
     if (row.status === 'closed') throw new ConflictException('case_closed');
+    this.assertMayWorkComplaint(row, staff);
     if (input.clientMessageId) {
       const duplicate = await this.findMessageByClientId(row.id, 'staff', staff.id, input.clientMessageId);
       if (duplicate) return this.sameReply(await this.messageWithAttachments(duplicate));
@@ -885,6 +854,7 @@ export class CasesService {
     if (input.agentId !== null && !(await this.staffDirectory.isKnownStaff(input.agentId))) {
       throw new BadRequestException({ error: 'unknown_agent', agentId: input.agentId });
     }
+    if (input.agentId !== null) this.assertComplaintTarget(row, await this.staffDirectory.roleOf(input.agentId));
     if (row.assignedAgentId === input.agentId) return this.summaryOf(row);
     const { updated, changed } = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
@@ -916,12 +886,33 @@ export class CasesService {
     this.assertMay(row, staff, 'transfer');
   }
 
+  /** A formal complaint may only be handed to someone who may work it (DEC-0039 g). */
+  private assertComplaintTarget(row: SupportCaseRow, target: { role: StaffRole } | undefined): void {
+    if (row.category === 'formal_complaint' && target && !staffMayWorkComplaint(target.role)) throw new BadRequestException({ error: 'supervisor_required' });
+  }
+
   /**
    * The role model (PH-7.2, DEC-0029): `staffMay` in `@orbit-support/shared` is the single table the web mirrors.
    * Checked before the transaction (fast failure) and again under the lock (the owner may have just changed).
    */
   private assertMay(row: SupportCaseRow, staff: StaffActor, action: StaffAction): void {
+    this.assertMayWorkComplaint(row, staff);
     if (!staffMay(staff.role, action, caseOwnership(row.assignedAgentId, staff.id))) throw new ForbiddenException('not_case_owner');
+  }
+
+  /** A formal complaint is worked by supervisors and admins only (DEC-0039 g); the web mirrors `staffMayWorkComplaint`. */
+  private assertMayWorkComplaint(row: SupportCaseRow, staff: StaffActor): void {
+    if (row.category === 'formal_complaint' && !staffMayWorkComplaint(staff.role)) throw new ForbiddenException('supervisor_required');
+  }
+
+  /** The operation's time zone, read before a transaction opens: a query inside one deadlocks PGlite's single connection. */
+  private async operationTimezone(): Promise<string> {
+    return (await this.settings.get()).timezone;
+  }
+
+  /** Five business days of the operation's zone from `from` (DEC-0039 g). */
+  private complaintDeadline(from: Date, timezone: string): Date {
+    return businessDaysAfter(from, COMPLAINT_DEADLINE_BUSINESS_DAYS, timezone);
   }
 
   /** Priority and category corrections, each recorded as an attributable event (§5.4, RULE-SUP-09). */
@@ -929,6 +920,7 @@ export class CasesService {
     const row = await this.requireCase(caseId);
     if (row.status === 'closed') throw new ConflictException('case_closed');
     this.assertMay(row, staff, 'edit_attributes');
+    const timezone = input.category ? await this.operationTimezone() : null;
     const updated = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
       this.assertMay(locked, staff, 'edit_attributes');
@@ -947,6 +939,8 @@ export class CasesService {
       }
       if (input.category && input.category !== locked.category) {
         patch.category = input.category;
+        // Becoming a formal complaint starts its deadline; leaving the category ends it (DEC-0039 g).
+        patch.complaintDeadlineAt = input.category === 'formal_complaint' && timezone ? this.complaintDeadline(now, timezone) : null;
         await tx.insert(caseEvents).values({
           caseId: locked.id,
           type: 'category_changed',
@@ -1387,6 +1381,7 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     awaitingReplySince: iso(awaitingReplySince(row)),
     // Stream events carry no consultations: they re-read the case, so the status-only value there is a hint (FND-0084).
     waitingInternalSince: iso(waitingInternalSince(row, oldestOpenConsultation)),
+    complaintDeadlineAt: row.category === 'formal_complaint' ? iso(row.complaintDeadlineAt) : null,
   };
 }
 

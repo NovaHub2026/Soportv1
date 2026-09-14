@@ -483,7 +483,7 @@ describe("StaffCaseView", () => {
   test("PH-5.4: the supervision panel shows demand, overdue cases with reassignment, metrics without targets and the settings form", async () => {
     const overdue = summary({ id: "od", reference: "SUP-000009", subject: "Atrasado", awaitingReplySince: new Date(Date.now() - 6 * 3_600_000).toISOString() });
     const { requests } = mockFetch((request) => {
-      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 1, in_progress: 2, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 1, oldestCreatedAt: new Date(Date.now() - 3_600_000).toISOString() }, awaitingReply: { count: 2, oldestSince: overdue.awaitingReplySince }, waitingInternal: { count: 0, oldestSince: null }, byAgent: [{ agentId: "staff-ana", open: 2, awaitingReply: 1 }], attentionThresholdHours: 4, overdue: [overdue], computedAt: "" } };
+      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 1, in_progress: 2, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 1, oldestCreatedAt: new Date(Date.now() - 3_600_000).toISOString() }, awaitingReply: { count: 2, oldestSince: overdue.awaitingReplySince }, waitingInternal: { count: 0, oldestSince: null }, byAgent: [{ agentId: "staff-ana", open: 2, awaitingReply: 1 }], attentionThresholdHours: 4, overdue: [overdue], complaints: { count: 0, overdue: 0, list: [] }, computedAt: "" } };
       if (request.url.startsWith("/api/staff/metrics")) return { body: { periodDays: 7, from: "", to: "", created: 3, resolved: 1, closed: 0, reopened: 1, firstResponse: { count: 2, medianMinutes: 12, p90Minutes: 30 }, resolution: { count: 1, medianMinutes: 240, p90Minutes: 240 }, unansweredNow: { count: 2, oldestMinutes: 360 }, reopenRate: 1, targets: null } };
       if (request.url === "/api/staff/settings") return { body: { timezone: "America/Sao_Paulo", schedule: { mon: { open: "09:00", close: "18:00" }, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null }, attentionThresholdHours: 4, followUpWindowDays: 7, emailDelayMinutes: 15, reminderAfterHours: 48, workingDefault: true, updatedById: null, updatedByName: null, updatedAt: null } };
       if (request.url.endsWith("/assign")) return { body: summary({ id: "od", assignedAgentId: "staff-bruno" }) };
@@ -552,5 +552,38 @@ describe("StaffCaseView", () => {
     const html = renderToString(<StaffWorkspace />);
     expect(html).not.toContain("Ana Ribeiro");
     expect(html).toContain("data-pending");
+  });
+
+  test("PH-10.2: an agent sees a formal complaint locked — no take, no composer, the supervisor-only note and the deadline (DEC-0039 g)", async () => {
+    const deadline = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    mockFetch((request) => (request.url.endsWith("/orbit") ? { body: orbitUnavailable } : { body: { ...detail, assignedAgentId: null, status: "new", category: "formal_complaint", complaintDeadlineAt: deadline } }));
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    expect(screen.getByTestId("complaint-locked").textContent).toContain("supervisores");
+    expect(screen.queryByRole("button", { name: "Assumir caso" })).toBeNull();
+    expect(screen.queryByLabelText("Resposta ao cliente")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Aguardar cliente" })).toBeNull();
+    expect(screen.getByTestId("complaint-deadline").textContent).toContain("Prazo de resposta");
+  });
+
+  test("PH-10.2: a supervisor works a formal complaint and sees the complaints section in supervision", async () => {
+    const carla: StaffIdentity = { staffId: "staff-carla", displayName: "Carla Nunes", role: "supervisor" };
+    const late = summary({ id: "cp", reference: "SUP-000011", subject: "Reclamação", category: "formal_complaint", complaintDeadlineAt: new Date(Date.now() - 3_600_000).toISOString() });
+    mockFetch((request) => {
+      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 1, in_progress: 0, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 1, oldestCreatedAt: null }, awaitingReply: { count: 0, oldestSince: null }, waitingInternal: { count: 0, oldestSince: null }, byAgent: [], attentionThresholdHours: 4, overdue: [], complaints: { count: 1, overdue: 1, list: [late] }, computedAt: "" } };
+      if (request.url.startsWith("/api/staff/metrics")) return { body: { periodDays: 7, from: "", to: "", created: 0, resolved: 0, closed: 0, reopened: 0, firstResponse: { count: 0, medianMinutes: null, p90Minutes: null }, resolution: { count: 0, medianMinutes: null, p90Minutes: null }, unansweredNow: { count: 0, oldestMinutes: null }, reopenRate: null, targets: null } };
+      if (request.url === "/api/staff/settings") return { body: { timezone: "America/Sao_Paulo", schedule: { mon: { open: "09:00", close: "18:00" }, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null }, attentionThresholdHours: 4, followUpWindowDays: 7, emailDelayMinutes: 15, reminderAfterHours: 48, workingDefault: true, updatedById: null, updatedByName: null, updatedAt: null } };
+      if (request.url.endsWith("/orbit")) return { body: orbitUnavailable };
+      return { body: { ...detail, assignedAgentId: null, status: "new", category: "formal_complaint", complaintDeadlineAt: late.complaintDeadlineAt } };
+    });
+    const onOpenCase = vi.fn();
+    render(<SupervisionPanel identity={carla} onClose={() => {}} onOpenCase={onOpenCase} />);
+    expect((await screen.findByTestId("complaints-summary")).textContent).toBe("1 em aberto · 1 com prazo vencido");
+    expect(screen.getByTestId("complaints").textContent).toContain("Prazo vencido há");
+    fireEvent.click(screen.getByRole("button", { name: /SUP-000011/ }));
+    expect(onOpenCase).toHaveBeenCalledWith("cp");
+    render(<StaffCaseView identity={carla} caseId={detail.id} onChanged={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Assumir caso" })).toBeDefined();
+    expect(screen.queryByTestId("complaint-locked")).toBeNull();
   });
 });

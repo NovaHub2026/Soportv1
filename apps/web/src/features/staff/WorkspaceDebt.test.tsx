@@ -144,7 +144,7 @@ describe("PH-9.2 staff workspace debt", () => {
     const { requests } = mockFetch((request) => {
       if (request.url === "/api/staff/settings" && request.method === "PUT") return { body: { ...settings, ...(request.body as object), workingDefault: false, updatedById: "staff-carla", updatedByName: "Carla Nunes", updatedAt: new Date().toISOString() } };
       if (request.url === "/api/staff/settings") return { body: settings };
-      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 0, in_progress: 0, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 0, oldestCreatedAt: null }, awaitingReply: { count: 0, oldestSince: null }, waitingInternal: { count: 0, oldestSince: null }, byAgent: [], attentionThresholdHours: 4, overdue: [], computedAt: "" } };
+      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 0, in_progress: 0, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 0, oldestCreatedAt: null }, awaitingReply: { count: 0, oldestSince: null }, waitingInternal: { count: 0, oldestSince: null }, byAgent: [], attentionThresholdHours: 4, overdue: [], complaints: { count: 0, overdue: 0, list: [] }, computedAt: "" } };
       if (request.url.startsWith("/api/staff/metrics")) return { body: { periodDays: 7, from: "", to: "", created: 0, resolved: 0, closed: 0, reopened: 0, firstResponse: { count: 0, medianMinutes: null, p90Minutes: null }, resolution: { count: 0, medianMinutes: null, p90Minutes: null }, unansweredNow: { count: 0, oldestMinutes: null }, reopenRate: null, targets: null } };
       return { body: [] };
     });

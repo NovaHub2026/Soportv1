@@ -177,6 +177,8 @@ export interface SupervisionOverview {
   attentionThresholdHours: number;
   /** Cases awaiting a human reply, or waiting for an internal team, for longer than the threshold; oldest first (at most 50). */
   overdue: CaseSummary[];
+  /** Open formal complaints (DEC-0039 g): how many, how many past their deadline, and the list by deadline (at most 50). */
+  complaints: { count: number; overdue: number; list: CaseSummary[] };
   computedAt: string;
 }
 
@@ -209,4 +211,21 @@ export function durationStats(minutes: number[]): DurationStats {
   const sorted = [...minutes].sort((a, b) => a - b);
   const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(q * sorted.length) - 1))];
   return { count: sorted.length, medianMinutes: Math.round(at(0.5)), p90Minutes: Math.round(at(0.9)) };
+}
+
+/**
+ * The instant `days` business days (Monday–Friday in `timezone`, no holiday calendar) after `from`, at the same
+ * wall-clock time (DEC-0039 g). A start on a weekend counts from the next Monday.
+ */
+export function businessDaysAfter(from: Date, days: number, timezone: string): Date {
+  const start = partsIn(from, timezone);
+  let date = { year: start.year, month: start.month, day: start.day };
+  const weekdayOf = (d: { year: number; month: number; day: number }) => new Date(Date.UTC(d.year, d.month - 1, d.day)).getUTCDay();
+  let left = days;
+  while (left > 0) {
+    date = plusDays(date, 1);
+    const w = weekdayOf(date);
+    if (w !== 0 && w !== 6) left -= 1;
+  }
+  return zonedInstant(date, `${String(start.hour).padStart(2, "0")}:${String(start.minute).padStart(2, "0")}`, timezone);
 }

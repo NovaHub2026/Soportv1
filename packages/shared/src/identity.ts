@@ -77,3 +77,12 @@ export function staffMay(role: StaffRole, action: StaffAction, ownership: CaseOw
   if (OPEN_TO_ANY_STAFF.includes(action)) return true;
   return ownership !== "other";
 }
+
+/**
+ * Formal complaints are a supervisor's duty (DEC-0039 g, PH-10.2): an agent may neither take nor work one — no
+ * reply, note, state change, consultation or transfer — whatever the ownership. Answering a consultation stays
+ * open to the specialist asked. One rule for the API and the web.
+ */
+export function staffMayWorkComplaint(role: StaffRole): boolean {
+  return role !== "agent";
+}

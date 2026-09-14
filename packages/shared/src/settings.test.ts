@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { computeAvailability, DEFAULT_SUPPORT_SETTINGS, durationStats, isAllDay, supportSettingsInputSchema, zonedInstant } from "./settings.js";
+import { businessDaysAfter, computeAvailability, DEFAULT_SUPPORT_SETTINGS, durationStats, isAllDay, supportSettingsInputSchema, zonedInstant } from "./settings.js";
 
 /** The pre-DEC-0039 weekday schedule, kept as the fixture of the opening/closing rules. */
 const weekdays = { mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" }, wed: { open: "09:00", close: "18:00" }, thu: { open: "09:00", close: "18:00" }, fri: { open: "09:00", close: "18:00" }, sat: null, sun: null };
@@ -68,6 +68,18 @@ describe("availability from the configured schedule (RULE-SUP-08)", () => {
     // JSON bodies carry numbers; booleans and strings are not coerced (FND-0048).
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, attentionThresholdHours: true }).success).toBe(false);
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, attentionThresholdHours: "4" }).success).toBe(false);
+  });
+});
+
+describe("businessDaysAfter (DEC-0039 g)", () => {
+  test("counts Monday–Friday in the operation's zone, keeps the wall-clock time, and starts a weekend from Monday", () => {
+    // Wednesday 2026-09-16 15:00 São Paulo (18:00 UTC) + 5 business days → Wednesday 2026-09-23 15:00.
+    expect(businessDaysAfter(new Date("2026-09-16T18:00:00.000Z"), 5, "America/Sao_Paulo").toISOString()).toBe("2026-09-23T18:00:00.000Z");
+    // Friday 17:30 + 1 → Monday 17:30; Saturday 10:00 + 1 → Monday 10:00.
+    expect(businessDaysAfter(new Date("2026-09-18T20:30:00.000Z"), 1, "America/Sao_Paulo").toISOString()).toBe("2026-09-21T20:30:00.000Z");
+    expect(businessDaysAfter(new Date("2026-09-19T13:00:00.000Z"), 1, "America/Sao_Paulo").toISOString()).toBe("2026-09-21T13:00:00.000Z");
+    // Across a daylight-saving change the wall-clock time is kept (Madrid: 2026-10-25 leaves summer time).
+    expect(businessDaysAfter(new Date("2026-10-22T07:00:00.000Z"), 5, "Europe/Madrid").toISOString()).toBe("2026-10-29T08:00:00.000Z");
   });
 });
 

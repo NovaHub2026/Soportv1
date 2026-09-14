@@ -27,8 +27,13 @@ export const CASE_CATEGORIES = [
   "account_verification",
   "bonuses_promotions",
   "other",
+  /** A formal complaint (DEC-0039 g, PH-10.2): handled by supervisors within COMPLAINT_DEADLINE_BUSINESS_DAYS. */
+  "formal_complaint",
 ] as const;
 export type CaseCategory = (typeof CASE_CATEGORIES)[number];
+
+/** Internal deadline of a formal complaint, in business days of the operation's zone (DEC-0039 g). */
+export const COMPLAINT_DEADLINE_BUSINESS_DAYS = 5;
 
 export const CASE_PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type CasePriority = (typeof CASE_PRIORITIES)[number];
@@ -433,6 +438,8 @@ export const caseSummarySchema = z.object({
   awaitingReplySince: z.string().nullable(),
   /** Since when the case waits for an internal team (status `waiting_internal`), else null (PH-8.1, BL-021). Staff-only. */
   waitingInternalSince: z.string().nullable(),
+  /** When a formal complaint must have its answer (DEC-0039 g); null for other categories. Staff-only. */
+  complaintDeadlineAt: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 
@@ -454,7 +461,7 @@ export interface CaseRecord {
  * Fields that describe how staff work the case, never the customer's own matter. They are removed from every
  * customer response and customer stream event (RULE-SUP-04, context §10.2 — Cycle Audit 1, FND-0006).
  */
-export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle", "awaitingReplySince", "waitingInternalSince"] as const;
+export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle", "awaitingReplySince", "waitingInternalSince", "complaintDeadlineAt"] as const;
 export type StaffOnlySummaryField = (typeof STAFF_ONLY_SUMMARY_FIELDS)[number];
 
 export const customerCaseSummarySchema = caseSummarySchema.omit({
@@ -465,6 +472,7 @@ export const customerCaseSummarySchema = caseSummarySchema.omit({
   incidentTitle: true,
   awaitingReplySince: true,
   waitingInternalSince: true,
+  complaintDeadlineAt: true,
 });
 export type CustomerCaseSummary = z.infer<typeof customerCaseSummarySchema>;
 

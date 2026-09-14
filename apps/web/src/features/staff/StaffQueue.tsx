@@ -5,7 +5,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { UnreadBadge } from "@/features/support/UnreadBadge";
-import { dictionary as t, fill, formatDuration, formatMessageTime } from "@/i18n";
+import { dictionary as t, fill, formatDuration, formatMessageTime, isPast } from "@/i18n";
 import { type QueueFilters, type StaffIdentity, staffApi } from "@/lib/staff-api";
 
 /** Typing pauses before a search request goes out. */
@@ -207,6 +207,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                   <span className={styles.caseReference}>{c.reference}</span>
                   <span className={styles.caseItemBadges}>
                     <UnreadBadge count={c.unreadCount} one={t.staff.unreadOne} many={t.staff.unreadMany} />
+                    {c.category === "formal_complaint" && <span className={styles.incidentTag} data-testid="complaint-tag">{t.staff.complaint.tag}</span>}
                     {c.incidentId && (
                       <span className={styles.incidentTag} title={c.incidentTitle ?? undefined}>
                         {t.staff.incidents.tag}
@@ -230,6 +231,11 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                 )}
                 {c.status === "waiting_customer" && c.lastStaffMessageAt && (
                   <span className={styles.caseMeta}>{fill(t.staff.waitingCustomerSince, { age: formatDuration(c.lastStaffMessageAt) })}</span>
+                )}
+                {c.complaintDeadlineAt && (
+                  <span className={isPast(c.complaintDeadlineAt) ? styles.attention : styles.caseMeta} data-testid="complaint-deadline">
+                    {isPast(c.complaintDeadlineAt) ? fill(t.staff.complaint.overdue, { age: formatDuration(c.complaintDeadlineAt) }) : fill(t.staff.complaint.deadline, { when: formatMessageTime(c.complaintDeadlineAt) })}
+                  </span>
                 )}
                 {c.waitingInternalSince && (
                   <span className={styles.caseMeta} data-testid="waiting-internal">

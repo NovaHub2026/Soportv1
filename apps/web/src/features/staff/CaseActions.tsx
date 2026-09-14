@@ -1,6 +1,6 @@
 "use client";
 
-import { CONSULTATION_TEAMS, type ConsultationTeam, RESOLUTION_REASONS, type ResolutionReason, type StaffCaseDetail, type StaffStatusTarget } from "@orbit-support/shared";
+import { CONSULTATION_TEAMS, type ConsultationTeam, RESOLUTION_REASONS, type ResolutionReason, type StaffCaseDetail, staffMayWorkComplaint, type StaffStatusTarget } from "@orbit-support/shared";
 import { type FormEvent, useState } from "react";
 import { dictionary as t } from "@/i18n";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
@@ -62,7 +62,7 @@ export function CaseActions({ detail, identity, busy, notOwner, error, onStatus,
 
   return (
     <>
-      {detail.status !== "closed" && (
+      {detail.status !== "closed" && !(detail.category === "formal_complaint" && notOwner && !staffMayWorkComplaint(identity.role)) && (
         <div className={styles.actions} role="group" aria-label={t.staff.actions.title}>
           {detail.status !== "waiting_customer" && (
             <button type="button" className={styles.secondaryButton} disabled={busy || notOwner} title={stateReason} onClick={() => onStatus("waiting_customer")}>

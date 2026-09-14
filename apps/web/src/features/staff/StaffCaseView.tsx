@@ -1,6 +1,6 @@
 "use client";
 
-import { caseOwnership, staffMay, type StaffCaseDetail } from "@orbit-support/shared";
+import { caseOwnership, staffMay, staffMayWorkComplaint, type StaffCaseDetail } from "@orbit-support/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RecordCard } from "@/features/support/RecordCard";
 import { StatusBadge } from "@/features/support/StatusBadge";
@@ -145,9 +145,11 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const mine = detail.assignedAgentId === identity.staffId;
   // The role model (PH-7.2, DEC-0029) mirrored from the shared table: refused actions are disabled with the reason.
   const ownership = caseOwnership(detail.assignedAgentId, identity.staffId);
-  const notOwner = !staffMay(identity.role, "set_status", ownership);
-  const canTake = detail.assignedAgentId === null && detail.status !== "resolved" && detail.status !== "closed";
-  const canReply = detail.status !== "closed";
+  // A formal complaint is a supervisor's duty (DEC-0039 g): an agent sees it but cannot take, work or answer it.
+  const complaintLocked = detail.category === "formal_complaint" && !staffMayWorkComplaint(identity.role);
+  const notOwner = complaintLocked || !staffMay(identity.role, "set_status", ownership);
+  const canTake = !complaintLocked && detail.assignedAgentId === null && detail.status !== "resolved" && detail.status !== "closed";
+  const canReply = !complaintLocked && detail.status !== "closed";
   // Whether the customer has seen the latest staff reply (§4.3): read marker at or after the last staff message.
   const customerReadLatest =
     detail.lastStaffMessageAt !== null &&
@@ -211,7 +213,18 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
             </p>
           )}
 
-          {detail.status !== "closed" && notOwner && (
+          {detail.category === "formal_complaint" && (
+            <p className={styles.readState} data-testid="complaint-deadline">
+              <span className={styles.incidentTag}>{t.staff.complaint.tag}</span>{" "}
+              {detail.complaintDeadlineAt ? fill(t.staff.complaint.deadline, { when: formatMessageTime(detail.complaintDeadlineAt) }) : ""}
+            </p>
+          )}
+          {complaintLocked && (
+            <p className={styles.hint} role="note" data-testid="complaint-locked">
+              {t.staff.complaint.supervisorOnly}
+            </p>
+          )}
+          {detail.status !== "closed" && notOwner && !complaintLocked && (
             <p className={styles.hint} role="note" data-testid="not-owner-hint">
               {t.staff.actions.notOwner}
             </p>
@@ -265,12 +278,12 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         onAnswer={(consultation, answer) => void runAction(() => staffApi.answerConsultation(identity, caseId, consultation.id, { answer }), () => t.staff.consultations.failed)}
         onAttributes={(input) => void runAction(() => staffApi.update(identity, caseId, input), refusedOr(t.staff.attributes.failed))}
         busy={action.status === "busy"}
-        mayEdit={staffMay(identity.role, "edit_attributes", ownership)}
+        mayEdit={!complaintLocked && staffMay(identity.role, "edit_attributes", ownership)}
       >
         <IncidentSection
           identity={identity}
           detail={detail}
-          mayLink={staffMay(identity.role, "link_incident", ownership)}
+          mayLink={!complaintLocked && staffMay(identity.role, "link_incident", ownership)}
           onChanged={() => {
             void refresh();
             onChanged();

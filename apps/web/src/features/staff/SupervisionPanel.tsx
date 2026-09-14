@@ -2,7 +2,7 @@
 
 import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday, isAllDay } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes } from "@/i18n";
+import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes, isPast } from "@/i18n";
 import { ApiError } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
@@ -175,6 +175,36 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
                 </li>
               ))}
             </ul>
+          )}
+          <h3 className={styles.contextTitle}>{t.staff.complaint.section}</h3>
+          {overview.complaints.count === 0 ? (
+            <p className={styles.muted}>{t.staff.complaint.none}</p>
+          ) : (
+            <>
+              <p className={styles.consultationMeta} data-testid="complaints-summary">
+                {fill(t.staff.complaint.summary, { count: String(overview.complaints.count), overdue: String(overview.complaints.overdue) })}
+              </p>
+              <ul className={styles.replyList} data-testid="complaints">
+                {overview.complaints.list.map((c) => {
+                  const late = c.complaintDeadlineAt !== null && isPast(c.complaintDeadlineAt);
+                  return (
+                    <li key={c.id} className={styles.replyItem}>
+                      <div className={styles.replyHead}>
+                        <button type="button" className={styles.linkButton} onClick={() => onOpenCase(c.id)}>
+                          {c.reference} · {c.subject}
+                        </button>
+                        <span className={late ? styles.attention : styles.caseMeta}>
+                          {c.complaintDeadlineAt ? (late ? fill(t.staff.complaint.overdue, { age: formatDuration(c.complaintDeadlineAt) }) : fill(t.staff.complaint.deadline, { when: formatMessageTime(c.complaintDeadlineAt) })) : ""}
+                        </span>
+                      </div>
+                      <p className={styles.consultationMeta}>
+                        {t.staff.responsible}: {c.assignedAgentId ?? t.staff.unassigned}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
           <h3 className={styles.contextTitle}>{fill(s.overdue, { hours: String(overview.attentionThresholdHours) })}</h3>
           {overview.overdue.length === 0 ? (

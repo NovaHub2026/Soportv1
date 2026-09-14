@@ -16,7 +16,7 @@ Decided by the Owner question by question. "In the product" says whether the sof
 | E-mail delay and reminder delay | 15 min unread → e-mail; 48 h waiting → one reminder | Same | Supervision → settings |
 | Consultation teams | Finance, operations, security, verification, product | Same | `packages/shared` |
 | Roles | agent / supervisor / admin (DEC-0029) | Same | Orbit's directory (BL-001) |
-| Formal complaints | A topic the customer can choose ("Reclamação formal"), routed to a supervisor, internal deadline 5 business days, recorded; staff may reclassify | No complaint flow — PH-10 | — |
+| Formal complaints | A topic the customer can choose ("Reclamação formal"), routed to a supervisor, internal deadline 5 business days, recorded; staff may reclassify | **Done in PH-10.2**: category, deadline on the case (business days of the operation's zone, no holiday calendar), agents locked out, supervision section | Customer topic chips; supervision → "Reclamações formais"; category in the case context |
 | Exports of a customer's data | An admin only, on the customer's request, recorded | No export — PH-10 | — |
 | Account recovery procedure | Forwarded to the Verification team, which uses Orbit's KYC process | Recorded and "forwarded" as a labeled simulation — PH-10 names the team; the real process needs Orbit (BL-001) | Staff recovery page |
 | Retention of closed cases | **Pending legal advice** — nothing deleted meanwhile | Nothing deleted except uploads never linked (24 h) | Policy first, then a job |

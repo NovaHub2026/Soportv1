@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { caseOwnership, findSimulatedStaff, STAFF_ACTIONS, staffMay } from "./identity.js";
+import { caseOwnership, findSimulatedStaff, STAFF_ACTIONS, staffMay, staffMayWorkComplaint } from "./identity.js";
 
 describe("role model (PH-7.2, DEC-0029)", () => {
   test("agents act on their own or unowned cases; replies, notes and consultation answers are open to any staff", () => {
@@ -21,5 +21,11 @@ describe("role model (PH-7.2, DEC-0029)", () => {
     expect(caseOwnership("staff-bruno", "staff-ana")).toBe("other");
     expect(findSimulatedStaff("staff-carla")?.role).toBe("supervisor");
     expect(findSimulatedStaff("staff-zzz")).toBeUndefined();
+  });
+
+  test("formal complaints are worked by supervisors and admins only (DEC-0039 g)", () => {
+    expect(staffMayWorkComplaint("agent")).toBe(false);
+    expect(staffMayWorkComplaint("supervisor")).toBe(true);
+    expect(staffMayWorkComplaint("admin")).toBe(true);
   });
 });

@@ -52,7 +52,7 @@ describe("customer projection (FND-0006)", () => {
       priority: "urgent", assignedAgentId: "staff-ana", createdAt: "t", updatedAt: "t", lastMessageAt: "t",
       lastCustomerMessageAt: null, lastStaffMessageAt: null, customerLastReadAt: null, staffLastReadAt: "t",
       unreadCount: 0, resolvedAt: null, resolutionReason: null, closedAt: null, parentCaseId: null, parentReference: null,
-      incidentId: "i1", incidentTitle: "INTERNO: provedor fora", recordKind: null, recordReference: null, awaitingReplySince: "t",
+      incidentId: "i1", incidentTitle: "INTERNO: provedor fora", recordKind: null, recordReference: null, awaitingReplySince: "t", complaintDeadlineAt: null,
     } as const;
     const projected = toCustomerCaseSummary(summary);
     for (const field of STAFF_ONLY_SUMMARY_FIELDS) expect(field in projected).toBe(false);

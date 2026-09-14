@@ -657,6 +657,25 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(Number(limited.headers['retry-after'])).toBe(limited.body.retryAfterSeconds);
     await post('203.0.113.8', 11).expect(201); // another client is unaffected
   });
+
+  it('PH-10.2: a customer may open a formal complaint; an agent gets 403 supervisor_required on it, a supervisor works it and sees it in the overview with its deadline', async () => {
+    const server = app.getHttpServer();
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-queixa')).send({ category: 'formal_complaint', message: 'Quero registrar uma reclamação formal sobre a cobrança.' }).expect(201);
+    expect(created.body.category).toBe('formal_complaint');
+    expect(created.body).not.toHaveProperty('complaintDeadlineAt');
+    const id: string = created.body.id;
+    const refused = await request(server).post(`/api/staff/cases/${id}/take`).set(asStaff('staff-ana', 'Ana')).expect(403);
+    expect(refused.body.message).toBe('supervisor_required');
+    await request(server).post(`/api/staff/cases/${id}/messages`).set(asStaff('staff-ana', 'Ana')).send({ body: 'Olá' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/take`).set(supervisor).expect(200);
+    const staffView = await request(server).get(`/api/staff/cases/${id}`).set(supervisor).expect(200);
+    expect(staffView.body.complaintDeadlineAt).toEqual(expect.any(String));
+    const overview = await request(server).get('/api/staff/overview').set(supervisor).expect(200);
+    expect(overview.body.complaints.count).toBeGreaterThanOrEqual(1);
+    expect(overview.body.complaints.list.some((c: { id: string }) => c.id === id)).toBe(true);
+    await request(server).post(`/api/staff/cases/${id}/assign`).set(supervisor).send({ agentId: 'staff-ana' }).expect(400);
+  });
 });
 
 /** Deletes every business row (cases cascade to messages, events, consultations, notifications and attachments). */

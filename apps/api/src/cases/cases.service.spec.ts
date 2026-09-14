@@ -1108,4 +1108,67 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect(kept?.messageId).toBe(messageId);
     });
   });
+
+  describe('formal complaints (PH-10.2, DEC-0039 g)', () => {
+    it('a complaint chosen by the customer gets a 5-business-day deadline in the operation\'s zone, staff-only; a follow-up inherits it', async () => {
+      const created = await service.createCase(alice, { category: 'formal_complaint', message: 'Quero registrar uma reclamação formal.' });
+      const view = await service.getStaffCase(created.id);
+      expect(view.category).toBe('formal_complaint');
+      const deadline = new Date(view.complaintDeadlineAt!);
+      const days = (deadline.getTime() - new Date(view.createdAt).getTime()) / 86_400_000;
+      expect(days).toBeGreaterThanOrEqual(5);
+      expect(days).toBeLessThanOrEqual(9);
+      expect('complaintDeadlineAt' in (await service.getCustomerCase(alice, created.id))).toBe(false);
+      await service.resolve(carla, created.id, { reason: 'solved', explanation: 'Respondida.' });
+      await service.closeCase(carla, created.id);
+      const child = await service.createFollowUp(alice, created.id, { message: 'Ainda não concordo.' });
+      expect((await service.getStaffCase(child.id))).toMatchObject({ category: 'formal_complaint', complaintDeadlineAt: expect.any(String) });
+    });
+
+    it('an agent can neither take nor work a complaint; a supervisor can; reclassification starts or ends the deadline', async () => {
+      const created = await service.createCase(alice, { category: 'formal_complaint', message: 'Reclamação.' });
+      for (const attempt of [
+        () => service.takeCase(ana, created.id),
+        () => service.postStaffMessage(ana, created.id, { body: 'Olá' }),
+        () => service.postInternalNote(ana, created.id, { body: 'nota' }),
+        () => service.setStatus(ana, created.id, 'waiting_customer'),
+        () => service.updateAttributes(ana, created.id, { priority: 'high' }),
+        () => service.requestConsultation(ana, created.id, { team: 'finance', question: '?' }),
+      ]) {
+        const error = await attempt().catch((e: unknown) => e);
+        expect(error).toBeInstanceOf(ForbiddenException);
+        expect((error as ForbiddenException).message).toBe('supervisor_required');
+      }
+      expect((await service.getStaffCase(created.id)).assignedAgentId).toBeNull();
+      await service.takeCase(carla, created.id);
+      await service.postStaffMessage(carla, created.id, { body: 'Recebemos sua reclamação.' });
+      // A supervisor may ask a specialist team, and the specialist (an agent) may answer.
+      const consultation = await service.requestConsultation(carla, created.id, { team: 'finance', question: 'Houve cobrança indevida?' });
+      await service.answerConsultation(ana, created.id, consultation.id, { answer: 'Não.' });
+      // Handing it to an agent is refused; to an admin/supervisor it is not.
+      await expect(service.assignCase(carla, created.id, { agentId: ana.id })).rejects.toBeInstanceOf(BadRequestException);
+      // Reclassified away: the deadline ends and agents may work it again.
+      await service.updateAttributes(carla, created.id, { category: 'other' });
+      expect((await service.getStaffCase(created.id)).complaintDeadlineAt).toBeNull();
+      await service.postInternalNote(ana, created.id, { body: 'agora posso' });
+      // Reclassified into a complaint by staff: a fresh deadline.
+      const plain = await service.createCase(bob, { category: 'other', message: 'Oi' });
+      expect((await service.getStaffCase(plain.id)).complaintDeadlineAt).toBeNull();
+      await service.updateAttributes(carla, plain.id, { category: 'formal_complaint' });
+      expect((await service.getStaffCase(plain.id)).complaintDeadlineAt).toEqual(expect.any(String));
+    });
+
+    it('supervision lists open complaints by deadline and counts the ones past it', async () => {
+      const supervision = moduleRef.get(SupervisionService);
+      const late = await service.createCase(alice, { category: 'formal_complaint', message: 'Atrasada.' });
+      const fresh = await service.createCase(bob, { category: 'formal_complaint', message: 'Recente.' });
+      await db.update(supportCases).set({ complaintDeadlineAt: new Date(Date.now() - 3_600_000) }).where(eq(supportCases.id, late.id));
+      const overview = await supervision.overview(carla);
+      expect(overview.complaints.count).toBe(2);
+      expect(overview.complaints.overdue).toBe(1);
+      expect(overview.complaints.list.map((c) => c.id)).toEqual([late.id, fresh.id]);
+      await service.resolve(carla, late.id, { reason: 'solved', explanation: 'ok' });
+      expect((await supervision.overview(carla)).complaints).toMatchObject({ count: 1, overdue: 0 });
+    });
+  });
 });

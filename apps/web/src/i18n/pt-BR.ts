@@ -112,6 +112,7 @@ export const ptBR = {
       error: "Não foi possível enviar. Verifique sua conexão e tente novamente.",
       attachmentGone: "Um dos arquivos anexados não está mais disponível. Anexe de novo e envie.",
       validation: "Escolha um assunto e escreva sua mensagem.",
+      complaintHint: "Uma reclamação formal é registrada com número próprio e tratada por um supervisor, com prazo interno de 5 dias úteis para a resposta.",
     },
     conversation: {
       reference: "Referência",
@@ -434,6 +435,15 @@ export const ptBR = {
       auto_window: "após o prazo de acompanhamento",
       staff: "pela equipe",
     },
+    complaint: {
+      tag: "Reclamação formal",
+      deadline: "Prazo de resposta: {when}",
+      overdue: "Prazo vencido há {age}",
+      supervisorOnly: "Reclamações formais são tratadas por supervisores. Um agente não pode assumir, responder nem alterar este caso.",
+      section: "Reclamações formais (prazo de 5 dias úteis)",
+      none: "Nenhuma reclamação formal em aberto.",
+      summary: "{count} em aberto · {overdue} com prazo vencido",
+    },
     incidents: {
       title: "Incidente compartilhado",
       tag: "Incidente",
@@ -613,6 +623,7 @@ export const ptBR = {
     account_verification: "Conta e verificação",
     bonuses_promotions: "Bônus e promoções",
     other: "Outro assunto",
+    formal_complaint: "Reclamação formal",
   } satisfies Record<CaseCategory, string>,
 } as const;
 

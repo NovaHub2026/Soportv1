@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the PH-10.1 commit (child of `88993a5`)
+Verified against: the PH-10.2 commit (child of `522edbf`)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
@@ -15,7 +15,7 @@ Rules: RULE-SUP-01 (only own cases), RULE-SUP-03 (no silent loss on retry/discon
 Implemented (PH-1.3, refined in PH-1.4):
 - Simulated Orbit shell: side panel ≥ 900 px, full-screen view below, toggled from the topbar; simulated-account picker, always labeled **Simulação**. Since PH-9.3 (DEC-0037 b) the desktop side panel is shown unless the customer closes it: "×" and the topbar "Fechar suporte" hide it (the trading area takes the width), "Suporte" brings it back and holds focus; a hidden panel marks nothing read.
 - Home: availability copy, "Falar com o suporte", lists "Conversas em andamento" / "anteriores", honest empty/error states with retry. Opening the panel creates nothing.
-- New request: five topic chips + message; send disabled until both; `clientMessageId` kept across retries so a failure never creates a second case; on success the panel lands in the conversation.
+- New request: six topic chips (the sixth, "Reclamação formal", shows a note about the supervisor and the five-business-day deadline — PH-10.2) + message; send disabled until both; `clientMessageId` kept across retries so a failure never creates a second case; on success the panel lands in the conversation.
 - Conversation: reference, pt-BR status label, own vs staff (by name) vs system messages, composer (Enter sends), pending → failed "Não enviada" + "Reenviar" with the same id, closed-case notice instead of composer, monotonic request counter (FND-0002) so a refresh never hides a just-sent message. Since PH-9.2 (DEC-0036 a/b) a pending or failed message lists the files it carries ("Anexos: …") until the server confirms it, and system messages are worded from their kind (`apps/web/src/lib/system-messages.ts`), the stored body shown only for older notices. The new-request form takes attachments too (PH-9.3, BL-010): files are uploaded before the case exists (`customerApi.stagedAttachments`) and the creation links them to the first message.
 - Live updates (PH-2.1, ADR-0004): the open conversation subscribes to `/api/support/cases/:id/stream` (fetch-based SSE with the identity header); `message.created` is applied at once, `case.updated` triggers a re-read, every (re)connect resyncs; polling drops to a 60 s safety net while connected (5 s otherwise). Measured delivery 73 ms staff → customer.
 - Delivery states (PH-2.2): unread badges on the home lists (fed by `/api/support/cases/stream`), automatic read marking while the conversation is visible (`POST …/read`), connection indicator "Ao vivo / Reconectando… / Sem conexão", and automatic resend of failed messages on reconnect with the same `clientMessageId` — observed with network emulation: sent once, shown once on both sides.

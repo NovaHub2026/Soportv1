@@ -73,3 +73,8 @@ export function localOpening(iso: string): { weekday: Weekday; time: string } {
   const date = new Date(iso);
   return { weekday: WEEKDAY_KEYS[date.getDay()], time: timeFormat.format(date) };
 }
+
+/** Whether an instant is already behind us (deadlines; kept out of components like formatDuration). */
+export function isPast(iso: string, now: Date = new Date()): boolean {
+  return new Date(iso).getTime() <= now.getTime();
+}

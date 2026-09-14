@@ -79,6 +79,15 @@ export class SupervisionService {
       .slice(0, 50)
       .map((x) => x.row);
     const overdue = await this.cases.summariesOf(overdueRows);
+    // Formal complaints (DEC-0039 g): every open one, by deadline, the ones past it counted.
+    const complaintRows = open
+      .filter((r) => r.category === 'formal_complaint')
+      .sort((a, b) => (a.complaintDeadlineAt?.getTime() ?? 0) - (b.complaintDeadlineAt?.getTime() ?? 0));
+    const complaints = {
+      count: complaintRows.length,
+      overdue: complaintRows.filter((r) => r.complaintDeadlineAt !== null && r.complaintDeadlineAt.getTime() <= now.getTime()).length,
+      list: await this.cases.summariesOf(complaintRows.slice(0, 50)),
+    };
     const oldestUnassigned = unassigned.reduce<Date | null>((acc, r) => (acc === null || r.createdAt < acc ? r.createdAt : acc), null);
     return {
       byStatus,
@@ -88,6 +97,7 @@ export class SupervisionService {
       byAgent: [...agents.values()].sort((a, b) => b.open - a.open),
       attentionThresholdHours: thresholdHours,
       overdue,
+      complaints,
       computedAt: now.toISOString(),
     };
   }

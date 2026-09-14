@@ -143,6 +143,12 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
         </div>
       </fieldset>
 
+      {category === "formal_complaint" && (
+        <p className={styles.hint} role="note" data-testid="complaint-hint">
+          {t.support.newRequest.complaintHint}
+        </p>
+      )}
+
       <label className={styles.label} htmlFor="new-request-message">
         {t.support.newRequest.message}
       </label>
