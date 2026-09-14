@@ -42,8 +42,8 @@ import {
   setStatusSchema,
   type SetStatusInput,
   type StaffCaseDetail,
-  type StaffQueueView,
-  staffQueueViewSchema,
+  type StaffListQuery,
+  staffListQuerySchema,
   updateCaseSchema,
   type UpdateCaseInput,
 } from '@orbit-support/shared';
@@ -56,7 +56,6 @@ import type { StaffActor } from '../identity/identity.types.js';
 import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { CasesService } from './cases.service.js';
 
-const viewSchema = staffQueueViewSchema.default('unassigned');
 
 /** Staff surface: queues, full conversation (including internal notes), take and reply. */
 @Controller('staff/cases')
@@ -109,11 +108,8 @@ export class StaffCasesController {
   }
 
   @Get()
-  list(
-    @CurrentActor() actor: StaffActor,
-    @Query('view', new ZodValidationPipe(viewSchema)) view: StaffQueueView,
-  ): Promise<CaseSummary[]> {
-    return this.cases.listStaffCases(actor, view);
+  list(@CurrentActor() actor: StaffActor, @Query(new ZodValidationPipe(staffListQuerySchema)) query: StaffListQuery): Promise<CaseSummary[]> {
+    return this.cases.listStaffCases(actor, query.view, { limit: query.limit, offset: query.offset });
   }
 
   @Get(':id')

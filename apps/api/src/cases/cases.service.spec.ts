@@ -616,4 +616,42 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     });
   });
 
+
+  describe('queue views for every state (PH-5.1, §14 item 9)', () => {
+    it('lists waiting, resolved and closed cases in their own views, ordered for attention, and paginates', async () => {
+      const a = await service.createCase(alice, { category: 'other', message: 'A' });
+      const b = await service.createCase(alice, { category: 'other', message: 'B' });
+      const c = await service.createCase(alice, { category: 'other', message: 'C' });
+      const d = await service.createCase(bob, { category: 'other', message: 'D' });
+      await service.setStatus(ana, a.id, 'waiting_customer');
+      await service.requestConsultation(ana, b.id, { team: 'finance', question: '?' });
+      await service.resolve(ana, c.id, { reason: 'solved', explanation: 'ok' });
+      await service.resolve(ana, d.id, { reason: 'solved', explanation: 'ok' });
+      await service.closeCase(ana, d.id);
+
+      expect((await service.listStaffCases(ana, 'waiting_customer')).map((x) => x.id)).toEqual([a.id]);
+      expect((await service.listStaffCases(ana, 'waiting_internal')).map((x) => x.id)).toEqual([b.id]);
+      expect((await service.listStaffCases(ana, 'resolved')).map((x) => x.id)).toEqual([c.id]);
+      expect((await service.listStaffCases(ana, 'closed')).map((x) => x.id)).toEqual([d.id]);
+      expect((await service.listStaffCases(ana, 'active')).map((x) => x.id).sort()).toEqual([a.id, b.id].sort());
+      expect(await service.listStaffCases(ana, 'active', { limit: 1, offset: 1 })).toHaveLength(1);
+      expect(await service.listStaffCases(ana, 'active', { limit: 1, offset: 5 })).toHaveLength(0);
+    });
+
+    it('awaitingReplySince marks unanswered customer messages, clears on a staff reply, sorts first, and never reaches customers', async () => {
+      const quiet = await service.createCase(alice, { category: 'other', message: 'Sem pressa' });
+      await service.postStaffMessage(ana, quiet.id, { body: 'Respondido' });
+      const loud = await service.createCase(bob, { category: 'other', message: 'Urgente' });
+      const active = await service.listStaffCases(ana, 'active');
+      expect(active[0].id).toBe(loud.id);
+      expect(active[0].awaitingReplySince).not.toBeNull();
+      expect(active.find((x) => x.id === quiet.id)?.awaitingReplySince).toBeNull();
+      await service.postCustomerMessage(alice, quiet.id, { body: 'Mais uma dúvida' });
+      expect((await service.getStaffCase(quiet.id)).awaitingReplySince).not.toBeNull();
+      await service.setStatus(ana, quiet.id, 'waiting_customer');
+      expect((await service.getStaffCase(quiet.id)).awaitingReplySince).toBeNull();
+      expect('awaitingReplySince' in (await service.getCustomerCase(alice, quiet.id))).toBe(false);
+    });
+  });
+
 });

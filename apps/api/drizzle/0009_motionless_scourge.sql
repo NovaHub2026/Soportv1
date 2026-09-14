@@ -1,0 +1,2 @@
+CREATE INDEX "support_cases_resolved_idx" ON "support_cases" USING btree ("status","resolved_at");--> statement-breakpoint
+CREATE INDEX "support_cases_closed_idx" ON "support_cases" USING btree ("status","closed_at");

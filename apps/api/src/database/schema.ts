@@ -85,6 +85,8 @@ export const supportCases = pgTable(
     index('support_cases_customer_idx').on(t.customerId, t.lastMessageAt),
     index('support_cases_queue_idx').on(t.status, t.assignedAgentId, t.createdAt),
     index('support_cases_record_idx').on(t.customerId, t.recordKind, t.recordReference),
+    index('support_cases_resolved_idx').on(t.status, t.resolvedAt),
+    index('support_cases_closed_idx').on(t.status, t.closedAt),
   ],
 );
 

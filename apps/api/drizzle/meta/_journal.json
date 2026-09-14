@@ -64,6 +64,13 @@
       "when": 1789365839798,
       "tag": "0008_red_piledriver",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789368129690,
+      "tag": "0009_motionless_scourge",
+      "breakpoints": true
     }
   ]
 }

@@ -64,6 +64,7 @@ export function summary(overrides: Partial<import("@orbit-support/shared").CaseS
     incidentTitle: null,
     recordKind: null,
     recordReference: null,
+    awaitingReplySince: null,
     ...overrides,
   };
 }

@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import {
   type AnswerConsultationInput,
   type AssignCaseInput,
@@ -31,6 +31,8 @@ import {
   type ResolutionReason,
   type ResolveCaseInput,
   type StaffCaseDetail,
+  STAFF_LIST_LIMITS,
+  type StaffListQuery,
   type StaffQueueView,
   type StaffStatusTarget,
   toCustomerCaseSummary,
@@ -314,15 +316,39 @@ export class CasesService {
 
   // ---------- Staff ----------
 
-  async listStaffCases(staff: StaffActor, view: StaffQueueView): Promise<CaseSummary[]> {
+  /**
+   * Queue views (context §5.2, PH-5.1): open views surface the oldest unanswered customer message first; the
+   * waiting views the oldest wait first; resolved and closed history newest first. Offset pagination.
+   */
+  async listStaffCases(
+    staff: StaffActor,
+    view: StaffQueueView,
+    page: Pick<StaffListQuery, 'limit' | 'offset'> = { limit: STAFF_LIST_LIMITS.default, offset: 0 },
+  ): Promise<CaseSummary[]> {
     const open = inArray(supportCases.status, OPEN);
-    const query = this.db.select().from(supportCases);
-    const rows =
+    // NULLS LAST: cases with an unanswered customer message come first, oldest first; the rest by latest activity.
+    const awaitingFirst = sql`${awaitingReplySinceSql} asc nulls last`;
+    const where =
       view === 'unassigned'
-        ? await query.where(and(open, isNull(supportCases.assignedAgentId))).orderBy(asc(supportCases.createdAt))
+        ? and(open, isNull(supportCases.assignedAgentId))
         : view === 'mine'
-          ? await query.where(and(open, eq(supportCases.assignedAgentId, staff.id))).orderBy(desc(supportCases.lastMessageAt))
-          : await query.where(open).orderBy(desc(supportCases.lastMessageAt));
+          ? and(open, eq(supportCases.assignedAgentId, staff.id))
+          : view === 'active'
+            ? open
+            : eq(supportCases.status, view);
+    const order =
+      view === 'unassigned'
+        ? [asc(supportCases.createdAt)]
+        : view === 'mine' || view === 'active'
+          ? [awaitingFirst, desc(supportCases.lastMessageAt)]
+          : view === 'waiting_customer'
+            ? [asc(supportCases.lastStaffMessageAt), asc(supportCases.updatedAt)]
+            : view === 'waiting_internal'
+              ? [asc(supportCases.updatedAt)]
+              : view === 'resolved'
+                ? [desc(supportCases.resolvedAt)]
+                : [desc(supportCases.closedAt)];
+    const rows = await this.db.select().from(supportCases).where(where).orderBy(...order).limit(page.limit).offset(page.offset);
     return this.withUnread(rows, 'staff');
   }
 
@@ -1222,8 +1248,20 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     incidentTitle,
     recordKind: (row.recordKind as OrbitRecordKind | null) ?? null,
     recordReference: row.recordReference,
+    awaitingReplySince: iso(awaitingReplySince(row)),
   };
 }
+
+/** The customer's latest message when nobody from staff replied after it, on a case where a reply is due. */
+function awaitingReplySince(row: SupportCaseRow): Date | null {
+  if (!row.lastCustomerMessageAt) return null;
+  if (row.status === 'waiting_customer' || row.status === 'resolved' || row.status === 'closed') return null;
+  if (row.lastStaffMessageAt && row.lastStaffMessageAt.getTime() >= row.lastCustomerMessageAt.getTime()) return null;
+  return row.lastCustomerMessageAt;
+}
+
+/** SQL twin of `awaitingReplySince` for ordering. */
+const awaitingReplySinceSql = sql`case when ${supportCases.status} in ('waiting_customer', 'resolved', 'closed') then null when ${supportCases.lastStaffMessageAt} is not null and ${supportCases.lastStaffMessageAt} >= ${supportCases.lastCustomerMessageAt} then null else ${supportCases.lastCustomerMessageAt} end`;
 
 function toCaseRecord(row: SupportCaseRow): CaseRecord | null {
   if (!row.recordKind || !row.recordReference || !row.recordCapturedAt) return null;

@@ -375,6 +375,15 @@ try {
     await desktop.getByText('Encerrado', { exact: true }).waitFor({ timeout: 5000 });
     await desktop.getByText(/Esta conversa foi encerrada/).waitFor();
     note('closed', 'staff closed the resolved case; the customer sees "Encerrado", the closure notice and the follow-up form instead of the composer');
+    // PH-5.1: closed history has its own view; the case is no longer under "Todos ativos".
+    await staffPage.getByRole('tab', { name: 'Encerrados' }).click();
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).waitFor({ timeout: 5000 });
+    await staffPage.getByRole('tab', { name: 'Todos ativos' }).click();
+    await staffPage.waitForTimeout(500);
+    if (await staffPage.getByRole('button', { name: new RegExp(reference) }).count()) throw new Error('Closed case still listed as active');
+    note('history-views', 'the closed case is listed under "Encerrados" and no longer under "Todos ativos" (PH-5.1)');
+    await staffPage.getByRole('tab', { name: 'Encerrados' }).click();
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).click();
     await desktop.getByLabel('O que ainda precisa').fill('O problema voltou a acontecer hoje.');
     await desktop.getByRole('button', { name: 'Preciso de mais ajuda' }).click();
     await desktop.getByText(/Referência SUP-000002/).waitFor({ timeout: 10_000 });

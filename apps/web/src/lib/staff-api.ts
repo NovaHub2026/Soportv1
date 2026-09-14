@@ -37,8 +37,12 @@ export const staffIdentityHeaders = (identity: StaffIdentity): Record<string, st
 const staffHeaders = staffIdentityHeaders;
 
 export const staffApi = {
-  listCases: (identity: StaffIdentity, view: StaffQueueView, signal?: AbortSignal) =>
-    apiRequest<CaseSummary[]>(`/staff/cases?view=${view}`, staffHeaders(identity), { signal }),
+  listCases: (identity: StaffIdentity, view: StaffQueueView, signal?: AbortSignal, page?: { limit: number; offset: number }) =>
+    apiRequest<CaseSummary[]>(
+      `/staff/cases?view=${view}${page ? `&limit=${page.limit}&offset=${page.offset}` : ""}`,
+      staffHeaders(identity),
+      { signal },
+    ),
   getCase: (identity: StaffIdentity, caseId: string, signal?: AbortSignal) =>
     apiRequest<StaffCaseDetail>(`/staff/cases/${caseId}`, staffHeaders(identity), { signal }),
   /** Orbit context of the case's customer (PH-4.1): available or explicitly unavailable, masked, labeled. */

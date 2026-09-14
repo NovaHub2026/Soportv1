@@ -1,10 +1,10 @@
 "use client";
 
-import { type CaseSummary, STAFF_QUEUE_VIEWS, type StaffQueueView } from "@orbit-support/shared";
+import { type CaseSummary, STAFF_LIST_LIMITS, STAFF_QUEUE_VIEWS, type StaffQueueView } from "@orbit-support/shared";
 import { useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { UnreadBadge } from "@/features/support/UnreadBadge";
-import { dictionary as t, formatMessageTime } from "@/i18n";
+import { dictionary as t, fill, formatDuration, formatMessageTime } from "@/i18n";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import styles from "./staff.module.css";
 
@@ -25,11 +25,17 @@ interface StaffQueueProps {
   live?: boolean;
 }
 
-type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; cases: CaseSummary[] };
+type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; cases: CaseSummary[]; more: boolean };
+
+const PAGE = STAFF_LIST_LIMITS.default;
 
 export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSelectCase, refreshToken, live = false }: StaffQueueProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+  // How many pages the user asked for on this view; a refresh re-reads all of them so nothing vanishes. Another view starts at one page.
+  const [paging, setPaging] = useState<{ view: StaffQueueView; pages: number }>({ view, pages: 1 });
+  const pages = paging.view === view ? paging.pages : 1;
+  const loadMore = () => setPaging({ view, pages: pages + 1 });
   // Monotonic request counter: a poll that started before an action must not overwrite the refreshed list.
   const requestSeq = useRef(0);
 
@@ -38,9 +44,9 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
     const load = async () => {
       const id = ++requestSeq.current;
       try {
-        const cases = await staffApi.listCases(identity, view, controller.signal);
+        const cases = await staffApi.listCases(identity, view, controller.signal, { limit: PAGE * pages, offset: 0 });
         if (id !== requestSeq.current) return;
-        setState({ status: "ready", cases });
+        setState({ status: "ready", cases, more: cases.length >= PAGE * pages });
       } catch (error: unknown) {
         if (controller.signal.aborted || id !== requestSeq.current) return;
         console.warn("staff: could not load queue", error);
@@ -53,7 +59,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
       controller.abort();
       clearInterval(timer);
     };
-  }, [identity, view, refreshToken, attempt, live]);
+  }, [identity, view, refreshToken, attempt, live, pages]);
 
   return (
     <section className={styles.queue} aria-label={t.staff.queues[view]}>
@@ -118,10 +124,23 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                   {t.staff.responsible}: {c.assignedAgentId ?? t.staff.unassigned}
                   {c.assignedAgentId === identity.staffId ? ` (${t.staff.you})` : ""}
                 </span>
+                {c.awaitingReplySince && (
+                  <span className={styles.attention} data-testid="awaiting-reply">
+                    {fill(t.staff.awaitingReply, { age: formatDuration(c.awaitingReplySince) })}
+                  </span>
+                )}
+                {c.status === "waiting_customer" && c.lastStaffMessageAt && (
+                  <span className={styles.caseMeta}>{fill(t.staff.waitingCustomerSince, { age: formatDuration(c.lastStaffMessageAt) })}</span>
+                )}
               </button>
             </li>
           ))}
         </ul>
+      )}
+      {state.status === "ready" && state.more && (
+        <button type="button" className={styles.secondaryButton} onClick={loadMore}>
+          {t.staff.loadMore}
+        </button>
       )}
     </section>
   );

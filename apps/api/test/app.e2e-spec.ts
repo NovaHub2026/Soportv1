@@ -348,4 +348,21 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(staffView.body.record.snapshot.title).toBe('Saque 250 USDT');
   });
 
+
+  it('PH-5.1: every view is reachable, pagination is validated, and a resolved case leaves the active views', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-view')).send({ category: 'other', message: 'Vista' }).expect(201);
+    const id: string = created.body.id;
+    await request(server).get('/api/staff/cases?view=bogus').set(asStaff('staff-ana', 'Ana')).expect(400);
+    await request(server).get('/api/staff/cases?view=active&limit=1000').set(asStaff('staff-ana', 'Ana')).expect(400);
+    const one = await request(server).get('/api/staff/cases?view=active&limit=1').set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(one.body).toHaveLength(1);
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: 'ok' }).expect(200);
+    const resolved = await request(server).get('/api/staff/cases?view=resolved').set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(resolved.body.map((c: { id: string }) => c.id)).toContain(id);
+    const active = await request(server).get('/api/staff/cases?view=active&limit=200').set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(active.body.map((c: { id: string }) => c.id)).not.toContain(id);
+    await request(server).get('/api/staff/cases?view=closed').set(asCustomer('cust-view')).expect(403);
+  });
+
 });

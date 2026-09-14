@@ -67,7 +67,7 @@ describe("StaffQueue", () => {
     );
     expect(await screen.findByText("Saque pendente")).toBeDefined();
     expect(screen.getByText("Novo")).toBeDefined();
-    expect(requests[0].url).toBe("/api/staff/cases?view=unassigned");
+    expect(requests[0].url).toBe("/api/staff/cases?view=unassigned&limit=50&offset=0");
     expect(requests[0].headers["x-simulated-staff-id"]).toBe("staff-ana");
     expect(requests[0].headers["x-simulated-staff-role"]).toBe("agent");
 
@@ -79,6 +79,19 @@ describe("StaffQueue", () => {
     mockFetch(() => ({ body: [summary({ unreadCount: 3 })] }));
     render(<StaffQueue identity={ana} view="active" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
     expect(await screen.findByLabelText("3 novas do cliente")).toHaveProperty("textContent", "3");
+  });
+
+  test("PH-5.1: offers every lifecycle view, flags unanswered customer messages with their age, and loads more", async () => {
+    const since = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    const { requests } = mockFetch(() => ({ body: [summary({ awaitingReplySince: since, subject: "Sem resposta" }), summary({ id: "x", subject: "Ok" })] }));
+    const onViewChange = vi.fn();
+    render(<StaffQueue identity={ana} view="active" onViewChange={onViewChange} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    expect(await screen.findByText("Sem resposta")).toBeDefined();
+    expect(screen.getByTestId("awaiting-reply").textContent).toBe("Sem resposta há 3 h");
+    for (const name of ["Aguardando cliente", "Aguardando equipe", "Resolvidos", "Encerrados"]) expect(screen.getByRole("tab", { name })).toBeDefined();
+    fireEvent.click(screen.getByRole("tab", { name: "Resolvidos" }));
+    expect(onViewChange).toHaveBeenCalledWith("resolved");
+    expect(requests[0].url).toBe("/api/staff/cases?view=active&limit=50&offset=0");
   });
 
   test("explains an empty queue per view", async () => {

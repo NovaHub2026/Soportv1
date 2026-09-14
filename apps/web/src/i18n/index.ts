@@ -34,6 +34,15 @@ export function fill(template: string, values: Record<string, string>): string {
 }
 
 /** `14:05` when today, `13/09 14:05` otherwise. */
+/** Elapsed time in short pt-BR: "5 min", "3 h", "2 d". */
+export function formatDuration(sinceIso: string, now: Date = new Date()): string {
+  const minutes = Math.max(0, Math.round((now.getTime() - new Date(sinceIso).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.floor(hours / 24)} d`;
+}
+
 export function formatMessageTime(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);
   const sameDay =

@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `0d8dcc9` plus the PH-4.2 change (record snapshot on the case)
+Verified against: `9c64934` plus the PH-5.1 change (queue views, `awaitingReplySince`, pagination)
 Verified on: 2026-09-14
 Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/attachments/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
@@ -17,6 +17,7 @@ Concurrency and contracts (Cycle Audit 1, DEC-0015/0016/0017):
 - Customer responses and customer streams are the `CustomerCaseSummary` projection: no `priority`, `assignedAgentId`, `staffLastReadAt`, `incidentId`, `incidentTitle` (RULE-SUP-04).
 - Idempotency: message keys unique per (case, author type, author id); creation keys on `support_cases.client_message_id` unique per customer; cross-kind reuse → 409 `client_message_id_reused`.
 - Guards: `resolve` → 409 `consultations_open` while a consultation is open; `answerConsultation` on a closed case → 409; transfer to an id outside the staff directory → 400 `unknown_agent`; uploads on closed cases → 409; every exit from `resolved` clears the resolution and records `case_reopened` with its actor; free text refuses NUL (400).
+Queue views (PH-5.1, DEC-0021): `listStaffCases(actor, view, { limit, offset })` for the seven views with per-view ordering; `CaseSummary.awaitingReplySince` (staff-only) marks a customer message with no later staff reply on a non-final case not waiting for the customer; indexes `(status, resolved_at)`, `(status, closed_at)` (migration `0009`).
 Record on the case (PH-4.2, DEC-0020): `createCase` accepts `record {kind, reference}`, captures the snapshot through `OrbitRecordsPort` before the transaction (`record_*` columns, migration `0008`), records it in `case_created`, and exposes `recordKind`/`recordReference` on summaries and `record` (`CaseRecord`) on both details; `activeCasesByRecord` feeds the customer's records list; `currentRecord` feeds the staff Orbit context.
 Implemented (PH-1.2):
 - Create = case + first public message + `case_created` event; subject derived from the first line when omitted. Reference `SUP-` + six digits from an identity column.
@@ -51,4 +52,4 @@ Customer access is ownership: another customer's case answers 404, never 403 (RU
 ADR-0003 (PostgreSQL via Drizzle, PGlite for dev/tests), DEC-0005 (shared zod contracts). Assumptions: the reference is an identifier, not a credential (context §6.1); the reactivation rule and the closure window are reversible working defaults (context §13.1) — revisit when Operations defines policy (BL-002).
 
 ## Verification and change checklist
-Behavior change → `npm test -w api` and `npm run test:e2e -w api` (both in `verify`); schema change → regenerate migration, rerun both; contract change → `npm run build:shared`, `npm test -w web`; any new write to `support_cases` must go through `mutate()`. Phase-level journey → `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-4.2-verification.md`, `docs/evidence/CYCLE-1-verification.md`.
+Behavior change → `npm test -w api` and `npm run test:e2e -w api` (both in `verify`); schema change → regenerate migration, rerun both; contract change → `npm run build:shared`, `npm test -w web`; any new write to `support_cases` must go through `mutate()`. Phase-level journey → `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5.1-verification.md`, `docs/evidence/PH-4.2-verification.md`.

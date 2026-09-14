@@ -197,9 +197,19 @@ export const resolveCaseSchema = z.object({
 });
 export type ResolveCaseInput = z.infer<typeof resolveCaseSchema>;
 
-export const STAFF_QUEUE_VIEWS = ["unassigned", "mine", "active"] as const;
+/** Every lifecycle state is reachable (context §5.2, PH-5.1): open views plus waiting, resolved and closed history. */
+export const STAFF_QUEUE_VIEWS = ["unassigned", "mine", "active", "waiting_customer", "waiting_internal", "resolved", "closed"] as const;
 export type StaffQueueView = (typeof STAFF_QUEUE_VIEWS)[number];
 export const staffQueueViewSchema = z.enum(STAFF_QUEUE_VIEWS);
+
+/** Pagination of staff lists (offset-based; PH-5.1). */
+export const STAFF_LIST_LIMITS = { default: 50, max: 200 } as const;
+export const staffListQuerySchema = z.object({
+  view: staffQueueViewSchema.default("unassigned"),
+  limit: z.coerce.number().int().min(1).max(STAFF_LIST_LIMITS.max).default(STAFF_LIST_LIMITS.default),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+export type StaffListQuery = z.infer<typeof staffListQuerySchema>;
 
 // ---- Case reference (PROJECT_CONTEXT.md §6.1: identifies a matter, is not a credential) ----
 
@@ -331,6 +341,11 @@ export const caseSummarySchema = z.object({
   /** The record this case is about, if it was opened from one (§4.2). The snapshot travels in the detail. */
   recordKind: z.enum(ORBIT_RECORD_KINDS).nullable(),
   recordReference: z.string().nullable(),
+  /**
+   * Since when the customer waits for a human reply: the latest customer message when it is newer than the
+   * latest staff reply and the case is neither waiting for the customer nor final (PH-5.1, §14 item 9). Staff-only.
+   */
+  awaitingReplySince: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 
@@ -352,7 +367,7 @@ export interface CaseRecord {
  * Fields that describe how staff work the case, never the customer's own matter. They are removed from every
  * customer response and customer stream event (RULE-SUP-04, context §10.2 — Cycle Audit 1, FND-0006).
  */
-export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle"] as const;
+export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle", "awaitingReplySince"] as const;
 export type StaffOnlySummaryField = (typeof STAFF_ONLY_SUMMARY_FIELDS)[number];
 
 export const customerCaseSummarySchema = caseSummarySchema.omit({
@@ -361,6 +376,7 @@ export const customerCaseSummarySchema = caseSummarySchema.omit({
   staffLastReadAt: true,
   incidentId: true,
   incidentTitle: true,
+  awaitingReplySince: true,
 });
 export type CustomerCaseSummary = z.infer<typeof customerCaseSummarySchema>;
 
