@@ -29,6 +29,8 @@ services:
       PORT: "3001"
       # Reachable only on the compose network (not published); main.ts announces the non-loopback bind.
       SUPPORT_BIND: 0.0.0.0
+      # SUPPORT_TRUST_PROXY: set to the number of reverse proxies that append X-Forwarded-For in front of the web (usually 1)
+      # once one exists; the web itself does not report the browser's address, so it stays unset here (BL-026, DEC-0038).
       SUPPORT_DATABASE_URL: postgres://${POSTGRES_USER:-orbit}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-orbit_support}
       SUPPORT_UPLOADS_DIR: /data/uploads
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}

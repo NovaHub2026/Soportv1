@@ -110,6 +110,21 @@ async function waitForHttp(url, timeoutMs = 90_000) {
   throw new Error(`Timed out waiting for ${url}`);
 }
 
+/**
+ * The case reference shown in a customer conversation header, once it is none of `known` (BL-023): references are
+ * read from the product, never assumed from the order in which a run creates cases.
+ */
+async function shownReference(page, known = []) {
+  const header = page.getByText(/Referência SUP-\d{6}/).first();
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const text = ((await header.textContent({ timeout: 1000 }).catch(() => '')) ?? '').replace('Referência', '').trim();
+    if (/^SUP-\d{6}$/.test(text) && !known.includes(text)) return text;
+    await page.waitForTimeout(200);
+  }
+  throw new Error(`No new case reference appeared (known: ${known.join(', ')})`);
+}
+
 const observations = [];
 function note(id, text) {
   observations.push({ id, text });
@@ -225,9 +240,9 @@ try {
     await desktop.waitForTimeout(800);
     if (await desktop.getByTestId('notifications-badge').count()) throw new Error('Notification badge shown although the conversation is open');
     await desktop.getByRole('button', { name: 'Notificações' }).click();
-    await desktop.getByRole('button', { name: /Nova resposta em SUP-000001/ }).waitFor({ timeout: 5000 });
+    await desktop.getByRole('button', { name: new RegExp(`Nova resposta em ${reference}`) }).waitFor({ timeout: 5000 });
     await desktop.getByRole('button', { name: 'Notificações' }).click();
-    note('notification', 'the staff reply created the notification "Nova resposta em SUP-000001"; because the conversation was on screen it was marked read at once and no badge appeared (PH-6.1)');
+    note('notification', `the staff reply created the notification "Nova resposta em ${reference}"; because the conversation was on screen it was marked read at once and no badge appeared (PH-6.1)`);
     await shot(desktop, '04-conversation-reply');
 
     // The customer has the conversation open, so the reply counts as read — staff see that, live.
@@ -357,7 +372,7 @@ try {
 
     await staffPage.getByRole('button', { name: 'Consultar equipe' }).click();
     await staffPage.getByLabel('Equipe', { exact: true }).selectOption('finance');
-    await staffPage.getByLabel('Pergunta para a equipe').fill('O saque SUP-000001 foi liquidado na rede?');
+    await staffPage.getByLabel('Pergunta para a equipe').fill(`O saque ${reference} foi liquidado na rede?`);
     await staffPage.getByRole('button', { name: 'Enviar consulta' }).click();
     await staffPage.getByText('1 consulta pendente').waitFor({ timeout: 5000 });
     await desktop.getByText('Em análise').waitFor({ timeout: 5000 });
@@ -418,15 +433,15 @@ try {
     await staffPage.getByRole('button', { name: new RegExp(reference) }).click();
     await desktop.getByLabel('O que ainda precisa').fill('O problema voltou a acontecer hoje.');
     await desktop.getByRole('button', { name: 'Preciso de mais ajuda' }).click();
-    await desktop.getByText(/Referência SUP-000002/).waitFor({ timeout: 10_000 });
-    await desktop.getByText(/Continuação do caso SUP-000001/).first().waitFor();
-    await desktop.getByText('Continuação do caso SUP-000001.', { exact: true }).waitFor();
-    note('follow-up', 'the customer opened a linked continuation: new reference SUP-000002, "Continuação do caso SUP-000001" in the header and a system message pointing back');
+    const followUpRef = await shownReference(desktop, [reference]);
+    await desktop.getByText(`Continuação do caso ${reference}`).first().waitFor();
+    await desktop.getByText(`Continuação do caso ${reference}.`, { exact: true }).waitFor();
+    note('follow-up', `the customer opened a linked continuation: new reference ${followUpRef}, "Continuação do caso ${reference}" in the header and a system message pointing back`);
     await shot(desktop, '16-customer-follow-up');
     await staffPage.getByRole('tab', { name: 'Não atribuídos' }).click();
-    await staffPage.getByRole('button', { name: /SUP-000002/ }).waitFor({ timeout: 10_000 });
-    await staffPage.getByRole('button', { name: /SUP-000002/ }).click();
-    await staffPage.getByText(/Continuação do caso SUP-000001/).first().waitFor({ timeout: 5000 });
+    await staffPage.getByRole('button', { name: new RegExp(followUpRef) }).waitFor({ timeout: 10_000 });
+    await staffPage.getByRole('button', { name: new RegExp(followUpRef) }).click();
+    await staffPage.getByText(`Continuação do caso ${reference}`).first().waitFor({ timeout: 5000 });
     note('follow-up-staff', 'the continuation reached the staff queue with the link to the previous case');
 
     // Shared incidents (PH-3.5): create and link, broadcast an internal note, mark resolved without touching the case.
@@ -444,7 +459,7 @@ try {
     await staffPage.getByRole('button', { name: 'Marcar incidente como resolvido' }).click();
     await staffPage.getByText(/marcado como resolvido por Ana Ribeiro/).waitFor({ timeout: 5000 });
     await staffPage.getByText('Novo').first().waitFor();
-    note('incident', 'created and linked an incident from SUP-000002, broadcast an internal note (not visible to the customer), marked the incident resolved — the case stayed "Novo"');
+    note('incident', `created and linked an incident from ${followUpRef}, broadcast an internal note (not visible to the customer), marked the incident resolved — the case stayed "Novo"`);
     await shot(staffPage, '17-staff-incident');
     await staffPage.close();
 
@@ -482,15 +497,15 @@ try {
     if (!(await desktop.getByLabel('Depósitos e saques').isChecked())) throw new Error('Topic was not preselected from the record');
     await desktop.getByLabel('Conte o que está acontecendo').fill('Esse saque está em processamento há muito tempo.');
     await desktop.getByRole('button', { name: 'Enviar' }).click();
-    await desktop.getByText(/Referência SUP-000003/).waitFor({ timeout: 10_000 });
+    const recordRef = await shownReference(desktop, [reference, followUpRef]);
     await desktop.getByTestId('case-record').getByText('Saque 250 USDT').waitFor();
-    note('record-entry', '"Preciso de ajuda" on the simulated withdrawal opened a request with the record card, preselected "Depósitos e saques", and the new case SUP-000003 shows the card with the snapshot');
+    note('record-entry', `"Preciso de ajuda" on the simulated withdrawal opened a request with the record card, preselected "Depósitos e saques", and the new case ${recordRef} shows the card with the snapshot`);
     await shot(desktop, '18-customer-record-case');
     const staffPage2 = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
     await staffPage2.goto(`${WEB}/staff`);
     await staffPage2.getByRole('tab', { name: 'Não atribuídos' }).click();
-    await staffPage2.getByRole('button', { name: /SUP-000003/ }).waitFor({ timeout: 10_000 });
-    await staffPage2.getByRole('button', { name: /SUP-000003/ }).click();
+    await staffPage2.getByRole('button', { name: new RegExp(recordRef) }).waitFor({ timeout: 10_000 });
+    await staffPage2.getByRole('button', { name: new RegExp(recordRef) }).click();
     await staffPage2.getByTestId('staff-case-record').getByText('TX7f…9k2Q').waitFor({ timeout: 5000 });
     await staffPage2.getByTestId('orbit-record-current').getByText('Em processamento').waitFor({ timeout: 5000 });
     note('record-staff', 'staff see the withdrawal card with the masked destination captured at opening and the record\'s current state from the simulated Orbit');
@@ -498,21 +513,21 @@ try {
     await staffPage2.getByRole('tab', { name: 'Todos ativos' }).click();
     await staffPage2.getByRole('searchbox', { name: 'Buscar casos' }).fill('WD-48213');
     // The search is debounced: wait until the other active case has left the list.
-    await staffPage2.getByRole('button', { name: /SUP-000002/ }).waitFor({ state: 'detached', timeout: 5000 });
-    await staffPage2.getByRole('button', { name: /SUP-000003/ }).waitFor({ timeout: 5000 });
+    await staffPage2.getByRole('button', { name: new RegExp(followUpRef) }).waitFor({ state: 'detached', timeout: 5000 });
+    await staffPage2.getByRole('button', { name: new RegExp(recordRef) }).waitFor({ timeout: 5000 });
     await staffPage2.getByRole('searchbox', { name: 'Buscar casos' }).fill('nada-disso');
     await staffPage2.getByText('Nenhum caso ativo no momento.').waitFor({ timeout: 5000 });
     await staffPage2.getByRole('button', { name: 'Limpar' }).click();
-    note('search', 'searching "WD-48213" under "Todos ativos" lists only SUP-000003; an unknown term shows the honest empty state; "Limpar" restores the list (PH-5.2)');
+    note('search', `searching "WD-48213" under "Todos ativos" lists only ${recordRef}; an unknown term shows the honest empty state; "Limpar" restores the list (PH-5.2)`);
     await shot(staffPage2, '19-staff-record-case');
     await staffPage2.close();
-    // Asking again about the same record suggests continuing SUP-000003 instead of opening a duplicate.
+    // Asking again about the same record suggests continuing its active case instead of opening a duplicate.
     await desktop.getByRole('button', { name: 'Voltar' }).click();
     await desktop.getByRole('button', { name: 'Preciso de ajuda: Saque 250 USDT' }).click();
-    await desktop.getByText(/já tem uma conversa em andamento \(SUP-000003\)/).waitFor({ timeout: 5000 });
+    await desktop.getByText(`já tem uma conversa em andamento (${recordRef})`).waitFor({ timeout: 5000 });
     await desktop.getByRole('button', { name: 'Continuar conversa' }).click();
-    await desktop.getByText(/Referência SUP-000003/).waitFor();
-    note('record-continue', 'asking for help about the same record again offered to continue SUP-000003, and "Continuar conversa" opened it');
+    await desktop.getByText(`Referência ${recordRef}`).waitFor();
+    note('record-continue', `asking for help about the same record again offered to continue ${recordRef}, and "Continuar conversa" opened it`);
 
     // PH-6.2: Bruno has no panel open; a staff reply to his case is unread, so the job e-mails it (simulated outbox).
     const brunoCase = await fetch(`${API}/api/support/cases`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-simulated-customer-id': 'cust-bruno' }, body: JSON.stringify({ category: 'operations', message: 'Minha operação não liquidou.' }) });
@@ -671,7 +686,7 @@ try {
     await waitForHttp(`${API}/api/health`);
     await honestStaff.reload();
     await honestStaff.getByRole('tab', { name: 'Não atribuídos' }).click();
-    await honestStaff.getByRole('button', { name: /SUP-000003/ }).click();
+    await honestStaff.getByRole('button', { name: new RegExp(recordRef) }).click();
     await honestStaff.getByText(/Dados do Orbit indisponíveis: Orbit sem resposta/).waitFor({ timeout: 10_000 });
     await honestStaff.getByRole('button', { name: 'Tentar novamente' }).first().waitFor();
     await honestStaff.getByTestId('staff-case-record').getByText('TX7f…9k2Q').waitFor();
@@ -680,9 +695,9 @@ try {
     await shot(honestStaff, '21-staff-orbit-outage');
     await honest.reload();
     await honest.getByText('Registros indisponíveis no momento.').waitFor({ timeout: 10_000 });
-    await honest.getByRole('button', { name: /SUP-000003/ }).click();
+    await honest.getByRole('button', { name: new RegExp(recordRef) }).click();
     await honest.getByTestId('case-record').getByText('Saque 250 USDT').waitFor();
-    note('orbit-outage-customer', 'the host says "Registros indisponíveis no momento." instead of an empty list, and the customer still opens SUP-000003 with the card from the snapshot');
+    note('orbit-outage-customer', `the host says "Registros indisponíveis no momento." instead of an empty list, and the customer still opens ${recordRef} with the card from the snapshot`);
     await shot(honest, '22-customer-orbit-outage');
     await honestStaff.close();
     await honest.close();

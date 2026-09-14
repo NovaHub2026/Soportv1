@@ -2,6 +2,8 @@ import { Logger } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '../database/database.js';
 import type { CasesService } from './cases.service.js';
+import { AttachmentCleanupJob } from '../attachments/attachment-cleanup.job.js';
+import type { AttachmentsService } from '../attachments/attachments.service.js';
 import { ClosureJob } from './closure.job.js';
 import type { EmailNotifierPort } from './email-notifier.js';
 import { NotificationJob } from './notification.job.js';
@@ -50,6 +52,12 @@ const JOBS: JobCase[] = [
       vi.spyOn(job, 'emailDue').mockImplementation(work);
       return job;
     },
+  },
+  {
+    name: 'AttachmentCleanupJob',
+    envSwitch: 'SUPPORT_ATTACHMENT_CLEANUP_JOB',
+    envInterval: 'SUPPORT_ATTACHMENT_CLEANUP_INTERVAL_MS',
+    make: (work) => new AttachmentCleanupJob({ removeUnlinked: () => work() } as unknown as AttachmentsService),
   },
 ];
 

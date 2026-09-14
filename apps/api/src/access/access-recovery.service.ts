@@ -14,6 +14,7 @@ import {
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { type AccessRecoveryRow, accessRecoveryRequests } from '../database/schema.js';
+import { SlidingWindowLimiter } from '../common/rate-limit.js';
 import type { StaffActor } from '../identity/identity.types.js';
 
 const HOUR_MS = 3_600_000;
@@ -24,6 +25,7 @@ const BURST_WINDOW_MS = 10 * 60_000;
  * customers or Orbit records on purpose: a recovery request is an unverified contact plus a description, and
  * the answer is the same whether or not the contact belongs to an account (RULE-SUP-01). Abuse limits are
  * working defaults (ACCESS_RECOVERY_LIMITS): per contact (normalized — Cycle Audit 3) with 429 `too_many_requests`,
+ * per client address (as the trusted proxy chain reports it — PH-9.4, BL-026) with 429 `too_many_from_client`,
  * and an instance-wide ceiling with 429 `service_busy` so the page never blames a person's own contact for
  * other people's traffic. The "forwarded" outcome records a hand-off to Orbit's verification process that is
  * simulated until one exists (DEC-0003, BL-002).
@@ -32,16 +34,22 @@ const BURST_WINDOW_MS = 10 * 60_000;
 export class AccessRecoveryService {
   /** Instance-wide burst window (timestamps of accepted requests in the last 10 minutes). */
   private readonly accepted: number[] = [];
+  /** Attempts per client address in the burst window (BL-026); a retry of an accepted request is answered before it. */
+  private readonly perClient = new SlidingWindowLimiter(ACCESS_RECOVERY_LIMITS.perClientPer10Minutes, BURST_WINDOW_MS);
 
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  async create(input: AccessRecoveryInput, now = new Date()): Promise<AccessRecoveryReceipt> {
+  async create(input: AccessRecoveryInput, now = new Date(), client: string | null = null): Promise<AccessRecoveryReceipt> {
     const contactHash = hashContact(input.contact);
     if (input.clientRequestId) {
       const existing = await this.findByClientRequest(contactHash, input.clientRequestId);
       if (existing) return toReceipt(existing);
     }
     this.assertBurst(now);
+    if (client) {
+      const verdict = this.perClient.take(client, now.getTime());
+      if (!verdict.allowed) throw tooMany('too_many_from_client', verdict.retryAfterSeconds);
+    }
     const [{ recent }] = await this.db
       .select({ recent: count() })
       .from(accessRecoveryRequests)
@@ -106,7 +114,7 @@ export class AccessRecoveryService {
   }
 }
 
-function tooMany(error: 'too_many_requests' | 'service_busy', retryAfterSeconds: number): HttpException {
+function tooMany(error: 'too_many_requests' | 'too_many_from_client' | 'service_busy', retryAfterSeconds: number): HttpException {
   return new HttpException({ error, retryAfterSeconds: Math.max(1, retryAfterSeconds) }, 429);
 }
 

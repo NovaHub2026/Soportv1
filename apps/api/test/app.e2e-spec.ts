@@ -18,6 +18,9 @@ import { DB } from './../src/database/database.module.js';
 import type { Db } from './../src/database/database.js';
 import { accessRecoveryRequests, customerPreferences, emailOutbox, incidents, savedReplies, supportCases, supportSettings } from './../src/database/schema.js';
 
+// BL-026: this file plays a deployment with one appending proxy in front (supertest sets X-Forwarded-For itself).
+process.env.SUPPORT_TRUST_PROXY = '1';
+
 const asCustomer = (id: string) => ({ [SIMULATED_IDENTITY_HEADERS.customerId]: id });
 const asStaff = (id: string, name = id) => ({
   [SIMULATED_IDENTITY_HEADERS.staffId]: id,
@@ -577,6 +580,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).post('/api/public/access-recovery').send({ contact: 'FLOOD@example.com', description: 'Terceira tentativa de flood.' }).expect(201);
     const limited = await request(server).post('/api/public/access-recovery').send({ contact: 'flood@example.com', description: 'Quarta tentativa de flood.' }).expect(429);
     expect(limited.body).toMatchObject({ error: 'too_many_requests', retryAfterSeconds: expect.any(Number) });
+    expect(Number(limited.headers['retry-after'])).toBe(limited.body.retryAfterSeconds); // BL-026: every 429 says when
     // Staff only for the list and the outcome; customers and anonymous callers are refused.
     await request(server).get('/api/staff/access-recovery').expect(401);
     await request(server).get('/api/staff/access-recovery').set(asCustomer('cust-alice')).expect(403);
@@ -640,6 +644,17 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     for (const row of (await request(server).get('/api/support/cases').set(customer).expect(200)).body) customerCaseSummarySchema.strict().parse(row);
     // The guard fails on the prohibited condition: a staff summary is not a valid customer summary.
     expect(customerCaseSummarySchema.strict().safeParse(queue.body[0]).success).toBe(false);
+  });
+
+  it('BL-026: behind an appending proxy the recovery route limits each client as that proxy reports it, and the 429 carries Retry-After', async () => {
+    const server = app.getHttpServer();
+    const post = (client: string, i: number) =>
+      request(server).post('/api/public/access-recovery').set('X-Forwarded-For', client).send({ contact: `conexao${i}@example.com`, description: `Pedido número ${i} desta conexão.` });
+    for (let i = 0; i < 10; i += 1) await post('203.0.113.7', i).expect(201);
+    const limited = await post('203.0.113.7', 10).expect(429);
+    expect(limited.body).toMatchObject({ error: 'too_many_from_client', retryAfterSeconds: expect.any(Number) });
+    expect(Number(limited.headers['retry-after'])).toBe(limited.body.retryAfterSeconds);
+    await post('203.0.113.8', 11).expect(201); // another client is unaffected
   });
 });
 

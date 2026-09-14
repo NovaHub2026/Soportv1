@@ -1,6 +1,6 @@
 # PH-9 — Release-candidate debt
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-03, OBJ-SUP-04; FEAT-CASE, FEAT-STAFF, FEAT-CHAT, FEAT-NOTIFY, FEAT-ACCESS (cross-cutting)
 Cycle: 3 (count in the `ROADMAP.md` ledger)
 
@@ -28,10 +28,13 @@ Scenarios are listed per subphase.
 | PH-9.1 | Case-domain debt: BL-022, BL-029, BL-013 (API), BL-018 — `PH-9.1.md`, approved 2026-09-14 | APPROVED |
 | PH-9.2 | Staff workspace: BL-014, BL-013 (web), BL-024 carried items — `PH-9.2.md`, approved 2026-09-14 | APPROVED |
 | PH-9.3 | Customer panel: BL-010, BL-015 — `PH-9.3.md`, approved 2026-09-14 | APPROVED |
-| PH-9.4 | Operations and process: BL-009, BL-026, BL-023, BL-030; phase closure | PLANNED |
+| PH-9.4 | Operations and process: BL-009, BL-026, BL-023, BL-030; phase closure — `PH-9.4.md`, approved 2026-09-14 | APPROVED |
 
 ## Verification and operational readiness
 Per subphase: unit and e2e tests for each behavior with its negative case; UI subphases observed in the browser smoke (new observations only, DEC-0034 c); `bash scripts/gate-commit.sh` for every commit. Phase candidate: `npm run verify:full`, `npm run test:pg -w api` and the full smoke.
 
 ## Completion evidence, findings and context updated
-In progress. PH-9 is cycle 3's third first-time approval: its approval makes the Cycle Audit due (§6.4), and ordinary feature work pauses until the audit closes.
+Approved on 2026-09-14 (`../evidence/PH-9-phase-approval.md`): the four subphases delivered BL-022, BL-029, BL-013, BL-018, BL-014, BL-024, BL-010, BL-015, BL-009, BL-023, BL-026 and part of BL-030; the integrated journey ran in Chromium on the phase candidate (full smoke, screenshots `../evidence/screenshots/ph-9/`), the api suites passed on PostgreSQL 16, and the gate and CI passed on every subphase commit.
+Findings during the phase: the gate caught a timing race in the customer conversation (a retry toward a case that had just become unreachable — PH-9.2) and a test caught a race between an upload finishing and a send (PH-9.3); a probe through the built web disproved the first per-client limit design (PH-9.4). Each was fixed and recorded in its evidence.
+Context updated: `ROADMAP.md` (PH-9 `APPROVED`, ledger cycle 3 → 3/3), `../audits/CYCLE-3.md` opened, DEC-0035–DEC-0038, `../BACKLOG.md`, the six feature contexts where affected, the runbooks, `../../CURRENT_STATE.md`, `../../SESSION_HANDOFF.md`.
+PH-9 is cycle 3's third first-time approval: Cycle Audit 3 is due and ordinary feature work pauses until it closes (§6.4).

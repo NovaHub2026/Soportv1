@@ -49,6 +49,7 @@ export const ptBR = {
     back: "Voltar",
     tooMany: "Recebemos vários pedidos deste contato. Aguarde cerca de {minutes} min antes de tentar de novo.",
     busy: "Recebemos muitos pedidos no momento. Tente de novo em cerca de {minutes} min.",
+    fromClient: "Recebemos muitos pedidos desta conexão. Tente de novo em cerca de {minutes} min.",
     rules: "Para enviar: um e-mail ou telefone válido e uma descrição com pelo menos 10 caracteres.",
     failed: "Não foi possível enviar o pedido. Verifique sua conexão e tente novamente.",
     simulation: "Nesta versão o encaminhamento ao processo de verificação do Orbit é simulado: nada é enviado ao Orbit.",

@@ -22,6 +22,7 @@ The browser only ever talks to the web origin. TLS termination, the public domai
 Every variable with its default is listed in `.env.example`. Rules that matter in a deployment:
 - `NODE_ENV=production` + `SUPPORT_BIND=0.0.0.0` together; the API warns loudly if bound to a network without production mode (DEC-0031).
 - `SUPPORT_DATABASE_URL` set → PostgreSQL; unset → PGlite files in `SUPPORT_DB_DIR` (fine for a single-host demo, not for a deployment: no concurrent access, no backups tooling).
+- `SUPPORT_TRUST_PROXY` = the number of reverse proxies that append `X-Forwarded-For` in front of the web (usually `1`, the TLS proxy). Leave it unset in the loopback/compose topology: the web's proxy does not report the browser's address and passes a forged header through (observed in PH-9.4), so no address identifies a client there and the recovery route's per-client limit stays off (the per-contact limit and the instance ceiling still apply). Set it with the TLS proxy of any deployment reachable beyond loopback (BL-026, DEC-0038).
 - Jobs: one API instance only. Intervals are integers between 1 and 2 147 483 647 ms; `off` disables a job (FND-0031).
 - Limits per instance: 8 open streams and 30 uploads per 10 minutes per identity (DEC-0031); attachments 10 MB, PNG/JPEG/WebP/PDF (DEC-0009).
 

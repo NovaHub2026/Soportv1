@@ -87,9 +87,10 @@ export type AccessRecoveryListQuery = z.infer<typeof accessRecoveryListQuerySche
 /**
  * Working defaults against abuse of an unauthenticated route (§13.1 spirit). The instance-wide ceiling is a
  * safety net against floods; Cycle Audit 3 raised it from 30 so a handful of anonymous requests cannot close the
- * route for everyone. A proxy-aware per-client limit belongs to the hosted topology (BL-026).
+ * route for everyone. The per-client limit (PH-9.4, BL-026) applies where an appending reverse proxy reports the
+ * client's address (`SUPPORT_TRUST_PROXY`), so one connection cannot keep the only route for people who cannot sign in busy.
  */
-export const ACCESS_RECOVERY_LIMITS = { perContactPerHour: 3, perInstancePer10Minutes: 120 } as const;
+export const ACCESS_RECOVERY_LIMITS = { perContactPerHour: 3, perClientPer10Minutes: 10, perInstancePer10Minutes: 120 } as const;
 
 export function formatRecoveryReference(referenceNumber: number): string {
   if (!Number.isInteger(referenceNumber) || referenceNumber < 1) throw new RangeError(`Recovery reference number must be a positive integer, got ${referenceNumber}`);

@@ -1,4 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { AttachmentCleanupJob } from './attachment-cleanup.job.js';
 import { AttachmentsService } from './attachments.service.js';
 import { ATTACHMENT_STORAGE, LocalDiskStorage, MemoryStorage } from './storage.js';
 
@@ -22,6 +23,7 @@ export class AttachmentsModule {
             options.inMemory ? new MemoryStorage() : new LocalDiskStorage(options.dir ?? process.env.SUPPORT_UPLOADS_DIR ?? '.data/uploads'),
         },
         AttachmentsService,
+        AttachmentCleanupJob,
       ],
       exports: [AttachmentsService, ATTACHMENT_STORAGE],
     };

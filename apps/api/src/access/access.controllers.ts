@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
+import { trustProxySetting } from '../app.setup.js';
 import {
   type AccessRecoveryInput,
   type AccessRecoveryListQuery,
@@ -24,8 +26,11 @@ export class PublicAccessController {
 
   @Post()
   @HttpCode(201)
-  create(@Body(new ZodValidationPipe(accessRecoveryInputSchema)) input: AccessRecoveryInput): Promise<AccessRecoveryReceipt> {
-    return this.recovery.create(input);
+  create(@Body(new ZodValidationPipe(accessRecoveryInputSchema)) input: AccessRecoveryInput, @Req() request: Request): Promise<AccessRecoveryReceipt> {
+    // A client address only when an appending proxy reports it (`SUPPORT_TRUST_PROXY`, BL-026): without one every
+    // request would carry the web's address, and a per-client limit would close the route for everybody at once.
+    const client = trustProxySetting() === false ? null : (request.ip ?? null);
+    return this.recovery.create(input, new Date(), client);
   }
 }
 

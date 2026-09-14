@@ -5,11 +5,12 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   PayloadTooLargeException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lt } from 'drizzle-orm';
 import { ATTACHMENT_LIMITS, type CaseAttachment } from '@orbit-support/shared';
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
@@ -44,6 +45,7 @@ function safeFileName(name: string): string {
  */
 @Injectable()
 export class AttachmentsService {
+  private readonly logger = new Logger(AttachmentsService.name);
   private readonly uploads = new SlidingWindowLimiter(ATTACHMENT_LIMITS.maxUploadsPer10Minutes, 10 * 60_000);
 
   constructor(
@@ -127,7 +129,10 @@ export class AttachmentsService {
         ),
       );
     if (rows.length !== unique.length) throw new BadRequestException({ error: 'attachment_not_available' });
-    return tx.update(caseAttachments).set({ messageId }).where(inArray(caseAttachments.id, unique)).returning();
+    // Still unlinked at the update too: a file the cleanup removed meanwhile fails the send instead of vanishing from it (BL-009).
+    const linked = await tx.update(caseAttachments).set({ messageId }).where(and(inArray(caseAttachments.id, unique), isNull(caseAttachments.messageId))).returning();
+    if (linked.length !== unique.length) throw new BadRequestException({ error: 'attachment_not_available' });
+    return linked;
   }
 
   /**
@@ -153,7 +158,31 @@ export class AttachmentsService {
       )
       .for('update');
     if (rows.length !== unique.length) throw new BadRequestException({ error: 'attachment_not_available' });
-    return tx.update(caseAttachments).set({ caseId, messageId }).where(inArray(caseAttachments.id, unique)).returning();
+    const linked = await tx.update(caseAttachments).set({ caseId, messageId }).where(and(inArray(caseAttachments.id, unique), isNull(caseAttachments.messageId))).returning();
+    if (linked.length !== unique.length) throw new BadRequestException({ error: 'attachment_not_available' });
+    return linked;
+  }
+
+  /**
+   * Uploads never linked to a message within the grace period (BL-009), staged ones included (DEC-0037). Each row is
+   * deleted only while still unlinked — a send linking it at that moment wins — and its bytes go after the row, so a
+   * failure can leave an unreferenced file on disk, never a row whose bytes are gone (FND-0015). Returns how many.
+   */
+  async removeUnlinked(now = new Date(), graceHours = 24, batch = 200): Promise<number> {
+    const cutoff = new Date(now.getTime() - graceHours * 3_600_000);
+    const stale = this.db
+      .select({ id: caseAttachments.id })
+      .from(caseAttachments)
+      .where(and(isNull(caseAttachments.messageId), lt(caseAttachments.createdAt, cutoff)))
+      .limit(batch);
+    const removed = await this.db
+      .delete(caseAttachments)
+      .where(and(inArray(caseAttachments.id, stale), isNull(caseAttachments.messageId)))
+      .returning({ storageKey: caseAttachments.storageKey });
+    for (const row of removed) {
+      await this.storage.delete(row.storageKey).catch((error: unknown) => this.logger.warn(`Could not remove the bytes of ${row.storageKey}: ${error instanceof Error ? error.message : String(error)}`));
+    }
+    return removed.length;
   }
 
   /** Attachments of a set of messages, grouped by message id (only messages the caller may see are passed in). */

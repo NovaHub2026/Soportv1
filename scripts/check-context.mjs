@@ -12,7 +12,11 @@
  *  5. CURRENT_STATE.md names every active work item.
  *  6. Audit ledger (ROADMAP "## Audit ledger"): every APPROVED phase is counted exactly once; the open cycle
  *     shows "<count>/3" and CURRENT_STATE repeats it; three counted approvals without an audit record under
- *     docs/audits/ is a failure (audit due — §6.4).
+ *     docs/audits/ is a failure (audit due — §6.4), and an out-of-band record (`*-OOB.md`) does not count as one.
+ *  7. No "<NAME>_PLACEHOLDER" token is left in a live document or an evidence record.
+ *  8. Paths inside command spans (`node scripts/x.mjs …`) exist like single-path spans, from the root, the
+ *     document or a workspace; commit hashes and release tags quoted in live documents exist in this clone
+ *     (CI checks out full history for it). Added for BL-030.
  *
  * Limitations: syntax and links only. It cannot judge prose freshness, semantic correctness or product
  * alignment, nor whether an audit record is complete. Bare filenames without a directory
@@ -84,11 +88,26 @@ const liveDocs = [
 
 let linksChecked = 0;
 let linksIgnored = 0;
+const WORKSPACES = ['apps/api', 'apps/web', 'packages/shared'];
+/** A path-like word inside a command span (BL-030): checked from the root, the document and each workspace. */
+function checkCommandWord(doc, i, word) {
+  const w = word.replace(/^[("'<]+/, '').replace(/[)"'>,;:]+$/, '');
+  if (!w.includes('/') || w.startsWith('-') || w.includes('=') || w.includes('://') || !PATH_TOKEN.test(w) || TEMPLATE_TOKEN.test(w)) return;
+  if (!FILE_LIKE.test(w) && !w.endsWith('/')) return;
+  const candidates = [join(ROOT, w), join(dirname(doc), w), ...WORKSPACES.map((ws) => join(ROOT, ws, w))];
+  if (candidates.some(existsSync)) linksChecked++;
+  else if (gitIgnored(w)) linksIgnored++;
+  else fail(doc, `line ${i + 1}: path in a command not found: ${w}`);
+}
 for (const doc of liveDocs) {
   read(doc).forEach((line, i) => {
     if (SKIP_LINE.test(line)) return;
     for (const m of line.matchAll(/`([^`]+)`/g)) {
       const tok = m[1].trim();
+      if (/\s/.test(tok)) {
+        for (const word of tok.split(/\s+/)) checkCommandWord(doc, i, word);
+        continue;
+      }
       if (!PATH_TOKEN.test(tok) || TEMPLATE_TOKEN.test(tok)) continue;
       if (!FILE_LIKE.test(tok) && !tok.endsWith('/')) continue;
       const candidates = [join(ROOT, tok), join(dirname(doc), tok)];
@@ -213,7 +232,8 @@ if (existsSync(roadmap)) {
         entry.count++;
       }
       entry.statusCell = statusCell ?? '';
-      if (recordCell && recordCell !== '—') entry.record = recordCell;
+      // The cell may annotate its record ("… (out-of-band audit)"): the record is its first .md path (BL-030).
+      if (recordCell && recordCell !== '—') entry.record = (recordCell.match(/[^\s()]+\.md/) ?? [recordCell])[0];
       cycles.set(cycle, entry);
     }
     for (const [id, status] of phases) {
@@ -229,6 +249,9 @@ if (existsSync(roadmap)) {
       const hasRecord = entry.record && (existsSync(join(ROOT, entry.record)) || existsSync(join(phasesDir, entry.record)));
       if (entry.count >= AUDIT_CADENCE && !hasRecord) {
         fail(roadmap, `cycle ${cycle}: ${entry.count} first-time approvals without an audit record — Cycle Audit is due (§6.4)`);
+      } else if (entry.count >= AUDIT_CADENCE && /-OOB\.md$/.test(entry.record)) {
+        // An out-of-band audit does not silently reset the count (§6.4): the due cycle needs its own record (BL-030).
+        fail(roadmap, `cycle ${cycle}: an out-of-band audit record does not discharge the due Cycle Audit (§6.4)`);
       }
     }
   }
@@ -245,6 +268,36 @@ if (existsSync(roadmap)) {
   for (const f of [...walk(join(ROOT, 'docs')), ...rootDocs]) {
     const m = readFileSync(f, 'utf8').match(/[A-Z0-9_]+_PLACEHOLDER/);
     if (m) fail(f, `placeholder token "${m[0]}" left in the document`);
+  }
+}
+
+// ---------- 8. Commit hashes and release tags (BL-030) ----------
+// Evidence and audit records are historical and keep their own references; live documents must not cite a commit
+// or a tag this clone does not have. A shallow clone cannot tell, so it fails with the reason (CI: fetch-depth 0).
+{
+  const git = (args) => execFileSync('git', args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  const exists = (args) => {
+    try {
+      git(args);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const shallow = git(['rev-parse', '--is-shallow-repository']) === 'true';
+  const tags = new Set(git(['tag', '--list']).split('\n').filter(Boolean));
+  for (const doc of liveDocs) {
+    read(doc).forEach((line, i) => {
+      for (const m of line.matchAll(/`([^`]+)`/g)) {
+        const tok = m[1].trim();
+        if (/^(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}$/.test(tok)) {
+          if (shallow) fail(doc, `line ${i + 1}: commit ${tok} cannot be verified in a shallow clone (fetch full history)`);
+          else if (!exists(['cat-file', '-e', `${tok}^{commit}`])) fail(doc, `line ${i + 1}: commit ${tok} does not exist in this clone`);
+        } else if (/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tok) && !tags.has(tok)) {
+          fail(doc, `line ${i + 1}: tag ${tok} does not exist in this clone`);
+        }
+      }
+    });
   }
 }
 

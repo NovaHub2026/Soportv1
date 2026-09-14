@@ -1,13 +1,15 @@
+import { ATTACHMENT_STORAGE, type AttachmentStorage } from '../attachments/storage.js';
+import { AttachmentsService } from '../attachments/attachments.service.js';
 import { randomUUID } from 'node:crypto';
 import { awaitingReplySince, awaitingReplySinceSql } from './case-rules.js';
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Db } from '../database/database.js';
 import { type CaseStreamEvent, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-support/shared';
 import { AttachmentsModule } from '../attachments/attachments.module.js';
 import { DatabaseModule, DB } from '../database/database.module.js';
-import { caseConsultations, caseMessages, supportCases } from '../database/schema.js';
+import { caseConsultations, caseMessages, supportCases, caseAttachments } from '../database/schema.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { ORBIT_RECORDS } from '../identity/orbit-records.js';
@@ -1000,4 +1002,32 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     });
   });
 
+
+  describe('uploads never linked (PH-9.4, BL-009)', () => {
+    it('removes them after the grace period — staged or on a case — with their bytes, and keeps linked or recent ones', async () => {
+      const attachments = moduleRef.get(AttachmentsService);
+      const storage = moduleRef.get<AttachmentStorage>(ATTACHMENT_STORAGE);
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('bytes')]);
+      const file = (name: string) => ({ originalname: name, mimetype: 'image/png', size: png.length, buffer: png });
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      const row = await service.requireOwnCaseRow(alice, created.id);
+      const abandoned = await attachments.upload(alice, row, file('abandonado.png'));
+      const staged = await attachments.uploadStaged(alice, file('staged.png'));
+      const kept = await attachments.upload(alice, row, file('enviado.png'));
+      await service.postCustomerMessage(alice, created.id, { body: 'Segue', attachmentIds: [kept.id] });
+      const recent = await attachments.uploadStaged(alice, file('recente.png'));
+      const ids = [abandoned.id, staged.id, kept.id, recent.id];
+      await db.update(caseAttachments).set({ createdAt: new Date(Date.now() - 25 * 3_600_000) }).where(inArray(caseAttachments.id, [abandoned.id, staged.id, kept.id]));
+      const keys = await db.select({ id: caseAttachments.id, key: caseAttachments.storageKey }).from(caseAttachments).where(inArray(caseAttachments.id, ids));
+      expect(await attachments.removeUnlinked(new Date(), 24)).toBe(2);
+      const left = (await db.select({ id: caseAttachments.id }).from(caseAttachments).where(inArray(caseAttachments.id, ids))).map((r) => r.id).sort();
+      expect(left).toEqual([kept.id, recent.id].sort());
+      for (const { id, key } of keys) {
+        if (id === abandoned.id || id === staged.id) await expect(storage.get(key)).rejects.toThrow();
+        else expect(await storage.get(key)).toBeInstanceOf(Buffer);
+      }
+      expect(await attachments.removeUnlinked(new Date(), 24)).toBe(0);
+      await db.delete(caseAttachments).where(inArray(caseAttachments.id, [recent.id])); // staged rows outlive the case cleanup of beforeEach
+    });
+  });
 });

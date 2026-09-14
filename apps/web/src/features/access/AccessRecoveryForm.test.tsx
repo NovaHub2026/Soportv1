@@ -36,4 +36,17 @@ describe("AccessRecoveryForm (PH-7.1, §4.5)", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("30 min");
     expect(screen.getByLabelText(/E-mail ou telefone/)).toBeDefined();
   });
+
+  test("BL-026: a limit on this connection says so and never blames the contact", async () => {
+    mockFetch(() => ({ status: 429, body: { error: "too_many_from_client", retryAfterSeconds: 540 } }));
+    render(<AccessRecoveryForm onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText(/E-mail ou telefone/), { target: { value: "alice@example.com" } });
+    fireEvent.change(screen.getByLabelText(/O que está acontecendo/), { target: { value: "O código de verificação nunca chega." } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Enviar pedido" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar pedido" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("desta conexão");
+    expect(alert.textContent).toContain("9 min");
+    expect(alert.textContent).not.toContain("deste contato");
+  });
 });

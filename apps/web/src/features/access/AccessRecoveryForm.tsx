@@ -46,8 +46,10 @@ export function AccessRecoveryForm({ onClose }: AccessRecoveryFormProps) {
       if (error instanceof ApiError && error.status === 429) {
         const body = error.body as { error?: string; retryAfterSeconds?: number } | null;
         const minutes = String(Math.max(1, Math.ceil((body?.retryAfterSeconds ?? 60) / 60)));
-        // "service_busy" is other people's traffic; only "too_many_requests" is about this contact (Cycle Audit 3).
-        setStatus({ kind: "error", text: fill(body?.error === "service_busy" ? a.busy : a.tooMany, { minutes }) });
+        // "service_busy" is other people's traffic, "too_many_from_client" this connection (BL-026); only
+        // "too_many_requests" is about this contact (Cycle Audit 3).
+        const text = body?.error === "service_busy" ? a.busy : body?.error === "too_many_from_client" ? a.fromClient : a.tooMany;
+        setStatus({ kind: "error", text: fill(text, { minutes }) });
       } else {
         setStatus({ kind: "error", text: a.failed });
       }

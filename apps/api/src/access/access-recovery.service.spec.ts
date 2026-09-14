@@ -68,4 +68,17 @@ describe('AccessRecoveryService (PH-7.1, §4.5)', () => {
     expect(await service.list('received')).toHaveLength(0);
     expect((await service.list()).map((r) => r.status)).toEqual(['forwarded']);
   });
+
+  it('limits each client address without touching other clients; a retry of an accepted request is still answered (BL-026)', async () => {
+    const now = new Date();
+    for (let i = 0; i < 10; i += 1) await service.create({ contact: `c${i}@example.com`, description: `Pedido ${i} da mesma conexão.`, clientRequestId: `k-${i}` }, now, '203.0.113.7');
+    const refused = await service.create({ contact: 'c10@example.com', description: 'Pedido além do limite.' }, now, '203.0.113.7').catch((error: HttpException) => error);
+    expect((refused as HttpException).getStatus()).toBe(429);
+    expect((refused as HttpException).getResponse()).toMatchObject({ error: 'too_many_from_client', retryAfterSeconds: expect.any(Number) });
+    const retried = await service.create({ contact: 'c3@example.com', description: 'Pedido 3 da mesma conexão.', clientRequestId: 'k-3' }, now, '203.0.113.7');
+    expect(retried.reference).toMatch(/^REC-[0-9]{6}$/);
+    await service.create({ contact: 'd@example.com', description: 'Outra conexão, outro limite.' }, now, '203.0.113.8');
+    const later = await service.create({ contact: 'e@example.com', description: 'Dez minutos depois, de novo.' }, new Date(now.getTime() + 11 * 60_000), '203.0.113.7');
+    expect(later.reference).toMatch(/^REC-[0-9]{6}$/);
+  });
 });

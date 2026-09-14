@@ -14,7 +14,7 @@ A production release is an Owner decision (`GOVERNANCE.md` §1.1, `CLAUDE.md` bi
 | 3 | `npm run verify:full` and the browser smoke on the candidate, recorded | phase evidence under `docs/evidence/` |
 | 4 | Blocking backlog items closed: BL-012 (hardening), BL-019 (PostgreSQL) — done in PH-8; BL-001 (identity provider) — **open: no real Orbit identity exists**, so the candidate can only run as a labeled demo | `docs/BACKLOG.md` |
 | 5 | Operating policies decided by the Owner/Operations (BL-002): hours and staffing, response targets, roles/specialist contacts, recovery procedure, retention/exports/complaints, notification channel | `OPERATIONS.md` — an internal demo may proceed with them pending only when the Owner confirms that in the release record (FND-0063) |
-| 6 | Configuration reviewed against `.env.example`: `NODE_ENV=production`, `SUPPORT_BIND`, `SUPPORT_DATABASE_URL`, `WEB_ORIGIN`, no simulated switch on a public deployment | `DEPLOYMENT.md` |
+| 6 | Configuration reviewed against `.env.example`: `NODE_ENV=production`, `SUPPORT_BIND`, `SUPPORT_DATABASE_URL`, `WEB_ORIGIN`, no simulated switch on a public deployment; beyond loopback, `SUPPORT_TRUST_PROXY` set to the number of reverse proxies that append `X-Forwarded-For` in front of the web, so the recovery route limits each client (BL-026, DEC-0038) | `DEPLOYMENT.md` |
 | 7 | Backup taken and restore rehearsed on a copy; rollback image tag known | `DEPLOYMENT.md` |
 | 8 | Release notes: phases and decisions since the previous release, migrations included (`apps/api/drizzle/`) | `docs/evidence/RELEASE-<date>.md` |
 | 9 | No carried backlog item past its revisit event (FND-0065) | `docs/BACKLOG.md` |
