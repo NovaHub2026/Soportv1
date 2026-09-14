@@ -1,0 +1,62 @@
+# Orbit Support — deployment shape (PH-8.3, docs/runbooks/DEPLOYMENT.md): PostgreSQL + API + web.
+# This file is a rehearsal and a reference, not a release: SUPPORT_ALLOW_SIMULATED_IDENTITY=true below is the
+# DEMO switch (DEC-0008) — Orbit's identity does not exist yet (BL-001); a real deployment removes it and
+# provides a real identity provider. Copy .env.example to .env and adjust before "docker compose up".
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orbit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-orbit_support}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-orbit} -d ${POSTGRES_DB:-orbit_support}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      SUPPORT_BIND: 0.0.0.0
+      SUPPORT_DATABASE_URL: postgres://${POSTGRES_USER:-orbit}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-orbit_support}
+      SUPPORT_UPLOADS_DIR: /data/uploads
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      # Demo only (DEC-0008): the simulated identity trusts request headers. Never set this on an exposed deployment.
+      SUPPORT_IDENTITY_PROVIDER: simulated
+      SUPPORT_ALLOW_SIMULATED_IDENTITY: ${SUPPORT_ALLOW_SIMULATED_IDENTITY:-true}
+      SUPPORT_ORBIT_RECORDS: simulated
+      SUPPORT_NOTIFICATION_INTERVAL_MS: "60000"
+      SUPPORT_REMINDER_INTERVAL_MS: "60000"
+      SUPPORT_CLOSURE_INTERVAL_MS: "60000"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    # The API is reachable only through the web's /api rewrite; publish 3001 only for debugging.
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    environment:
+      NODE_ENV: production
+      API_ORIGIN: http://api:3001
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  uploads:

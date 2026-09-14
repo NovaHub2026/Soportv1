@@ -1,14 +1,14 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the PH-8.2 commit: PostgreSQL driver behind `SUPPORT_DATABASE_URL`, `test:pg`, Docker compose for tests, CI job `verify-postgres`; PH-8.2 approved (conditional on that job), PH-8.3 active. No intended local delta after it.
+Checkpoint: branch `main`; the PH-8.3 commit: Dockerfiles, compose, `.env.example`, deployment/release/operations runbooks; PH-8.3 and PH-8 approved, ledger cycle 3 = 2/3 — every planned phase delivered. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
 None. The UI smoke stops its own servers (API 3001, web 3150). Other Node processes on this machine belong to other projects — do not touch them.
 
 ## Unfinished work
-PH-8.3 (deployment, runbooks, phase closure) is ACTIVE and not started (see `CURRENT_STATE.md` "Next valid action"). Docker Desktop is installed on this host but its engine did not come up during the PH-8.2 session — check `docker info` before the rehearsal. Owner instruction in force (2026-09-14): «Continua automáticamente hasta finalizar todos los ciclos del proyecto» — continue autonomously through PH-8 without pausing; the production release itself still needs the Owner (§1.1) and the operational policies of BL-002 are Owner/Operations input that PH-8 must request, not invent. Commits go only through `npm run gate <message-file>` (`scripts/gate-commit.sh`). Carried audit items: `docs/BACKLOG.md` BL-012, BL-013, BL-014, BL-016..BL-019, BL-021..BL-024 with their revisit events (BL-016 closed by DEC-0029; BL-021 and BL-024 were due by the end of PH-7 and are carried into PH-8's first subphase — see `docs/BACKLOG.md`).
+No phase is active or planned. Outstanding: the container rehearsal (`docker compose -f docker/compose.yml up -d --build`) on a host whose Docker engine works — Docker Desktop on this host never exposed its engine during PH-8 (check `docker info`); record the result in `docs/evidence/PH-8.3-verification.md`. Then the Owner decides the next step (release authorization per `docs/runbooks/RELEASE.md`, new phases, or an out-of-band audit). Owner instruction in force (2026-09-14): «Continua automáticamente hasta finalizar todos los ciclos del proyecto» — fulfilled through PH-8; the production release itself still needs the Owner (§1.1), Orbit's adapters (BL-001) and the operating policies (BL-002). Commits go only through `npm run gate <message-file>` (`scripts/gate-commit.sh`). Carried audit items: `docs/BACKLOG.md` BL-012, BL-013, BL-014, BL-016..BL-019, BL-021..BL-024 with their revisit events (BL-016 closed by DEC-0029; BL-021 and BL-024 were due by the end of PH-7 and are carried into PH-8's first subphase — see `docs/BACKLOG.md`).
 
 ## Evidence and limits
 - `docs/audits/CYCLE-2.md` (closed) and `docs/evidence/CYCLE-2-verification.md` (suites, builds, smoke, CI run 34822158367).
@@ -17,7 +17,7 @@ PH-8.3 (deployment, runbooks, phase closure) is ACTIVE and not started (see `CUR
 
 ## Resume here
 1. `git status -sb`; `gh run list --limit 2` — HEAD must be green.
-2. Validate `CURRENT_STATE.md`; record both CI verdicts of the PH-8.2 commit in `docs/evidence/PH-8.2-verification.md`; execute PH-8.3 from `docs/phases/PH-8.3.md`.
+2. Validate `CURRENT_STATE.md`; record both CI verdicts of the PH-8.3 commit in `docs/evidence/PH-8.3-verification.md`; run the container rehearsal if an engine is available; otherwise wait for the Owner.
 
 ## Temporary environment notes
 - Host observed 2026-09-14: Windows 11 native (Git Bash for the agent's shell; PowerShell forms in the runbook). Paths in env vars are Windows-style (`C:/…`).

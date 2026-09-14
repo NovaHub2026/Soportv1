@@ -24,4 +24,4 @@ Not executed on this host: Docker Desktop 29.7.2 is installed and its processes 
 `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (check-context OK; lint/typecheck exit 0; Vitest shared 21/21, api 65/65, web 73/73, api e2e 34/34 — all on PGlite); `npm run build` exit 0.
 
 ## CI
-Pending push (two jobs now: `verify` + build, and `api suites on PostgreSQL 16`). Previous commit `354be8a` (PH-8.1): run 34826149511 **success**.
+Commit `c09c569`: run 34827035399 — job `verify` + build **success**; job `api suites on PostgreSQL 16` **failure**: the unit suites passed on PostgreSQL, then the two e2e files (run in parallel workers) raced on the migrator of the shared database (`CREATE SCHEMA IF NOT EXISTS "drizzle"` → duplicate key). The rule held; the harness did not. Fixed in the PH-8.3 commit (`test:pg` runs the e2e files without file parallelism and each file empties its tables first); the green run is recorded in `PH-8.3-verification.md`. Until then this approval stays conditional. Previous commit `354be8a` (PH-8.1): run 34826149511 **success**.

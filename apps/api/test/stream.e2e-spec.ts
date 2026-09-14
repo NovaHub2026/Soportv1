@@ -5,6 +5,9 @@ import { type CaseMessage, SIMULATED_IDENTITY_HEADERS, STAFF_ONLY_SUMMARY_FIELDS
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
+import { DB } from './../src/database/database.module.js';
+import type { Db } from './../src/database/database.js';
+import { supportCases } from './../src/database/schema.js';
 import { CaseEventBus } from './../src/events/case-event-bus.js';
 
 const asCustomer = (id: string) => ({ [SIMULATED_IDENTITY_HEADERS.customerId]: id });
@@ -77,6 +80,7 @@ describe('Live streams (SSE, e2e)', () => {
     moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = configureApp(moduleRef.createNestApplication());
     await app.listen(0, '127.0.0.1');
+    await app.get<Db>(DB).delete(supportCases); // PH-8.2: a shared PostgreSQL database must start empty for this file
     const { port } = app.getHttpServer().address() as AddressInfo;
     base = `http://127.0.0.1:${port}`;
   });

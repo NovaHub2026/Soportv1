@@ -4,6 +4,9 @@ import { SIMULATED_IDENTITY_HEADERS, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-su
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { configureApp, finishApp } from './../src/app.setup.js';
+import { DB } from './../src/database/database.module.js';
+import type { Db } from './../src/database/database.js';
+import { accessRecoveryRequests, customerPreferences, emailOutbox, incidents, savedReplies, supportCases, supportSettings } from './../src/database/schema.js';
 
 const asCustomer = (id: string) => ({ [SIMULATED_IDENTITY_HEADERS.customerId]: id });
 const asStaff = (id: string, name = id) => ({
@@ -19,6 +22,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = configureApp(moduleFixture.createNestApplication());
     await finishApp(app);
+    await emptyTables(app.get<Db>(DB)); // PH-8.2: a shared PostgreSQL database must start empty for this file
     // PH-6.3: the outside-hours notice depends on the wall clock; keep the schedule open so every test is deterministic.
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
     const current = (await request(app.getHttpServer()).get('/api/staff/settings').set(supervisor).expect(200)).body;
@@ -592,3 +596,14 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
   });
 
 });
+
+/** Deletes every business row (cases cascade to messages, events, consultations, notifications and attachments). */
+async function emptyTables(db: Db): Promise<void> {
+  await db.delete(supportCases);
+  await db.delete(incidents);
+  await db.delete(savedReplies);
+  await db.delete(supportSettings);
+  await db.delete(accessRecoveryRequests);
+  await db.delete(emailOutbox);
+  await db.delete(customerPreferences);
+}

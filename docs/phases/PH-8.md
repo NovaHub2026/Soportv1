@@ -1,6 +1,6 @@
 # PH-8 — Production readiness
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: all objectives; FEAT-CASE, FEAT-CHAT, FEAT-STAFF, FEAT-ORBIT, FEAT-NOTIFY, FEAT-ACCESS (cross-cutting)
 Cycle: 3 (count in the `ROADMAP.md` ledger)
 
@@ -28,10 +28,13 @@ Scenarios: (a) the ninth concurrent stream of one identity is refused with 429 a
 |---|---|---|
 | PH-8.1 | Hardening and carried debt: BL-012, BL-021, BL-024 (partial) — `PH-8.1.md`, approved 2026-09-14 | APPROVED |
 | PH-8.2 | PostgreSQL verification (BL-019): `SUPPORT_DATABASE_URL` driver, `test:pg`, Docker locally, CI service container — `PH-8.2.md`, approved 2026-09-14 (conditional on the CI PostgreSQL job) | APPROVED |
-| PH-8.3 | Deployment and runbooks: containers, compose rehearsal, environment reference, release and operations runbooks; phase closure — `PH-8.3.md` | ACTIVE |
+| PH-8.3 | Deployment and runbooks: containers, compose rehearsal, environment reference, release and operations runbooks; phase closure — `PH-8.3.md`, approved 2026-09-14 | APPROVED |
 
 ## Verification and operational readiness
 Per subphase: unit/e2e negatives for each hardening control, the PostgreSQL run as its own evidence, the compose rehearsal recorded with commands and outputs, the runbooks reviewed against §9.3. `npm run gate` for every commit; `npm run verify:full` and the smoke on the phase candidate.
 
 ## Completion evidence, findings and context updated
-Pending — `../evidence/PH-8-phase-approval.md` (to be created) will map scenarios (a)–(d) to executed tests, the PostgreSQL run, the rehearsal and the runbooks.
+Approved 2026-09-14 — `../evidence/PH-8-phase-approval.md`: scenarios (a)–(d) mapped to executed tests, the CI PostgreSQL run and the runbooks; the container rehearsal (c) is recorded as not executed on this host. Subphase evidence: `../evidence/PH-8.1-verification.md`, `../evidence/PH-8.2-verification.md`, `../evidence/PH-8.3-verification.md`.
+Findings: none new. Open by nature: BL-001 (Orbit adapters), BL-002 (operating policies) — stated in the runbooks, not invented.
+Context updated: `ROADMAP.md` ledger (cycle 3, 2/3); `../../CURRENT_STATE.md`; DEC-0031–DEC-0033; BL-012/BL-019/BL-021 closed, BL-024 partly.
+The release itself needs the Owner (§1.1) and cannot happen before BL-001 (`../runbooks/RELEASE.md`).

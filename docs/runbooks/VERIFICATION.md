@@ -60,6 +60,9 @@ Simulated identity (DEC-0003): the API resolves the caller from headers `x-simul
 ## CI
 `.github/workflows/ci.yml` runs two jobs on every push to `main` and on pull requests: `verify` (`npm ci && npm run verify && npm run build`) and `api suites on PostgreSQL 16` (`npm run test:pg -w api` against a service container — PH-8.2). CI runs after integration to `main`, so a push is "awaiting corroboration" until the run completes (§9.2). Check with `gh run list --limit 3` / `gh run view <id>`; record the verdict per candidate in evidence.
 
+## Related runbooks
+`DEPLOYMENT.md` (containers, environment, backups), `RELEASE.md` (authorization and the release gate), `OPERATIONS.md` (pending operating decisions, daily checks) — PH-8.3.
+
 ## Limitations
 - No browser/e2e tests, no coverage threshold, no performance checks.
 - `check-context` is mechanical; see the script header for what it does not establish.

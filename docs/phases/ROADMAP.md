@@ -15,12 +15,12 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 | PH-5 | Staff workspace completeness and supervision: essential views, filters/search, saved replies, schedule/config, queue oversight, service metrics. | OBJ-SUP-03; RULE-SUP-02, -08 | `APPROVED` | PH-3 |
 | PH-6 | Notifications and availability: in-product notifications, email notifications linking back, outside-hours behavior. | OBJ-SUP-04; RULE-SUP-08 | `APPROVED` | PH-2 |
 | PH-7 | Access recovery and privacy hardening: "Não consigo acessar minha conta" route, roles/permissions review, shared-device sign-out, shared incidents. | OBJ-SUP-04; RULE-SUP-01, -04 | `APPROVED` | PH-3, PH-4 |
-| PH-8 | Production readiness: operating policies (retention, complaints), deployment, release runbook. The release itself needs Owner authorization (§1.1). | all | `ACTIVE` | PH-1..7, BL-002 |
+| PH-8 | Production readiness: operating policies (retention, complaints), deployment, release runbook. The release itself needs Owner authorization (§1.1). | all | `APPROVED` | PH-1..7, BL-002 |
 
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-8 `ACTIVE` since 2026-09-14 (`PH-8.md`) — PH-8.1 and PH-8.2 `APPROVED` 2026-09-14 (`PH-8.1.md`, `PH-8.2.md`; evidence `../evidence/PH-8.1-verification.md`, `../evidence/PH-8.2-verification.md`), PH-8.3 `ACTIVE` (`PH-8.3.md`); PH-7 `APPROVED` 2026-09-14 (`PH-7.md`, evidence `../evidence/PH-7-phase-approval.md`); the release itself needs the Owner (§1.1); PH-1..PH-6 `APPROVED` (phase evidence `../evidence/PH-1-phase-approval.md` … `../evidence/PH-6-phase-approval.md`). Cycle Audit 1 and Cycle Audit 2 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, `../audits/CYCLE-2.md`). The ledger table below is the only owner of the audit count.
+Phase: none active — every planned phase is `APPROVED` (PH-8 on 2026-09-14: `PH-8.md`, evidence `../evidence/PH-8-phase-approval.md`; subphases `PH-8.1.md`, `PH-8.2.md`, `PH-8.3.md`). No phase is planned after PH-8: the next work is the Owner's — a production release (`../runbooks/RELEASE.md`, §1.1), which also needs Orbit's adapters (BL-001) and the operating policies (BL-002). Cycle 3 stays open at 2/3; Cycle Audit 3 is due at the third first-time phase approval, or out of band on request (§8.5); PH-1..PH-6 `APPROVED` (phase evidence `../evidence/PH-1-phase-approval.md` … `../evidence/PH-6-phase-approval.md`). Cycle Audit 1 and Cycle Audit 2 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, `../audits/CYCLE-2.md`). The ledger table below is the only owner of the audit count.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.
@@ -29,4 +29,4 @@ Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt:
 |---|---|---|---|---|
 | 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit CLOSED 2026-09-14 |
 | 2 | PH-4, PH-5, PH-6 | 2026-09-14 | `../audits/CYCLE-2.md` | 3/3, audit CLOSED 2026-09-14 (remediation `../evidence/CYCLE-2-verification.md`) |
-| 3 | PH-7 | 2026-09-14 | — | 1/3 |
+| 3 | PH-7, PH-8 | 2026-09-14 | — | 2/3 |
