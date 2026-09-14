@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { message, mockFetch, summary } from "@/features/support/test-utils";
 import { OrbitShell } from "./OrbitShell";
@@ -130,5 +130,47 @@ describe("OrbitShell", () => {
     expect(Object.keys(sent.headers).some((h) => h.startsWith("x-simulated"))).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
     expect(await screen.findByText("Área de negociação")).toBeDefined();
+  });
+  test("PH-7.3: 'Sair' leaves a neutral picker with nothing of the previous customer on screen or in storage, and 'Entrar' starts clean", async () => {
+    const alice = summary({ customerId: "cust-alice", subject: "Segredo da Alice" });
+    mockFetch((request) => {
+      const customer = request.headers["x-simulated-customer-id"];
+      if (request.url === "/api/support/notifications") return { body: { notifications: customer === "cust-alice" ? [{ id: "n1", caseId: alice.id, caseReference: "SUP-000001", kind: "staff_reply", createdAt: new Date().toISOString(), readAt: null }] : [], unread: customer === "cust-alice" ? 1 : 0 } };
+      if (request.url === "/api/support/cases") return { body: customer === "cust-alice" ? [alice] : [] };
+      return { body: [] };
+    });
+    window.sessionStorage.setItem("orbit-support.pending.cust-alice.x", JSON.stringify([{ id: "p1" }]));
+    render(<OrbitShell />);
+    expect(await screen.findByText(/Segredo da Alice/)).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Sair" }));
+    expect(await screen.findByTestId("signed-out")).toBeDefined();
+    expect(screen.getByText("Você saiu. Este dispositivo não mostra mais suas conversas.")).toBeDefined();
+    expect(screen.queryByText(/Segredo da Alice/)).toBeNull();
+    expect(screen.queryByText(/SUP-000001/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Notificações/ })).toBeNull();
+    expect(window.localStorage.getItem("orbit-support.simulated-customer")).toBeNull();
+    expect(window.sessionStorage.getItem("orbit-support.pending.cust-alice.x")).toBeNull();
+    // The recovery route stays reachable while signed out.
+    expect(screen.getByRole("button", { name: "Não consigo acessar minha conta" })).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Conta simulada"), { target: { value: "cust-bruno" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByText("Você ainda não falou com o suporte.")).toBeDefined();
+    expect(screen.queryByText(/Segredo da Alice/)).toBeNull();
+  });
+
+  test("PH-7.3: the host signs out by itself after the idle timeout and says why", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockFetch(() => ({ body: [] }));
+      render(<OrbitShell />);
+      expect(screen.getByRole("button", { name: "Sair" })).toBeDefined();
+      await act(async () => {
+        vi.advanceTimersByTime(30 * 60_000 + 1000);
+      });
+      expect(screen.getByTestId("signed-out")).toBeDefined();
+      expect(screen.getByText("Sua sessão foi encerrada por inatividade.")).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

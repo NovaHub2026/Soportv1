@@ -53,6 +53,14 @@ export const ptBR = {
     openSupport: "Suporte",
     closeSupport: "Fechar suporte",
     account: "Conta simulada",
+    signOut: "Sair",
+    signedOut: {
+      title: "Quem está usando este dispositivo?",
+      hint: "Escolha a conta simulada para continuar. Nada da pessoa anterior fica visível ou guardado neste navegador.",
+      done: "Você saiu. Este dispositivo não mostra mais suas conversas.",
+      idle: "Sua sessão foi encerrada por inatividade.",
+      enter: "Entrar",
+    },
   },
   support: {
     title: "Suporte",
@@ -199,6 +207,12 @@ export const ptBR = {
     title: "Orbit — Área de suporte",
     workspace: "Área de suporte",
     agentPicker: "Atendente simulado",
+    signOut: "Sair",
+    signedOut: {
+      title: "Quem está usando esta estação?",
+      hint: "Escolha o atendente simulado para continuar. A fila e os casos do atendente anterior não ficam nesta tela.",
+      enter: "Entrar",
+    },
     queues: {
       unassigned: "Não atribuídos",
       mine: "Meus casos",

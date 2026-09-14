@@ -1,6 +1,6 @@
 # PH-7.3 — Shared-device sign-out and privacy re-check
 Type: SUBPHASE TECHNICAL PLAN
-Status: ACTIVE
+Status: APPROVED
 Parent: `PH-7.md`
 Feature context: `../features/FEAT-ACCESS/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../features/FEAT-STAFF/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`
 
@@ -17,10 +17,16 @@ Signing out on a shared device leaves nothing of the previous customer on screen
 - After "Sair" and a reload, the previous customer's cases, notifications, outbox, records and drafts are absent; the next person chooses an identity and starts clean.
 - The idle timeout signs out even with the panel open; activity resets it.
 - The staff "Sair" clears the remembered agent.
-Acceptance evidence: `../evidence/PH-7.3-verification.md` (to be created); phase approval `../evidence/PH-7-phase-approval.md` (to be created).
+Acceptance evidence: `../evidence/PH-7.3-verification.md`; phase approval `../evidence/PH-7-phase-approval.md`.
 
 ## Work performed and important decisions
-Pending.
+- `simulated-session.ts`: a signed-out state per store (`localStorage` flag), `signOut()` clears the selection and every `orbit-support.` session buffer, hooks return `null` while signed out; `clearSessionBuffers()`.
+- Host shell: "Sair" in the topbar; `SignedOutShell` (neutral picker, labeled simulation, recovery link, reason line "Você saiu…" / "Sua sessão foi encerrada por inatividade."); nothing identity-bound mounts while signed out. `useIdleSignOut` (30 min working default, activity and visibility reset it).
+- Staff workspace: "Sair" and `StaffSignedOut` picker; no idle timeout (§10.2 defers staff protection to Orbit's policies).
+- e2e privacy re-check (scenario e) after the role model.
+- DEC-0030: sign-out semantics and the idle default.
 
 ## Verification, limitations and context updates
-Pending.
+Evidence: `../evidence/PH-7.3-verification.md`, `../evidence/PH-7-phase-approval.md`. Limitations: the idle timeout is unit-tested only; sessions and sign-out are simulated (BL-001).
+Context updated: `PH-7.md` (APPROVED), `ROADMAP.md` (ledger cycle 3 → 1/3), `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-ACCESS/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../features/FEAT-STAFF/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../runbooks/VERIFICATION.md`.
+Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review).

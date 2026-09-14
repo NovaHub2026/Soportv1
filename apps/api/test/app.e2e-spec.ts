@@ -466,6 +466,34 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
   });
 
 
+  it('PH-7.3 privacy re-check: internal notes, consultations and incident broadcasts never reach the customer detail, notifications or outbox under the role model', async () => {
+    const server = app.getHttpServer();
+    const owner = asStaff('staff-ana', 'Ana');
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-priv')).send({ category: 'operations', message: 'Minha ordem não executou.' }).expect(201);
+    const id = created.body.id;
+    await request(server).post(`/api/staff/cases/${id}/messages`).set(owner).send({ body: 'Estamos verificando.' }).expect(201);
+    await request(server).post(`/api/staff/cases/${id}/notes`).set(asStaff('staff-bruno', 'Bruno')).send({ body: 'NOTA-SIGILOSA: cliente já reclamou antes' }).expect(201);
+    const consultation = await request(server).post(`/api/staff/cases/${id}/consultations`).set(owner).send({ team: 'finance', question: 'PERGUNTA-INTERNA sobre saldo' }).expect(201);
+    await request(server).post(`/api/staff/cases/${id}/consultations/${consultation.body.id}/answer`).set(asStaff('staff-bruno', 'Bruno')).send({ answer: 'RESPOSTA-INTERNA com dados' }).expect(200);
+    const incident = await request(server).post('/api/staff/incidents').set(owner).send({ title: 'INCIDENTE-TITULO' }).expect(201);
+    await request(server).post(`/api/staff/cases/${id}/incident`).set(owner).send({ incidentId: incident.body.id }).expect(200);
+    await request(server).post(`/api/staff/incidents/${incident.body.id}/notes`).set(owner).send({ body: 'BROADCAST-INTERNO para todos os casos' }).expect(200);
+    const secrets = ['NOTA-SIGILOSA', 'PERGUNTA-INTERNA', 'RESPOSTA-INTERNA', 'BROADCAST-INTERNO', 'INCIDENTE-TITULO', 'incidentId', 'assignedAgentId', 'staffLastReadAt'];
+    const detail = await request(server).get(`/api/support/cases/${id}`).set(asCustomer('cust-priv')).expect(200);
+    const list = await request(server).get('/api/support/cases').set(asCustomer('cust-priv')).expect(200);
+    const notifications = await request(server).get('/api/support/notifications').set(asCustomer('cust-priv')).expect(200);
+    const emails = await request(server).get('/api/support/emails').set(asCustomer('cust-priv')).expect(200);
+    for (const body of [detail.body, list.body, notifications.body, emails.body]) {
+      const text = JSON.stringify(body);
+      for (const secret of secrets) expect(text).not.toContain(secret);
+    }
+    expect(detail.body.messages.map((m: { authorType: string }) => m.authorType)).toEqual(['customer', 'staff']);
+    // Another customer still gets nothing (RULE-SUP-01), and the staff view keeps the restricted material for the team.
+    await request(server).get(`/api/support/cases/${id}`).set(asCustomer('cust-other')).expect(404);
+    const staffView = await request(server).get(`/api/staff/cases/${id}`).set(asStaff('staff-bruno', 'Bruno')).expect(200);
+    expect(JSON.stringify(staffView.body)).toContain('NOTA-SIGILOSA');
+  });
+
   it('PH-7.2: the role model is enforced — a non-owner agent gets 403 on state changes, a supervisor may, an unknown staff id is nobody, the directory role wins', async () => {
     const server = app.getHttpServer();
     const created = await request(server).post('/api/support/cases').set(asCustomer('cust-role')).send({ category: 'other', message: 'Preciso de ajuda com papéis.' }).expect(201);

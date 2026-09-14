@@ -1,11 +1,12 @@
 "use client";
 
 import type { OrbitLookup, OrbitRecordListItem } from "@orbit-support/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { type SupportEntry, SupportPanel } from "@/features/support/SupportPanel";
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { customerApi } from "@/lib/api";
 import { SIMULATED_CUSTOMERS, useSimulatedCustomer } from "@/lib/simulated-session";
+import { useIdleSignOut } from "@/lib/use-idle-sign-out";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { AccessRecoveryForm } from "@/features/access/AccessRecoveryForm";
 import { NotificationsBell } from "./NotificationsBell";
@@ -16,10 +17,103 @@ import styles from "./shell.module.css";
 
 /** Simulated Orbit host (DEC-0003): trading placeholder + the "Suporte" entrypoint and side panel. */
 export function OrbitShell() {
-  const [customer, selectCustomer] = useSimulatedCustomer();
+  const [customer, selectCustomer, signOut] = useSimulatedCustomer();
   const [panelOpen, setPanelOpen] = useState(false);
   // "Não consigo acessar minha conta" (PH-7.1): reachable without choosing or having any session.
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  // PH-7.3: why the picker is showing — an explicit "Sair" or the idle timeout (shared devices, §10.2).
+  const [signedOutReason, setSignedOutReason] = useState<"explicit" | "idle" | null>(null);
+  const leave = useCallback(
+    (reason: "explicit" | "idle") => {
+      setPanelOpen(false);
+      setSignedOutReason(reason);
+      signOut();
+    },
+    [signOut],
+  );
+  const onIdle = useCallback(() => leave("idle"), [leave]);
+  useIdleSignOut(customer !== null, onIdle);
+  if (customer === null) {
+    return (
+      <SignedOutShell
+        reason={signedOutReason}
+        recoveryOpen={recoveryOpen}
+        onRecovery={setRecoveryOpen}
+        onEnter={(id) => {
+          setSignedOutReason(null);
+          selectCustomer(id);
+        }}
+      />
+    );
+  }
+  return <SignedInShell customer={customer} selectCustomer={selectCustomer} panelOpen={panelOpen} setPanelOpen={setPanelOpen} recoveryOpen={recoveryOpen} setRecoveryOpen={setRecoveryOpen} onSignOut={() => leave("explicit")} />;
+}
+
+interface SignedInShellProps {
+  customer: { id: string; name: string };
+  selectCustomer: (id: string) => void;
+  panelOpen: boolean;
+  setPanelOpen: (update: boolean | ((open: boolean) => boolean)) => void;
+  recoveryOpen: boolean;
+  setRecoveryOpen: (open: boolean) => void;
+  onSignOut: () => void;
+}
+
+/** The neutral state of a shared device (PH-7.3): nothing identity-bound is mounted until someone chooses who they are. */
+function SignedOutShell({ reason, recoveryOpen, onRecovery, onEnter }: { reason: "explicit" | "idle" | null; recoveryOpen: boolean; onRecovery: (open: boolean) => void; onEnter: (id: string) => void }) {
+  const [choice, setChoice] = useState(SIMULATED_CUSTOMERS[0].id);
+  return (
+    <div className={styles.shell} data-panel-open="false" data-signed-out="true">
+      <header className={styles.topbar}>
+        <div className={styles.brand}>
+          <span className={styles.brandMark} aria-hidden="true" />
+          {t.shell.brand}
+        </div>
+        <div className={styles.topbarRight}>
+          <button type="button" className={styles.recoveryLink} onClick={() => onRecovery(true)} aria-pressed={recoveryOpen}>
+            {t.access.link}
+          </button>
+        </div>
+      </header>
+      <main className={styles.trading} aria-label={recoveryOpen ? t.access.title : t.shell.signedOut.title}>
+        {recoveryOpen ? (
+          <AccessRecoveryForm onClose={() => onRecovery(false)} />
+        ) : (
+          <section className={styles.signedOut} aria-label={t.shell.signedOut.title} data-testid="signed-out">
+            <h1 className={styles.tradingTitle}>{t.shell.signedOut.title}</h1>
+            {reason === "idle" && (
+              <p className={styles.simNote} role="status">
+                {t.shell.signedOut.idle}
+              </p>
+            )}
+            {reason === "explicit" && (
+              <p className={styles.tradingHint} role="status">
+                {t.shell.signedOut.done}
+              </p>
+            )}
+            <p className={styles.tradingHint}>{t.shell.signedOut.hint}</p>
+            <label className={styles.accountPicker}>
+              <span className={styles.simBadge}>{t.app.simulationBadge}</span>
+              <span className="visually-hidden">{t.shell.account}</span>
+              <select className={styles.accountSelect} value={choice} onChange={(event) => setChoice(event.target.value)} aria-label={t.shell.account}>
+                {SIMULATED_CUSTOMERS.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className={styles.supportButton} onClick={() => onEnter(choice)}>
+              {t.shell.signedOut.enter}
+            </button>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function SignedInShell({ customer, selectCustomer, panelOpen, setPanelOpen, recoveryOpen, setRecoveryOpen, onSignOut }: SignedInShellProps) {
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const [entry, setEntry] = useState<SupportEntry | null>(null);
   const [openCase, setOpenCase] = useState<{ caseId: string; seq: number; customerId: string } | null>(null);
@@ -86,6 +180,9 @@ export function OrbitShell() {
           {/* Keyed by customer: a new identity starts with an empty bell, never the previous customer's notifications (FND-0035). */}
           <button type="button" className={styles.recoveryLink} onClick={() => setRecoveryOpen(true)} aria-pressed={recoveryOpen}>
             {t.access.link}
+          </button>
+          <button type="button" className={styles.recoveryLink} onClick={onSignOut}>
+            {t.shell.signOut}
           </button>
           <NotificationsBell key={customer.id} identity={identity} onOpenCase={openFromNotification} refreshToken={openCase?.seq ?? 0} />
           <button

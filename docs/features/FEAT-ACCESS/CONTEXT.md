@@ -1,11 +1,11 @@
 # Access recovery and privacy
 Type: FEATURE CONTEXT
 Feature ID: FEAT-ACCESS
-Lifecycle: PARTIAL (recovery route PH-7.1 and role model PH-7.2 delivered; sign-out pending)
+Lifecycle: COMPLETE for PH-7's scope (recovery route, role model, sign-out); real sessions and Orbit's verification process pending (BL-001/BL-002)
 Freshness: CURRENT
-Verified against: the PH-7.2 commit
+Verified against: the PH-7.3 commit (PH-7 phase candidate)
 Verified on: 2026-09-14
-Scope: `packages/shared/src/access.ts`, `apps/api/src/access/` (service, controllers, module), `apps/api/drizzle/0016_*`, `apps/web/src/features/access/`, staff page `apps/web/src/features/staff/AccessRecoveryPanel.tsx`; planned: sign-out in `apps/web/src/lib/simulated-session.ts` and the shells (PH-7.3), permission table in `packages/shared/src/identity.ts` (PH-7.2)
+Scope: `packages/shared/src/access.ts`, `apps/api/src/access/` (service, controllers, module), `apps/api/drizzle/0016_*`, `apps/web/src/features/access/`, staff page `apps/web/src/features/staff/AccessRecoveryPanel.tsx`; permission table in `packages/shared/src/identity.ts`; sign-out in `apps/web/src/lib/simulated-session.ts`, `apps/web/src/lib/use-idle-sign-out.ts` and the shells (`OrbitShell.tsx`, `StaffWorkspace.tsx`)
 
 ## User outcome and applicable product rules
 Someone unable to sign in can ask for help through a visible route without obtaining any private account history before verification (`PROJECT_CONTEXT.md` §4.5, §14 item 8); staff act within clear roles (§5.1, RULE-SUP-02); signing out on a shared device leaves nothing of the previous customer (§10.2). Rules: RULE-SUP-01 (knowing an id is insufficient), RULE-SUP-04 (restricted information never reaches customers), RULE-SUP-02 (responsibility is clear).
@@ -13,7 +13,7 @@ Someone unable to sign in can ask for help through a visible route without obtai
 ## Current behavior and known gaps
 Recovery route (PH-7.1, DEC-0028): the host topbar link "Não consigo acessar minha conta" opens a form that needs no session — an e-mail or phone (unverified) and a description; `POST /api/public/access-recovery` (no identity read or required) answers `{ reference "REC-000001", receivedAt, nextStep: "orbit_verification", delivery: "simulated" }` and nothing else, identically for known and unknown contacts; retries with the same `clientRequestId` return the same reference; abuse limits 3 per contact per hour and 30 per API instance per 10 minutes (429 with `retryAfterSeconds`, shown in minutes). Staff page "Recuperação de acesso": list by status, the raw contact (staff must reach the person), one attributable outcome "Encaminhar ao processo de verificação" (labeled simulation — a record of the hand-off, not a call to Orbit) or "Encerrar", with an optional note. The table `access_recovery_requests` has no link to cases or customer ids.
 Role model (PH-7.2, DEC-0029): `staffMay(role, action, ownership)` in `packages/shared/src/identity.ts` — enforced by `CasesService.assertMay` (before and under the lock) for status, resolution, closure, consultation requests, attributes, transfer/release and incident links; open to any staff: replies (responsible only when unowned), internal notes, consultation answers, taking an unowned case, incident team actions. Staff identities resolve only from the directory and the directory's role wins over the header (unknown id → 401). The workspace disables refused actions with "Só o responsável ou um supervisor…" and explains a 403.
-Planned: PH-7.3 shared-device sign-out, idle sign-out and the privacy re-check. Today: the simulated session picker persists the chosen customer/staff in `localStorage` with no sign-out.
+Sign-out (PH-7.3, DEC-0030): "Sair" on both surfaces forgets the simulated identity and clears every `orbit-support.` session buffer; a neutral labeled picker is all that remains (the recovery link stays on the host); the host signs out after 30 min idle and says so. Privacy re-check (e2e PH-7.3): internal notes, consultations and incident broadcasts stay out of every customer surface under the role model. PH-7 approved 2026-09-14 (`docs/evidence/PH-7-phase-approval.md`).
 
 ## Dependencies and consumers
 Depends on: FEAT-ORBIT (identity boundary, staff directory, DEC-0003 labeled simulation), FEAT-CASE (permission enforcement inside `CasesService`), FEAT-CHAT and FEAT-STAFF shells (links, pages, sign-out). Used by: the host shell (route link), the staff workspace (recovery page).
@@ -26,7 +26,7 @@ Depends on: FEAT-ORBIT (identity boundary, staff directory, DEC-0003 labeled sim
 A recovery request answers identically for known and unknown contacts and never reveals whether an account exists (e2e asserts the same shape); the public endpoint is rate-limited (429) and validates input (400, NUL refused); staff endpoints are staff-only (401/403); a second outcome on a handled request → 409.
 
 ## Decisions and assumptions
-DEC-0003 (simulation labeled), DEC-0012 (reassignment authority), DEC-0017 (lock rule), DEC-0028 (recovery route: unverified contact, no linkage, working abuse limits, simulated hand-off), DEC-0029 (role model). Assumption: Orbit's verification process is outside this system (BL-002); the "forwarded" outcome is a record of a hand-off, not the hand-off itself.
+DEC-0003 (simulation labeled), DEC-0012 (reassignment authority), DEC-0017 (lock rule), DEC-0028 (recovery route: unverified contact, no linkage, working abuse limits, simulated hand-off), DEC-0029 (role model), DEC-0030 (sign-out and idle default). Assumption: Orbit's verification process is outside this system (BL-002); the "forwarded" outcome is a record of a hand-off, not the hand-off itself.
 
 ## Verification and change checklist
-Any change → `npm run gate`; new endpoints → e2e negatives for identity, ownership and input; UI → web tests and a smoke observation. Last scoped evidence: `docs/evidence/PH-7.2-verification.md`.
+Any change → `npm run gate`; new endpoints → e2e negatives for identity, ownership and input; UI → web tests and a smoke observation. Last scoped evidence: `docs/evidence/PH-7-phase-approval.md`, `docs/evidence/PH-7.3-verification.md`.

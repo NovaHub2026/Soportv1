@@ -306,3 +306,11 @@
 .recoveryLink[aria-pressed="true"] {
   color: var(--color-text, #e8ecf5);
 }
+
+.signedOut {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}

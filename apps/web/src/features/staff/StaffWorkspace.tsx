@@ -25,7 +25,45 @@ export interface CaseSignal {
  * case bump `refreshToken` so the queue reflects them without waiting for its poll.
  */
 export function StaffWorkspace() {
-  const [staff, selectStaff] = useSimulatedStaff();
+  const [staff, selectStaff, signOut] = useSimulatedStaff();
+  if (staff === null) return <StaffSignedOut onEnter={selectStaff} />;
+  return <StaffWorkspaceFor staff={staff} selectStaff={selectStaff} signOut={signOut} />;
+}
+
+/** Neutral picker after "Sair" (PH-7.3): nothing of the previous agent is mounted. */
+function StaffSignedOut({ onEnter }: { onEnter: (id: string) => void }) {
+  const [choice, setChoice] = useState(SIMULATED_STAFF[0].id);
+  return (
+    <div className={styles.workspace} data-signed-out="true">
+      <header className={styles.topbar}>
+        <div className={styles.brand}>
+          <span className={styles.brandMark} aria-hidden="true" />
+          {t.shell.brand} · {t.staff.workspace}
+        </div>
+      </header>
+      <section className={styles.signedOut} aria-label={t.staff.signedOut.title} data-testid="staff-signed-out">
+        <h2 className={styles.caseTitle}>{t.staff.signedOut.title}</h2>
+        <p className={styles.hint}>{t.staff.signedOut.hint}</p>
+        <label className={styles.agentPicker}>
+          <span className={styles.simBadge}>{t.app.simulationBadge}</span>
+          <span className="visually-hidden">{t.staff.agentPicker}</span>
+          <select className={styles.agentSelect} value={choice} onChange={(event) => setChoice(event.target.value)} aria-label={t.staff.agentPicker}>
+            {SIMULATED_STAFF.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} · {t.staff.roles[s.role]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className={styles.primaryButton} onClick={() => onEnter(choice)}>
+          {t.staff.signedOut.enter}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function StaffWorkspaceFor({ staff, selectStaff, signOut }: { staff: { id: string; name: string; role: StaffIdentity["role"] }; selectStaff: (id: string) => void; signOut: () => void }) {
   const [view, setView] = useState<StaffQueueView>("unassigned");
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
@@ -75,6 +113,9 @@ export function StaffWorkspace() {
               {t.staff.supervision.open}
             </button>
           )}
+          <button type="button" className={styles.secondaryButton} onClick={signOut}>
+            {t.staff.signOut}
+          </button>
           <label className={styles.agentPicker}>
             <span className={styles.simBadge}>{t.app.simulationBadge}</span>
             <span className="visually-hidden">{t.staff.agentPicker}</span>

@@ -30,4 +30,4 @@ Not verified: a browser observation of a refused action (the smoke's staff act w
 `npm run build` (shared, nest, next) exit 0 before the smoke; `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (check-context OK with the repaired `gitIgnored`; lint/typecheck exit 0; Vitest shared 21/21, api 63/63, web 70/70, api e2e 32/32).
 
 ## CI
-Pending push. Previous commit `968ae88` (PH-7.1): run 34823601278 **success**.
+Commit `db67f04`: run 34824747416 — **success**. Previous commit `968ae88` (PH-7.1): run 34823601278 **success**.

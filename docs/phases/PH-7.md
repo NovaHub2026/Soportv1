@@ -1,6 +1,6 @@
 # PH-7 — Access recovery and privacy hardening
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-04, OBJ-SUP-01; FEAT-ACCESS (new), FEAT-ORBIT, FEAT-CHAT, FEAT-STAFF, FEAT-CASE
 Cycle: 3 (count in the `ROADMAP.md` ledger; this phase's approval counts first)
 
@@ -29,10 +29,13 @@ Scenarios: (a) a visitor with no session uses "Não consigo acessar minha conta"
 |---|---|---|
 | PH-7.1 | "Não consigo acessar minha conta": shared contracts, `access_recovery_requests` (migration `0016`), public endpoint with abuse limit, staff view and outcomes, host link and form — `PH-7.1.md`, approved 2026-09-14 | APPROVED |
 | PH-7.2 | Roles and permissions: permission table, API enforcement, directory-validated staff identity, workspace mirroring, BL-016 decision — `PH-7.2.md`, approved 2026-09-14 | APPROVED |
-| PH-7.3 | Shared-device sign-out (customer and staff), idle sign-out, privacy re-check of incidents/consultations/attachments; phase closure — `PH-7.3.md` | ACTIVE |
+| PH-7.3 | Shared-device sign-out (customer and staff), idle sign-out, privacy re-check of incidents/consultations/attachments; phase closure — `PH-7.3.md`, approved 2026-09-14 | APPROVED |
 
 ## Verification and operational readiness
 Per subphase: api unit and e2e tests (no data in recovery responses, abuse limit, permission matrix negatives per role and ownership, unknown staff id), web tests (form, sign-out clearing state, disabled actions with reasons), browser smoke extended with the recovery route and the sign-out. `npm run gate` for every commit; `npm run verify:full` and the smoke on the phase candidate.
 
 ## Completion evidence, findings and context updated
-Pending — `../evidence/PH-7-phase-approval.md` (to be created) will map scenarios (a)–(e) to executed tests and browser observations.
+Approved 2026-09-14 — `../evidence/PH-7-phase-approval.md`: scenarios (a)–(e) mapped to executed tests and browser observations on the phase candidate (screenshots `../evidence/screenshots/ph-7/`). Subphase evidence: `../evidence/PH-7.1-verification.md`, `../evidence/PH-7.2-verification.md`, `../evidence/PH-7.3-verification.md`.
+Findings: FND-0057 (`check-context` skipped missing paths because of a `git check-ignore` quirk — fixed in PH-7.2). No open findings.
+Context updated: FEAT-ACCESS (new) / FEAT-ORBIT / FEAT-CASE / FEAT-CHAT / FEAT-STAFF contexts; `ROADMAP.md` ledger (cycle 3, 1/3); `../../CURRENT_STATE.md`; DEC-0028–DEC-0030; BL-016 closed.
+Simulated identity, sessions, roles and the hand-off to Orbit's verification process (DEC-0003, DEC-0028).

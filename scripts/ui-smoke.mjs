@@ -595,6 +595,31 @@ try {
     if (await desktop.getByText(new RegExp(reference)).count()) throw new Error('Another customer can see Alice\'s case');
     note('privacy', 'switching to another simulated customer shows only his own history (Bruno\'s case), never Alice\'s case');
     await shot(desktop, '06-other-customer-empty');
+
+    // PH-7.3: "Sair" on a shared device leaves a neutral picker; a reload keeps it; "Entrar" starts clean.
+    await desktop.getByRole('button', { name: 'Sair' }).click();
+    await desktop.getByTestId('signed-out').waitFor({ timeout: 5000 });
+    await desktop.getByText('Você saiu. Este dispositivo não mostra mais suas conversas.').waitFor();
+    if ((await desktop.getByText('Conversas em andamento').count()) !== 0 || (await desktop.getByText(/SUP-0000/).count()) !== 0) throw new Error('Case data visible after sign-out');
+    await desktop.reload();
+    await desktop.getByTestId('signed-out').waitFor({ timeout: 10_000 });
+    if ((await desktop.getByRole('button', { name: /Notificações/ }).count()) !== 0) throw new Error('Notifications bell visible after sign-out');
+    note('sign-out', 'after "Sair" the host shows only "Quem está usando este dispositivo?" (labeled simulation) with the recovery link; no case, notification, record or draft of the previous customer survives a reload (PH-7.3, §10.2)');
+    await shot(desktop, '28-signed-out');
+    await desktop.getByLabel('Conta simulada').selectOption('cust-alice');
+    await desktop.getByRole('button', { name: 'Entrar' }).click();
+    await desktop.getByText('Conversas em andamento').waitFor({ timeout: 10_000 });
+    const staffExit = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await staffExit.goto(`${WEB}/staff`);
+    await staffExit.getByRole('button', { name: 'Sair' }).click();
+    await staffExit.getByTestId('staff-signed-out').waitFor({ timeout: 5000 });
+    if ((await staffExit.getByRole('tab', { name: 'Não atribuídos' }).count()) !== 0) throw new Error('Queue visible after staff sign-out');
+    note('staff-sign-out', 'the staff workspace has the same "Sair": the queue and the open case disappear and a neutral "Quem está usando esta estação?" picker remains (PH-7.3)');
+    await shot(staffExit, '29-staff-signed-out');
+    await staffExit.getByLabel('Atendente simulado').selectOption('staff-ana');
+    await staffExit.getByRole('button', { name: 'Entrar' }).click();
+    await staffExit.getByRole('tab', { name: 'Não atribuídos' }).waitFor({ timeout: 5000 });
+    await staffExit.close();
     await desktop.close();
 
     // ---- Mobile: full-screen view toggled from the topbar ----

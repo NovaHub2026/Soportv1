@@ -5,9 +5,16 @@ import type { StaffIdentity } from "@/lib/staff-api";
 import { StaffCaseView } from "./StaffCaseView";
 import { StaffQueue } from "./StaffQueue";
 import { AccessRecoveryPanel } from "./AccessRecoveryPanel";
+import { StaffWorkspace } from "./StaffWorkspace";
 import { SupervisionPanel } from "./SupervisionPanel";
 
-afterEach(() => vi.restoreAllMocks());
+vi.mock("@/lib/sse", () => ({ subscribeStream: () => () => {} }));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+});
 
 const ana: StaffIdentity = { staffId: "staff-ana", displayName: "Ana Ribeiro", role: "agent" };
 
@@ -512,5 +519,18 @@ describe("StaffCaseView", () => {
     expect(call.body).toEqual({ outcome: "forwarded", note: "Retornei por e-mail." });
     await waitFor(() => expect(screen.queryByTestId("recovery-request")).toBeNull());
     expect(screen.getByText("Nenhum pedido neste filtro.")).toBeDefined();
+  });
+  test("PH-7.3: the workspace's 'Sair' forgets the agent and shows a neutral picker without queues", async () => {
+    mockFetch(() => ({ body: [] }));
+    render(<StaffWorkspace />);
+    expect(await screen.findByRole("button", { name: "Sair" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Sair" }));
+    expect(await screen.findByTestId("staff-signed-out")).toBeDefined();
+    expect(screen.queryByRole("tab", { name: "Não atribuídos" })).toBeNull();
+    expect(window.localStorage.getItem("orbit-support.simulated-staff")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Atendente simulado"), { target: { value: "staff-carla" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByRole("tab", { name: "Não atribuídos" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Supervisão" })).toBeDefined(); // Carla is a supervisor
   });
 });
