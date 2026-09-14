@@ -21,5 +21,5 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 **Corrected (FND-0028, second occurrence).** At commit time of `6d11ee8` the `verify` run failed at `check-context` (the pre-written `docs/phases/PH-5.4.md` linked evidence files that did not exist yet) and the chain stopped there; the commit was created anyway because a heredoc in the shell command ended the `&&` chain. The suites had run individually on the same tree (api unit 52/52, api e2e 26/26, web 56/56; lint/typecheck exit 0) and the smoke passed, but claim 4 is NOT VERIFIED for `6d11ee8`. The next commit (documentation only: pending links marked as such, this record completed) is the first with a full green `verify` on this code; from that commit on, every commit is produced by a gate-then-commit script that cannot commit after a failed gate.
 
 ## CI
-Commit `6d11ee8`: expected **failure** (check-context) — see "Final gate run". The corrective commit's run is recorded below when known.
+Commit `6d11ee8`: run 34815590761 — **failure** at `check-context` (dead links in `docs/phases/PH-5.4.md`) — see "Final gate run" (run id recorded during Cycle Audit 2, FND-0037).
 Corrective commit `c3fc6a8`: run 34815816291 — **success** (first green run on the PH-5.2/5.3 code).

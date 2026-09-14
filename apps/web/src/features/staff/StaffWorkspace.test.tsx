@@ -95,6 +95,33 @@ describe("StaffQueue", () => {
     expect(requests[0].url).toBe("/api/staff/cases?view=active&limit=50&offset=0");
   });
 
+  test("FND-0036: 'Carregar mais' stops at the API page limit and a failed refresh flags the list instead of freezing it silently", async () => {
+    let fail = false;
+    const { requests } = mockFetch((request) => {
+      if (fail) return { status: 500, body: { error: "boom" } };
+      const limit = Number(new URL(request.url, "http://x").searchParams.get("limit"));
+      return { body: Array.from({ length: limit }, (_, i) => summary({ id: `case-${i}`, reference: `SUP-${String(i + 1).padStart(6, "0")}`, subject: `Caso ${i}` })) };
+    });
+    const { rerender } = render(<StaffQueue identity={ana} view="active" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    await screen.findByText("Caso 0");
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+      await waitFor(() => expect(requests.at(-1)?.url).toContain(`limit=${50 * (i + 2)}`));
+      await screen.findByText(`Caso ${50 * (i + 2) - 1}`);
+    }
+    expect(screen.queryByRole("button", { name: "Carregar mais" })).toBeNull();
+    expect(screen.getByRole("note").textContent).toContain("200");
+    expect(requests.every((r) => Number(new URL(r.url, "http://x").searchParams.get("limit")) <= 200)).toBe(true);
+
+    fail = true;
+    rerender(<StaffQueue identity={ana} view="active" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={1} />);
+    expect(await screen.findByText("A lista pode estar desatualizada: a última atualização falhou.")).toBeDefined();
+    expect(screen.getByText("Caso 0")).toBeDefined(); // the last good list stays visible
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await waitFor(() => expect(screen.queryByText("A lista pode estar desatualizada: a última atualização falhou.")).toBeNull());
+  });
+
   test("PH-5.2: typing a search term and picking filters sends them with the list request", async () => {
     const { requests } = mockFetch(() => ({ body: [] }));
     render(<StaffQueue identity={ana} view="active" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);

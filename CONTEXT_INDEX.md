@@ -24,13 +24,13 @@ Start a task at its feature row: the `CONTEXT.md` carries the authoritative fres
 | Roadmap and phases | `docs/phases/ROADMAP.md`, `docs/phases/PH-N.md`, `docs/phases/PH-N.M.md` | Audit ledger lives in ROADMAP |
 | Decisions | `docs/decisions/DECISION_LOG.md`, `docs/decisions/ADR-NNNN-*.md` | |
 | Backlog | `docs/BACKLOG.md` | Repository fallback (DEC-0001) |
-| Features | `docs/features/<FEAT-ID>/CONTEXT.md` | Four live contexts (see topic routes); each owns its freshness metadata |
+| Features | `docs/features/<FEAT-ID>/CONTEXT.md` | Five live contexts (see topic routes); each owns its freshness metadata |
 | Shared contracts | `packages/shared/src/cases.ts`, `packages/shared/src/identity.ts`, `packages/shared/src/orbit.ts`, `packages/shared/src/settings.ts` | Vocabulary, zod schemas, types, reference formatting, simulated-identity headers, Orbit summary/lookup shapes and masking, operating settings/availability/supervision shapes |
 | API modules | `apps/api/src/cases/`, `apps/api/src/identity/`, `apps/api/src/database/`, `apps/api/src/events/`, `apps/api/src/attachments/` | Case service + controllers (incl. SSE and attachment endpoints); Orbit identity boundary; Drizzle schema and PGlite factory (migrations in `apps/api/drizzle/`); case event bus + stream service (ADR-0004); attachment storage port, sniffing and service (DEC-0009) |
 | Web modules | `apps/web/src/features/support/`, `apps/web/src/features/staff/`, `apps/web/src/features/shell/`, `apps/web/src/lib/`, `apps/web/src/i18n/` | Customer panel (home, new request, conversation); staff workspace at `/staff` (queues, case view, context); simulated Orbit shell; API clients, SSE client (`apps/web/src/lib/sse.ts`) + simulated sessions; pt-BR dictionary |
 | UI evidence | `scripts/ui-smoke.mjs`, `docs/evidence/screenshots/` | Playwright browser smoke and its screenshots per subphase |
 | Architecture | `docs/architecture/` (pending) | Not created yet: the structure is described by ADR-0002/0003/0004 and the feature contexts; create the directory when a cross-cutting map is needed |
-| Runbooks | `docs/runbooks/VERIFICATION.md` | Setup, gate profiles, running the apps, CI |
+| Runbooks | `docs/runbooks/VERIFICATION.md` | Setup, gate profiles, gate-then-commit (`scripts/gate-commit.sh`, hook `scripts/git-hooks/pre-commit`), running the apps, CI |
 | Controls | `scripts/check-context.mjs` | Link + lifecycle consistency; limits in the script header |
-| Evidence | `docs/evidence/` | One record per work item or material run, e.g. `docs/evidence/PH-1.1-verification.md`; audit remediation in `docs/evidence/CYCLE-1-verification.md` |
-| Audits | `docs/audits/` | `CYCLE-1.md` (closed 2026-09-14); one record per cycle |
+| Evidence | `docs/evidence/` | One record per work item or material run, e.g. `docs/evidence/PH-1.1-verification.md`; audit remediation in `docs/evidence/CYCLE-1-verification.md`, `docs/evidence/CYCLE-2-verification.md` |
+| Audits | `docs/audits/` | `CYCLE-1.md` (closed 2026-09-14), `CYCLE-2.md` (opened 2026-09-14; status inside); one record per cycle |

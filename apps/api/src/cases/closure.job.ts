@@ -1,5 +1,5 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import { positiveNumberEnv } from '../common/env.js';
+import { jobDisabled, positiveNumberEnv } from '../common/env.js';
 import { CasesService } from './cases.service.js';
 import { SettingsService } from './settings.service.js';
 
@@ -21,7 +21,7 @@ export class ClosureJob implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    if (process.env.SUPPORT_CLOSURE_JOB === 'off') return;
+    if (jobDisabled('SUPPORT_CLOSURE_JOB')) return;
     const intervalMs = positiveNumberEnv('SUPPORT_CLOSURE_INTERVAL_MS', 60_000);
     this.timer = setInterval(() => void this.tick(), intervalMs);
     // Never keep the process alive just for this timer.

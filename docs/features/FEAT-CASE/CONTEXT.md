@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `9c64934` plus the PH-5.1 change (queue views, `awaitingReplySince`, pagination)
+Verified against: the Cycle Audit 2 remediation commit (child of `70630c4`) — covers PH-5.1..PH-6.3 and the audit fixes
 Verified on: 2026-09-14
 Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/attachments/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
@@ -17,7 +17,7 @@ Concurrency and contracts (Cycle Audit 1, DEC-0015/0016/0017):
 - Customer responses and customer streams are the `CustomerCaseSummary` projection: no `priority`, `assignedAgentId`, `staffLastReadAt`, `incidentId`, `incidentTitle` (RULE-SUP-04).
 - Idempotency: message keys unique per (case, author type, author id); creation keys on `support_cases.client_message_id` unique per customer; cross-kind reuse → 409 `client_message_id_reused`.
 - Guards: `resolve` → 409 `consultations_open` while a consultation is open; `answerConsultation` on a closed case → 409; transfer to an id outside the staff directory → 400 `unknown_agent`; uploads on closed cases → 409; every exit from `resolved` clears the resolution and records `case_reopened` with its actor; free text refuses NUL (400).
-Automated notices (PH-6.3, DEC-0026): `noticeOutsideHours` after `createCase` / `insertCustomerMessage` (system message + notification, `outside_hours_notified_at`); `ReminderJob` marks `reminder_sent_at` and a customer message clears it (migration `0014`, event `reminder_sent`).
+Automated notices (PH-6.3, DEC-0026, DEC-0027): `noticeOutsideHours` after `createCase`, `insertCustomerMessage` and `createFollowUp` (system message + notification, `outside_hours_notified_at`; runs after the commit inside a try/catch, so a customer message is never lost to it); `ReminderJob` reads `waiting_customer_since` (set on entering `waiting_customer` or by a staff message while waiting, cleared by a customer message — migration `0015`) and marks `reminder_sent_at` (event `reminder_sent`); each entry into the status resets the marker. Settings/supervision services (PH-5.4) and notifications (PH-6.1/6.2, FEAT-NOTIFY) are recorded inside the same `mutate` transactions. Known exception to DEC-0017: the read markers (`markCustomerRead`/`markStaffRead`) update the row outside `mutate` (DEC-0027 f); the reminder job owns its own locked transaction until BL-022.
 Notifications (PH-6.1, DEC-0024): `insertStaffMessage`, `setStatus` (to `waiting_customer`), `resolve` and `closeRow` record a `case_notifications` row inside their transaction; `markCustomerRead` marks the case's rows read (migration `0012`).
 Configuration (PH-5.4): `SettingsService` (`support_settings`, migration `0011`) supplies the follow-up window to `ClosureJob` and the attention threshold to `SupervisionService` (overview and metrics computed from `support_cases`, `case_messages`, `case_events`).
 Search (PH-5.2): `listStaffCases` accepts `q` (exact reference number when the term looks like one, otherwise `ILIKE` on customer id, subject and record reference — never message bodies) and equality filters (`category`, `priority`, `agentId` incl. `unassigned`). Saved replies (PH-5.3) live in `saved-replies.service.ts` / `saved_replies` (migration `0010`).
@@ -53,7 +53,7 @@ Used by / affects: FEAT-CHAT (customer endpoints `/api/support/cases*`), FEAT-ST
 Customer access is ownership: another customer's case answers 404, never 403 (RULE-SUP-01). Staff endpoints require a staff actor; only reassignment is role-checked (DEC-0012; the rest is BL-016 / PH-7). Multi-row writes run in one transaction under the case row lock; a unique violation on a key is caught and the existing record returned. Validation failures are 400 with `validation_failed` and per-field issues; numeric env values fall back to defaults when invalid.
 
 ## Decisions and assumptions
-ADR-0003 (PostgreSQL via Drizzle, PGlite for dev/tests), DEC-0005 (shared zod contracts). Assumptions: the reference is an identifier, not a credential (context §6.1); the reactivation rule and the closure window are reversible working defaults (context §13.1) — revisit when Operations defines policy (BL-002).
+ADR-0003 (PostgreSQL via Drizzle, PGlite for dev/tests), DEC-0005 (shared zod contracts), DEC-0015 (customer projection), DEC-0016 (idempotency scope), DEC-0017 (lock-in-transaction rule; exception in DEC-0027 f), DEC-0026/DEC-0027 (automated notices and the reminder period). Assumptions: the reference is an identifier, not a credential (context §6.1); the reactivation rule and the closure window are reversible working defaults (context §13.1) — revisit when Operations defines policy (BL-002).
 
 ## Verification and change checklist
 Behavior change → `npm test -w api` and `npm run test:e2e -w api` (both in `verify`); schema change → regenerate migration, rerun both; contract change → `npm run build:shared`, `npm test -w web`; any new write to `support_cases` must go through `mutate()`. Phase-level journey → `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5.1-verification.md`, `docs/evidence/PH-4.2-verification.md`.

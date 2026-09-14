@@ -21,7 +21,8 @@
     "verify:full": "npm run verify && npm run build",
     "dev:web": "npm run dev --workspace web",
     "dev:api": "npm run start:dev --workspace api",
-    "test:e2e": "npm run test:e2e --workspace api"
+    "test:e2e": "npm run test:e2e --workspace api",
+    "gate": "bash scripts/gate-commit.sh"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

@@ -22,3 +22,5 @@ docs/evidence/screenshots/latest/
 # misc
 *.log
 .DS_Store
+# gate-then-commit output (scripts/gate-commit.sh)
+.gate-verify.log

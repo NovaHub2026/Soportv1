@@ -1,9 +1,9 @@
 # Orbit context integration
 Type: FEATURE CONTEXT
 Feature ID: FEAT-ORBIT
-Lifecycle: PARTIAL (identity boundary and customer summary; record cards pending)
+Lifecycle: PARTIAL (identity boundary, customer summary and record cards; real adapters pending — BL-001)
 Freshness: CURRENT
-Verified against: `4c06c5c` plus the PH-4.3 change (not-integrated subjects, outage and not-found flows demonstrated)
+Verified against: the Cycle Audit 2 remediation commit (child of `70630c4`) — covers PH-4.3..PH-6.3 and the audit fixes
 Verified on: 2026-09-14
 Scope: `apps/api/src/identity/` (incl. `staff-directory.ts`, `orbit-records.ts`, `simulated-orbit-records.ts`), `packages/shared/src/identity.ts`, `packages/shared/src/orbit.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/features/staff/OrbitCustomerSection.tsx`, identity headers in `apps/web/src/lib/api.ts` and `apps/web/src/lib/staff-api.ts`
 
@@ -18,10 +18,10 @@ Implemented (PH-1.2, hardened in PH-1.5):
 - Guards `CustomerGuard`, `StaffGuard`, `AnyActorGuard`, decorator `@CurrentActor()`; `GET /api/identity/me` echoes the actor.
 - Roles in use (PH-3.3): `StaffActor.role` decides reassignment authority (`supervisor` / `admin` may reassign any case — DEC-0012); every other staff action is role-neutral until PH-7 (a non-owner may set status, resolve, close or consult on a colleague's case; attribution is kept — BL-016 records the open decision).
 - Staff directory (Cycle Audit 1, DEC-0017): `StaffDirectory.isKnownStaff(id)` is the second port of the boundary; `SimulatedStaffDirectory` answers from `SIMULATED_STAFF_DIRECTORY` in `packages/shared` (the same list the web pickers use). Transfers to unknown ids are refused (400 `unknown_agent`). A real Orbit directory adapter replaces it without touching callers.
-- Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` (any casing) unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008). Simulated display names are unbounded — the real adapter must bound and sanitize them.
+- Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` (any casing) unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008). Simulated display names are stripped of control characters and bounded to 80 characters (Cycle Audit 2, FND-0048); the real adapter must do the same.
 - Web: simulated customer/staff pickers persisted in `localStorage`, always labeled **Simulação**; `/api/health` reports `identity: simulated`.
 - Records boundary (PH-4.1, DEC-0019): `OrbitRecordsPort.customerSummary(userId) → OrbitLookup<OrbitCustomerSummary>` — `available` with already-masked data or `unavailable` with a reason (`not_integrated`, `not_found`, `unavailable`, `timeout`), always with `source` and `fetchedAt`. `SimulatedOrbitRecords`: fixtures for the three simulated customers, `not_found` for others, outage mode `SUPPORT_SIMULATED_ORBIT=unavailable`. Served by `GET /api/staff/cases/:id/orbit`; rendered by `OrbitCustomerSection` in the staff context column with loading / available / unavailable + retry, labeled Simulação. Masking helpers `maskEmail` / `maskPhone` live in `packages/shared/src/orbit.ts`.
-- Contact for notifications (PH-6.2): `OrbitRecordsPort.contactEmail(userId)` returns the raw verified address to the e-mail notifier only; no UI surface ever receives it (§10.2).
+- Contact for notifications (PH-6.2, DEC-0027 b): `OrbitRecordsPort.contactEmail(userId) → OrbitLookup<string | null>` returns the raw verified address to the e-mail notifier only (`available` with `null` = no address; `unavailable` = could not ask, never treated as "no address" — FND-0032); no UI surface ever receives it (§10.2).
 - Records (PH-4.2, DEC-0020): `listRecords(userId)` and `getRecord(userId, kind, reference)` for `operation`, `pix_deposit`, `withdrawal` — a generic `OrbitRecord` (title, status, occurredAt, amount/currency, masked `facts[]`); ownership is part of the lookup (another customer's record → `not_found`). `GET /api/support/records` lists the customer's own records with the active case per record; a case created with `record` keeps a snapshot (`CaseRecord`) and the staff Orbit context adds the record's current state.
 Not implemented: P2P, balances, bonuses, referral and product-error subjects — listed in the staff Orbit section as "Ainda não integrado" with the `not_integrated` reason (PH-4.3); role-gated unmasking (PH-7); the real Orbit session/records adapters (BL-001). PH-4 approved 2026-09-14 (`docs/evidence/PH-4-phase-approval.md`).
 

@@ -23,6 +23,7 @@ export function NotificationsBell({ identity, onOpenCase, refreshToken = 0 }: No
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<CustomerNotification[]>([]);
   const [unread, setUnread] = useState(0);
+  const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const refresh = useCallback(() => setAttempt((n) => n + 1), []);
 
@@ -33,8 +34,13 @@ export function NotificationsBell({ identity, onOpenCase, refreshToken = 0 }: No
       .then((result) => {
         setItems(result.notifications);
         setUnread(result.unread);
+        setFailed(false);
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        console.warn("shell: could not load notifications", error);
+        setFailed(true); // the list says so instead of pretending there is nothing (FND-0041)
+      });
     return () => controller.abort();
   }, [identity, attempt, refreshToken]);
 
@@ -63,7 +69,15 @@ export function NotificationsBell({ identity, onOpenCase, refreshToken = 0 }: No
       </button>
       {open && (
         <ul className={styles.bellList} aria-label={n.label}>
-          {items.length === 0 && <li className={styles.bellEmpty}>{n.empty}</li>}
+          {failed && (
+            <li className={styles.bellEmpty} role="alert">
+              {n.failed}{" "}
+              <button type="button" className={styles.bellRetry} onClick={refresh}>
+                {n.retry}
+              </button>
+            </li>
+          )}
+          {!failed && items.length === 0 && <li className={styles.bellEmpty}>{n.empty}</li>}
           {items.map((item) => (
             <li key={item.id}>
               <button

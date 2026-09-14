@@ -27,4 +27,4 @@ Not verified: a real mail provider (none chosen — BL-002; PH-8); the deep link
 `npm run build` exit 0 before the smoke; `npm run verify` exit 0 at commit time through the gate-then-commit script (check-context OK; lint/typecheck exit 0; Vitest shared 15/15, api 55/55, web 61/61, api e2e 29/29).
 
 ## CI
-Pending push. Previous commit `4136176` (PH-6.1): run 34817018198 **success**.
+Commit `e68ad26`: run 34818207797 — **success** (recorded during Cycle Audit 2, FND-0037). Previous commit `4136176` (PH-6.1): run 34817018198 **success**.

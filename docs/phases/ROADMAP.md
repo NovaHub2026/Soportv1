@@ -20,7 +20,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: none active — PH-6 `APPROVED` 2026-09-14 (`PH-6.md`, evidence `../evidence/PH-6-phase-approval.md`); PH-1..PH-5 `APPROVED`. **Cycle 2 ledger: 3/3 — Cycle Audit 2 is OPEN (`../audits/CYCLE-2.md`); ordinary development is paused until it closes (§6.4).** Next after closure: PH-7. PH-1..PH-5 `APPROVED`. Cycle 2 ledger: 2/3 — PH-6's approval triggers Cycle Audit 2. PH-1..PH-4 `APPROVED` (PH-4 evidence `../evidence/PH-4-phase-approval.md`). Cycle 2 ledger: 1/3. PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`, `../evidence/PH-3-phase-approval.md`). Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`).
+Phase: none active — PH-1..PH-6 `APPROVED` (phase evidence `../evidence/PH-1-phase-approval.md` … `../evidence/PH-6-phase-approval.md`). **Cycle Audit 2 (`../audits/CYCLE-2.md`): remediation committed; closure recorded after CI corroborates it; ordinary development is paused until then (§6.4).** Next after closure: PH-7. Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`). The ledger table below is the only owner of the audit count.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.
@@ -28,4 +28,4 @@ Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt:
 | Cycle | Counted phase (first approval) | Approved on | Audit record | Status |
 |---|---|---|---|---|
 | 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit CLOSED 2026-09-14 |
-| 2 | PH-4, PH-5, PH-6 | 2026-09-14 | `../audits/CYCLE-2.md` | 3/3, audit OPEN |
+| 2 | PH-4, PH-5, PH-6 | 2026-09-14 | `../audits/CYCLE-2.md` | 3/3, audit OPEN (remediation `../evidence/CYCLE-2-verification.md` pushed; closure pending CI) |

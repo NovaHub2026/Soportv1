@@ -263,6 +263,7 @@ export class CasesService {
       this.publishCaseUpdated(child);
       this.publishMessage(child, toMessage(firstMessage));
       this.publishCaseUpdated(parent);
+      await this.noticeOutsideHours(child.id); // a follow-up written at night is told the same as a new case (FND-0042)
       return this.customerDetail(child);
     } catch (error) {
       if (input.clientMessageId && isUniqueViolation(error)) {
@@ -303,7 +304,7 @@ export class CasesService {
         .returning();
       const linkedRows = await this.attachments.linkToMessage(tx, customer, row.id, inserted.id, input.attachmentIds ?? []);
 
-      const patch: Partial<SupportCaseRow> = { updatedAt: now, lastMessageAt: now, lastCustomerMessageAt: now, reminderSentAt: null };
+      const patch: Partial<SupportCaseRow> = { updatedAt: now, lastMessageAt: now, lastCustomerMessageAt: now, reminderSentAt: null, waitingCustomerSince: null };
       if (row.status === 'resolved') {
         // §7.2 simple rule: any customer message reactivates a resolved case, whatever it says.
         Object.assign(patch, await this.exitResolved(tx, row, 'in_progress', { actorType: 'customer', actorId: customer.id }, now));
@@ -668,9 +669,11 @@ export class CasesService {
       const linkedRows = await this.attachments.linkToMessage(tx, staff, row.id, inserted.id, input.attachmentIds ?? []);
       // Replying to an unowned case makes the replier responsible for it (RULE-SUP-02).
       const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
+      // Writing to a waiting customer restates the request: the reminder period starts again (FND-0033).
+      const waiting: Partial<SupportCaseRow> = current.status === 'waiting_customer' ? { waitingCustomerSince: now, reminderSentAt: null } : {};
       const [changed] = await tx
         .update(supportCases)
-        .set({ updatedAt: now, lastMessageAt: now, lastStaffMessageAt: now })
+        .set({ updatedAt: now, lastMessageAt: now, lastStaffMessageAt: now, ...waiting })
         .where(eq(supportCases.id, current.id))
         .returning();
       await this.notifications.record(tx, row.customerId, row.id, 'staff_reply', now); // PH-6.1: once per committed reply
@@ -933,6 +936,8 @@ export class CasesService {
       const current = locked.assignedAgentId ? locked : (await this.assign(tx, locked, staff, now))[0];
       if (current.status === target) return current;
       const patch: Partial<SupportCaseRow> = { status: target, updatedAt: now };
+      // Each entry into `waiting_customer` is a new waiting period for the reminder (FND-0033).
+      if (target === 'waiting_customer') Object.assign(patch, { waitingCustomerSince: now, reminderSentAt: null });
       if (current.status === 'resolved') {
         Object.assign(patch, await this.exitResolved(tx, current, target, { actorType: 'staff', actorId: staff.id }, now));
       } else {

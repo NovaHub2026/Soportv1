@@ -81,6 +81,11 @@ export const supportCases = pgTable(
     outsideHoursNotifiedAt: tz('outside_hours_notified_at'),
     /** Reminder sent for the current waiting-for-customer period; cleared when the customer replies (PH-6.3). */
     reminderSentAt: tz('reminder_sent_at'),
+    /**
+     * Start of the current waiting-for-customer period: set when the case enters `waiting_customer` or staff
+     * write while it waits, cleared when the customer replies (Cycle Audit 2, FND-0033).
+     */
+    waitingCustomerSince: tz('waiting_customer_since'),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),

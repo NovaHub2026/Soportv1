@@ -36,6 +36,10 @@ if (!process.env.SUPPORT_DB_DIR) {
   console.error('Refusing to run without SUPPORT_DB_DIR (would touch the developer database).');
   process.exit(2);
 }
+if (!process.env.SUPPORT_UPLOADS_DIR) {
+  console.error('Refusing to run without SUPPORT_UPLOADS_DIR (would write uploads into the developer data directory).');
+  process.exit(2);
+}
 
 const children = [];
 // Each server runs in its own process group so shutdown reaches grandchildren (e.g. `next start` → next-server);
@@ -542,6 +546,7 @@ try {
     await desktop.getByLabel('Conte o que está acontecendo').fill('Escrevo fora do horário.');
     await desktop.getByRole('button', { name: 'Enviar' }).click();
     await desktop.getByText(/Fora do horário de atendimento\. Registramos sua mensagem/).waitFor({ timeout: 10_000 });
+    await desktop.getByText('Aviso', { exact: true }).first().waitFor({ timeout: 5000 }); // the notice is labeled as a system notice, never as a staff reply (FND-0050)
     note('outside-hours', 'with the schedule closed on every day, Carla\'s new case received the system notice "Fora do horário de atendimento. Registramos sua mensagem…" as an "Aviso" (never a staff reply), and her home said "Atendimento fechado agora." (PH-6.3)');
     await shot(desktop, '25-customer-outside-hours');
     if ((await fetch(`${API}/api/staff/settings`, { method: 'PUT', headers: supervisorHeaders, body: JSON.stringify(settingsNow) })).status !== 200) throw new Error('Could not restore the schedule');

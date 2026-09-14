@@ -120,6 +120,7 @@ export function StaffWorkspace() {
             signal={caseSignal}
             live={streamStatus === "connected"}
             onOpenCase={setSelectedCaseId}
+            visible={page === "cases"}
           />
         ) : (
           <section className={styles.emptyConversation} aria-live="polite">

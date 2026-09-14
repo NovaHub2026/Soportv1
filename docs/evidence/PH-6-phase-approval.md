@@ -18,7 +18,7 @@ Environment: as in `PH-4.1-verification.md`.
 RULE-SUP-01/-04: notifications and e-mails carry the kind and reference only (e2e negatives on content; outbox never stores the raw address). RULE-SUP-03: one notification per event (retry test), one e-mail per notification, one reminder per waiting period. RULE-SUP-08: the outside-hours notice and the home's availability line come from the configured schedule; no response time is promised anywhere. §14: automated notices are `system` messages excluded from the first-response metric (test). §7.4: reminders never resolve or close a case.
 
 ## Delivery states (§6.3)
-Implemented and locally verified: yes. Integrated: `main` (PH-6.3 commit). CI verified: recorded in `PH-6.3-verification.md`. Released: no.
+Implemented and locally verified: yes. Integrated: `main` (PH-6.3 commit). CI verified: run 34818714979 **success** on `70630c4` (`PH-6.3-verification.md`). Released: no.
 
 ## Uses simulation
 Simulated identity, records and staff roles (DEC-0003) and a simulated e-mail adapter (DEC-0025): no real e-mail is sent; the outbox is the labeled evidence surface. Nothing here demonstrates a connected mail provider or Orbit capability (context §11).

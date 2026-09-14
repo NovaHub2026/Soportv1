@@ -44,13 +44,15 @@ interface StaffCaseViewProps {
   live?: boolean;
   /** Open another case in the workspace (the previous case of a follow-up). */
   onOpenCase?: (caseId: string) => void;
+  /** False while another workspace page (saved replies, supervision) hides the case: nothing is marked read then (FND-0054). */
+  visible?: boolean;
 }
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; detail: StaffCaseDetail };
 type ActionState = { status: "idle" } | { status: "busy" } | { status: "error"; message: string };
 
 /** Conversation (public replies and internal notes, visibly distinct — RULE-SUP-04) plus case context. */
-export function StaffCaseView({ identity, caseId, onChanged, signal = null, live = false, onOpenCase }: StaffCaseViewProps) {
+export function StaffCaseView({ identity, caseId, onChanged, signal = null, live = false, onOpenCase , visible = true }: StaffCaseViewProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [take, setTake] = useState<ActionState>({ status: "idle" });
   const [reply, setReply] = useState<ActionState>({ status: "idle" });
@@ -85,12 +87,19 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
 
   /** Staff have the case open: customer messages received so far are read (unread counts drop in the queue). */
   const markRead = useCallback(() => {
+    if (!visible) return;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
     staffApi.markRead(identity, caseId).then(
       () => setLoad((current) => (current.status === "ready" ? { status: "ready", detail: { ...current.detail, unreadCount: 0 } } : current)),
       (error: unknown) => console.warn("staff: could not mark read", error),
     );
-  }, [identity, caseId]);
+  }, [identity, caseId, visible]);
+
+  // Coming back to the case page marks what arrived meanwhile as read (the load path only runs on a refresh).
+  useEffect(() => {
+    if (visible && load.status === "ready" && load.detail.unreadCount > 0) markRead();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the visibility change matters here
+  }, [visible]);
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {

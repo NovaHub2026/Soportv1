@@ -18,7 +18,8 @@ const EMPTY: Draft = { title: "", body: "", category: "" };
 /** Team-maintained saved replies (PH-5.3): list, create, edit, remove — every change attributed (RULE-SUP-09). */
 export function SavedRepliesPanel({ identity, onClose }: SavedRepliesPanelProps) {
   const r = t.staff.savedReplies;
-  const [replies, setReplies] = useState<SavedReply[] | null>(null);
+  const [replies, setReplies] = useState<SavedReply[] | null | "error">(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | "new" | null>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [status, setStatus] = useState<{ kind: "idle" } | { kind: "busy" } | { kind: "error"; text: string }>({ kind: "idle" });
@@ -33,7 +34,7 @@ export function SavedRepliesPanel({ identity, onClose }: SavedRepliesPanelProps)
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           console.warn("staff: could not load saved replies", error);
-          setReplies([]);
+          setReplies("error"); // a failure is not "no replies yet" (FND-0041)
         }
       });
     return () => controller.abort();
@@ -127,8 +128,16 @@ export function SavedRepliesPanel({ identity, onClose }: SavedRepliesPanelProps)
       )}
 
       {replies === null && <p className={styles.muted}>{t.staff.loading}</p>}
-      {replies?.length === 0 && <p className={styles.muted}>{r.empty}</p>}
-      {replies && replies.length > 0 && (
+      {replies === "error" && (
+        <div className={styles.errorBox} role="alert">
+          <p>{r.loadFailed}</p>
+          <button type="button" className={styles.secondaryButton} onClick={reload}>
+            {t.staff.retry}
+          </button>
+        </div>
+      )}
+      {Array.isArray(replies) && replies.length === 0 && <p className={styles.muted}>{r.empty}</p>}
+      {Array.isArray(replies) && replies.length > 0 && (
         <ul className={styles.replyList}>
           {replies.map((reply) => (
             <li key={reply.id} className={styles.replyItem} data-testid="saved-reply">
@@ -140,14 +149,23 @@ export function SavedRepliesPanel({ identity, onClose }: SavedRepliesPanelProps)
                 </span>
               </div>
               <p className={styles.replyBody}>{reply.body}</p>
-              <div className={styles.composerActions}>
-                <button type="button" className={styles.linkButton} onClick={() => startEdit(reply)}>
-                  {r.edit}
-                </button>
-                <button type="button" className={styles.linkButton} onClick={() => void handleDelete(reply)}>
-                  {r.remove}
-                </button>
-              </div>
+              {/* Mirrors the API rule: the author or a supervisor may change a reply (PH-5.3); others only use it. */}
+              {(reply.createdById === identity.staffId || identity.role !== "agent") && (
+                <div className={styles.composerActions}>
+                  <button type="button" className={styles.linkButton} onClick={() => startEdit(reply)}>
+                    {r.edit}
+                  </button>
+                  {confirming === reply.id ? (
+                    <button type="button" className={styles.linkButton} onClick={() => void handleDelete(reply)}>
+                      {r.confirmRemove}
+                    </button>
+                  ) : (
+                    <button type="button" className={styles.linkButton} onClick={() => setConfirming(reply.id)}>
+                      {r.remove}
+                    </button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -2,7 +2,7 @@
 Type: PHASE CONTEXT
 Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-03; FEAT-STAFF, FEAT-CASE, FEAT-CHAT
-Cycle: 2 (see `ROADMAP.md`; PH-4 counted, 1/3)
+Cycle: 2 (count in the `ROADMAP.md` ledger)
 
 ## Outcome and why now
 Staff can see and work every case that needs attention — not only the open ones: waiting for the customer, waiting for an internal team, resolved and closed history — find a case by reference, customer, subject or record, answer faster with saved replies, and supervisors can review outstanding demand, redistribute work, examine overdue follow-up, configure the operating schedule and read honest service outcomes (`PROJECT_CONTEXT.md` §5.2, §5.4, §14 item 9). Why now: Cycle Audit 1 recorded that §14.9 was only partly demonstrated (FND-0023, BL-011: a resolved case is reachable in no queue) and PH-4 is approved; PH-5 depends only on PH-3.

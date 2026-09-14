@@ -11,8 +11,12 @@ export interface OrbitRecordsPort {
   listRecords(userId: string): Promise<OrbitLookup<OrbitRecord[]>>;
   /** One record, only if it belongs to the customer — anything else is `not_found` (RULE-SUP-01). */
   getRecord(userId: string, kind: OrbitRecordKind, reference: string): Promise<OrbitLookup<OrbitRecord>>;
-  /** The customer's verified e-mail address for outbound notifications only — never returned to a UI (§10.2). */
-  contactEmail(userId: string): Promise<string | null>;
+  /**
+   * The customer's verified e-mail address for outbound notifications only — never returned to a UI (§10.2).
+   * `available` with `data: null` means "no address"; `unavailable` means "could not ask" and must not be
+   * treated as an answer (RULE-SUP-07, FND-0032).
+   */
+  contactEmail(userId: string): Promise<OrbitLookup<string | null>>;
 }
 
 export const ORBIT_RECORDS = Symbol('ORBIT_RECORDS');

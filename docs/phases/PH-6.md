@@ -2,7 +2,7 @@
 Type: PHASE CONTEXT
 Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-04; FEAT-NOTIFY (new), FEAT-CHAT, FEAT-CASE
-Cycle: 2 (see `ROADMAP.md`; PH-4 and PH-5 counted, 2/3 — this phase's approval triggers Cycle Audit 2)
+Cycle: 2 (count in the `ROADMAP.md` ledger; this phase's approval completed the cycle and triggered Cycle Audit 2)
 
 ## Outcome and why now
 Customers learn that support replied even when the panel is closed: an in-product notification with a badge, and — when a reply stays unread — an e-mail that brings them back to the authenticated conversation without exposing private financial detail; outside the configured hours the conversation says so honestly and states the next attention period; reminders keep waiting-for-customer cases from dying silently, and none of these automated notices ever counts as a human response (`PROJECT_CONTEXT.md` §4.4, §7.4, §14 success signals, RULE-SUP-08). Why now: PH-5.4 delivered the configured schedule this phase consumes; PH-2's live streams carry the in-product signal; PH-6 is the next `PLANNED` phase and depends only on PH-2.

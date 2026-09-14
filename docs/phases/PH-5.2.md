@@ -9,7 +9,7 @@ Staff find a specific case in any view by typing what they have — a case refer
 
 ## Affected boundaries and implementation approach
 - Contracts: `staffListQuerySchema` += `q` (1–100 chars), `category`, `priority`, `agentId` (a directory id or `unassigned`).
-- API: `listStaffCases` adds `WHERE` clauses — `q` matches the reference number exactly when it looks like one, otherwise `ILIKE %q%` on customer id, subject and record reference; filters are equalities; everything combines with the view and pagination.
+- API: `listStaffCases` adds `WHERE` clauses — `q` matches the reference number exactly when it looks like one **or** `ILIKE %q%` on customer id, subject and record reference (both clauses are combined with OR, so a bare number can also hit a record reference — Cycle Audit 2, FND-0047); filters are equalities; everything combines with the view and pagination.
 - Web: a search box (debounced 300 ms) and two selects above the tabs; the current filters are kept per workspace session and sent with every list request; a "Limpar" control.
 
 ## Required behavior, failures and acceptance evidence

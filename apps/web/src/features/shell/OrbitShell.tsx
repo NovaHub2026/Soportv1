@@ -1,7 +1,7 @@
 "use client";
 
 import type { OrbitLookup, OrbitRecordListItem } from "@orbit-support/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type SupportEntry, SupportPanel } from "@/features/support/SupportPanel";
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { customerApi } from "@/lib/api";
@@ -24,18 +24,23 @@ export function OrbitShell() {
     setOpenCase((current) => ({ caseId, seq: (current?.seq ?? 0) + 1, customerId: customer.id }));
     setPanelOpen(true);
   };
-  const [records, setRecords] = useState<OrbitLookup<OrbitRecordListItem[]> | null>(null);
+  // Stable per customer: a new object on every render made the bell re-subscribe its stream each time (FND-0034).
+  const identity = useMemo(() => ({ customerId: customer.id }), [customer.id]);
+  // Records are remembered with their owner so another customer's list is never shown while the new one loads (FND-0055).
+  const [recordsFor, setRecordsFor] = useState<{ customerId: string; lookup: OrbitLookup<OrbitRecordListItem[]> } | null>(null);
+  const records = recordsFor?.customerId === customer.id ? recordsFor.lookup : null;
 
   // The simulated "trading" area lists the customer's records so "Preciso de ajuda" can start from one (§4.2).
   useEffect(() => {
     const controller = new AbortController();
+    const customerId = customer.id;
     customerApi
-      .listRecords({ customerId: customer.id }, controller.signal)
-      .then(({ records: lookup }) => setRecords(lookup && (lookup.state === "available" || lookup.state === "unavailable") ? lookup : { state: "unavailable", reason: "unavailable", source: "simulated", fetchedAt: new Date().toISOString() }))
+      .listRecords({ customerId }, controller.signal)
+      .then(({ records: lookup }) => setRecordsFor({ customerId, lookup: lookup && (lookup.state === "available" || lookup.state === "unavailable") ? lookup : { state: "unavailable", reason: "unavailable", source: "simulated", fetchedAt: new Date().toISOString() } }))
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
           console.warn("shell: could not load records", error);
-          setRecords({ state: "unavailable", reason: "unavailable", source: "simulated", fetchedAt: new Date().toISOString() });
+          setRecordsFor({ customerId, lookup: { state: "unavailable", reason: "unavailable", source: "simulated", fetchedAt: new Date().toISOString() } });
         }
       });
     return () => controller.abort();
@@ -75,7 +80,8 @@ export function OrbitShell() {
               ))}
             </select>
           </label>
-          <NotificationsBell identity={{ customerId: customer.id }} onOpenCase={openFromNotification} refreshToken={openCase?.seq ?? 0} />
+          {/* Keyed by customer: a new identity starts with an empty bell, never the previous customer's notifications (FND-0035). */}
+          <NotificationsBell key={customer.id} identity={identity} onOpenCase={openFromNotification} refreshToken={openCase?.seq ?? 0} />
           <button
             type="button"
             className={styles.supportButton}

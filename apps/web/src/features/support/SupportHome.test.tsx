@@ -73,8 +73,8 @@ describe("SupportHome", () => {
       return calls === 1 ? { status: 500, body: { error: "boom" } } : { body: [summary()] };
     });
     render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
-    await screen.findByRole("alert");
-    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await screen.findByText("Não foi possível carregar suas conversas.");
+    fireEvent.click(screen.getAllByRole("button", { name: "Tentar novamente" })[0]); // the outbox offers its own retry too
     await waitFor(() => expect(screen.getByText(/SUP-000001/)).toBeDefined());
   });
 
@@ -112,4 +112,20 @@ describe("SupportHome", () => {
     await waitFor(() => expect(requests.some((r) => r.method === "PUT" && r.url === "/api/support/preferences" && (r.body as { emailNotifications: boolean }).emailNotifications === false)).toBe(true));
   });
 
+  test("FND-0041: a failed preference save is reported and the previous value kept; an outbox that cannot load says so", async () => {
+    mockFetch((request) => {
+      if (request.url === "/api/support/preferences" && request.method === "PUT") return { status: 500, body: { error: "boom" } };
+      if (request.url === "/api/support/preferences") return { body: { emailNotifications: true, updatedAt: null } };
+      if (request.url === "/api/support/emails") return { status: 500, body: { error: "boom" } };
+      return { body: [] };
+    });
+    render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
+    const checkbox = (await screen.findByRole("checkbox", { name: /Receber e-mail/ })) as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    fireEvent.click(checkbox);
+    expect(await screen.findByText(/Não foi possível salvar a preferência/)).toBeDefined();
+    await waitFor(() => expect((screen.getByRole("checkbox", { name: /Receber e-mail/ }) as HTMLInputElement).checked).toBe(true));
+    expect(await screen.findByText("Não foi possível carregar a lista de e-mails.")).toBeDefined();
+    expect(screen.queryByText("Nenhum e-mail ainda.")).toBeNull();
+  });
 });

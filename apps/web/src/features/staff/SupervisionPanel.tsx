@@ -1,7 +1,7 @@
 "use client";
 
 import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday } from "@orbit-support/shared";
-import { type FormEvent, useCallback, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { dictionary as t, fill, formatDuration, formatMessageTime } from "@/i18n";
 import { ApiError } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
@@ -29,14 +29,15 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
   const [status, setStatus] = useState<{ kind: "idle" } | { kind: "busy" } | { kind: "info"; text: string } | { kind: "error"; text: string }>({ kind: "idle" });
   const [attempt, setAttempt] = useState(0);
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
+  // Zones the browser knows, offered as suggestions; the API validates the value (FND-0030).
+  const timeZones = useMemo(() => ("supportedValuesOf" in Intl ? Intl.supportedValuesOf("timeZone") : []), []);
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([staffApi.overview(identity, controller.signal), staffApi.metrics(identity, days, controller.signal), staffApi.getSettings(identity, controller.signal)])
-      .then(([o, m, st]) => {
+    Promise.all([staffApi.overview(identity, controller.signal), staffApi.metrics(identity, days, controller.signal)])
+      .then(([o, m]) => {
         setOverview(o);
         setMetrics(m);
-        setSettings(st);
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
@@ -45,6 +46,20 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
       });
     return () => controller.abort();
   }, [identity, days, attempt]);
+
+  // Settings load once per identity: a reassignment or a metrics period change must not discard unsaved edits.
+  useEffect(() => {
+    const controller = new AbortController();
+    staffApi
+      .getSettings(identity, controller.signal)
+      .then(setSettings)
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        console.warn("staff: could not load settings", error);
+        setStatus({ kind: "error", text: error instanceof ApiError && error.status === 403 ? t.staff.supervision.forbidden : t.staff.supervision.failed });
+      });
+    return () => controller.abort();
+  }, [identity]);
 
   async function reassign(caseId: string, agentId: string) {
     setStatus({ kind: "busy" });
@@ -76,7 +91,11 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
       reload();
     } catch (error) {
       console.warn("staff: could not save settings", error);
-      setStatus({ kind: "error", text: error instanceof ApiError && error.status === 403 ? s.forbidden : s.failed });
+      const issues = error instanceof ApiError && error.status === 400 ? validationFields(error.body) : [];
+      setStatus({
+        kind: "error",
+        text: error instanceof ApiError && error.status === 403 ? s.forbidden : issues.length > 0 ? fill(s.invalid, { fields: issues.join(", ") }) : s.failed,
+      });
     }
   }
 
@@ -160,7 +179,7 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
                   <label className={styles.composerLabel}>
                     {s.reassignTo}
                     <select className={styles.select} value="" onChange={(event) => event.target.value && void reassign(c.id, event.target.value)} disabled={status.kind === "busy"}>
-                      <option value="">—</option>
+                      <option value="">{s.reassignPlaceholder}</option>
                       {SIMULATED_STAFF.map((st) => (
                         <option key={st.id} value={st.id}>
                           {st.name}
@@ -219,7 +238,12 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
           <label className={styles.composerLabel} htmlFor="settings-timezone">
             {s.timezone}
           </label>
-          <input id="settings-timezone" className={styles.searchInput} value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })} />
+          <input id="settings-timezone" className={styles.searchInput} list="settings-timezone-options" value={settings.timezone} onChange={(event) => setSettings({ ...settings, timezone: event.target.value })} />
+          <datalist id="settings-timezone-options">
+            {timeZones.map((zone) => (
+              <option key={zone} value={zone} />
+            ))}
+          </datalist>
           <ul className={styles.scheduleList}>
             {WEEKDAYS.map((day) => {
               const window = settings.schedule[day];
@@ -264,4 +288,11 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
       )}
     </section>
   );
+}
+
+/** Field names from a 400 `validation_failed` body, so the supervisor learns what to fix (FND-0030). */
+function validationFields(body: unknown): string[] {
+  if (!body || typeof body !== "object" || !Array.isArray((body as { issues?: unknown }).issues)) return [];
+  const fields = (body as { issues: Array<{ path?: unknown }> }).issues.map((issue) => (typeof issue.path === "string" ? issue.path : "")).filter(Boolean);
+  return [...new Set(fields)];
 }

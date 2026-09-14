@@ -33,10 +33,21 @@ export class SimulatedOrbitIdentity implements OrbitIdentityPort {
         kind: 'staff',
         id: staffId,
         role: role as StaffRole,
-        displayName: header(headers, SIMULATED_IDENTITY_HEADERS.staffName) ?? staffId,
+        // A header-supplied name reaches customers verbatim: strip control characters and bound it (FND-0048).
+        displayName: printable(header(headers, SIMULATED_IDENTITY_HEADERS.staffName) ?? '').trim().slice(0, 80) || staffId,
         source: 'simulated',
       };
     }
     return null;
   }
+}
+
+/** Drops ASCII control characters (0–31, 127) from a header value (FND-0048). */
+function printable(value: string): string {
+  let out = '';
+  for (const ch of value) {
+    const code = ch.charCodeAt(0);
+    if (code > 31 && code !== 127) out += ch;
+  }
+  return out;
 }

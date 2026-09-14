@@ -32,9 +32,13 @@ interface StaffQueueProps {
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; cases: CaseSummary[]; more: boolean };
 
 const PAGE = STAFF_LIST_LIMITS.default;
+/** "Carregar mais" stops where the API's page limit ends; beyond that the search narrows the list (FND-0036). */
+export const MAX_PAGES = Math.floor(STAFF_LIST_LIMITS.max / PAGE);
 
 export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSelectCase, refreshToken, live = false }: StaffQueueProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // A refresh that failed after the list was shown: the list stays, but it is flagged as possibly outdated (FND-0036).
+  const [stale, setStale] = useState(false);
   const [attempt, setAttempt] = useState(0);
   // How many pages the user asked for on this view; a refresh re-reads all of them so nothing vanishes. Another view starts at one page.
   const [paging, setPaging] = useState<{ view: StaffQueueView; pages: number }>({ view, pages: 1 });
@@ -47,8 +51,8 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
     return () => clearTimeout(timer);
   }, [search]);
   const active = { ...filters, q };
-  const pages = paging.view === view ? paging.pages : 1;
-  const loadMore = () => setPaging({ view, pages: pages + 1 });
+  const pages = Math.min(MAX_PAGES, paging.view === view ? paging.pages : 1);
+  const loadMore = () => setPaging({ view, pages: Math.min(MAX_PAGES, pages + 1) });
   // Monotonic request counter: a poll that started before an action must not overwrite the refreshed list.
   const requestSeq = useRef(0);
 
@@ -59,10 +63,12 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
       try {
         const cases = await staffApi.listCases(identity, view, controller.signal, { limit: PAGE * pages, offset: 0 }, active);
         if (id !== requestSeq.current) return;
+        setStale(false);
         setState({ status: "ready", cases, more: cases.length >= PAGE * pages });
       } catch (error: unknown) {
         if (controller.signal.aborted || id !== requestSeq.current) return;
         console.warn("staff: could not load queue", error);
+        setStale(true);
         setState((current) => (current.status === "ready" ? current : { status: "error" }));
       }
     };
@@ -153,6 +159,14 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
           </button>
         </div>
       )}
+      {state.status === "ready" && stale && (
+        <div className={styles.errorBox} role="alert">
+          <p>{t.staff.queueStale}</p>
+          <button type="button" className={styles.secondaryButton} onClick={() => setAttempt((n) => n + 1)}>
+            {t.staff.retry}
+          </button>
+        </div>
+      )}
       {state.status === "ready" && state.cases.length === 0 && <p className={styles.muted}>{t.staff.queueEmpty[view]}</p>}
       {state.status === "ready" && state.cases.length > 0 && (
         <ul className={styles.caseList}>
@@ -198,10 +212,15 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
           ))}
         </ul>
       )}
-      {state.status === "ready" && state.more && (
+      {state.status === "ready" && state.more && pages < MAX_PAGES && (
         <button type="button" className={styles.secondaryButton} onClick={loadMore}>
           {t.staff.loadMore}
         </button>
+      )}
+      {state.status === "ready" && state.more && pages >= MAX_PAGES && (
+        <p className={styles.muted} role="note">
+          {fill(t.staff.listCapped, { n: String(STAFF_LIST_LIMITS.max) })}
+        </p>
       )}
     </section>
   );

@@ -215,12 +215,28 @@ if (existsSync(roadmap)) {
     for (const [cycle, entry] of cycles) {
       const expected = `${entry.count}/${AUDIT_CADENCE}`;
       if (!entry.statusCell.includes(expected)) fail(roadmap, `cycle ${cycle} status should show "${expected}", found "${entry.statusCell}"`);
-      if (!currentStateText.includes(expected)) fail(currentState, `should repeat the ledger count "${expected}" for cycle ${cycle}`);
+      // "Cycle N: n/3" — a stale count of another cycle must not satisfy this (Cycle Audit 2, FND-0038).
+      const echo = new RegExp(`Cycle\\s*${cycle}\\s*:\\s*${expected.replace('/', '\\/')}`, 'i');
+      if (!echo.test(currentStateText)) fail(currentState, `should repeat the ledger count as "Cycle ${cycle}: ${expected}"`);
       const hasRecord = entry.record && (existsSync(join(ROOT, entry.record)) || existsSync(join(phasesDir, entry.record)));
       if (entry.count >= AUDIT_CADENCE && !hasRecord) {
         fail(roadmap, `cycle ${cycle}: ${entry.count} first-time approvals without an audit record — Cycle Audit is due (§6.4)`);
       }
     }
+  }
+}
+
+// ---------- 7. Placeholder tokens (Cycle Audit 2, FND-0037) ----------
+// A "<NAME>_PLACEHOLDER" left in a live document or an evidence record means a claim was never filled in.
+{
+  const walk = (dir) => readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    return statSync(p).isDirectory() ? walk(p) : p.endsWith('.md') ? [p] : [];
+  });
+  const rootDocs = ['CURRENT_STATE.md', 'SESSION_HANDOFF.md', 'CLAUDE.md', 'CONTEXT_INDEX.md'].map((f) => join(ROOT, f)).filter(existsSync);
+  for (const f of [...walk(join(ROOT, 'docs')), ...rootDocs]) {
+    const m = readFileSync(f, 'utf8').match(/[A-Z0-9_]+_PLACEHOLDER/);
+    if (m) fail(f, `placeholder token "${m[0]}" left in the document`);
   }
 }
 

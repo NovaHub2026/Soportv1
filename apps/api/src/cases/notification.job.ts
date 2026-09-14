@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { and, asc, eq, isNull, lt } from 'drizzle-orm';
 import { type CustomerPreferences, type EmailNotification, formatCaseReference, maskEmail, type NotificationKind } from '@orbit-support/shared';
-import { positiveNumberEnv } from '../common/env.js';
+import { jobDisabled, positiveNumberEnv } from '../common/env.js';
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { caseNotifications, customerPreferences, type EmailOutboxRow, emailOutbox, supportCases } from '../database/schema.js';
@@ -39,7 +39,7 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit(): void {
-    if (process.env.SUPPORT_NOTIFICATION_JOB === 'off') return;
+    if (jobDisabled('SUPPORT_NOTIFICATION_JOB')) return;
     this.timer = setInterval(() => void this.tick(), positiveNumberEnv('SUPPORT_NOTIFICATION_INTERVAL_MS', 60_000));
     this.timer.unref?.();
   }
@@ -75,10 +75,28 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
     let sent = 0;
     for (const { n, referenceNumber } of due) {
       const preferences = await this.preferences({ kind: 'customer', id: n.customerId, source: 'simulated' });
-      const address = preferences.emailNotifications ? await this.orbit.contactEmail(n.customerId) : null;
-      if (address) {
-        const reference = formatCaseReference(referenceNumber);
-        const link = `/?case=${n.caseId}`;
+      let address: string | null = null;
+      if (preferences.emailNotifications) {
+        const lookup = await this.orbit.contactEmail(n.customerId);
+        if (lookup.state === 'unavailable') {
+          // "Could not ask" is not "no address": leave the row unmarked and retry the batch next tick (FND-0032).
+          this.logger.warn(`Orbit contact lookup unavailable (${lookup.reason}); e-mails wait for the next tick`);
+          break;
+        }
+        address = lookup.data;
+      }
+      // Claim before sending so a second instance (PH-8) or an overlapping tick never sends the same e-mail twice;
+      // a failed send releases the claim for the next tick (FND-0045).
+      const claimed = await this.db
+        .update(caseNotifications)
+        .set({ emailedAt: now })
+        .where(and(eq(caseNotifications.id, n.id), isNull(caseNotifications.emailedAt)))
+        .returning({ id: caseNotifications.id });
+      if (claimed.length === 0) continue;
+      if (!address) continue; // opted out or no address: marked, not retried every tick
+      const reference = formatCaseReference(referenceNumber);
+      const link = `/?case=${n.caseId}`;
+      try {
         await this.notifier.send({
           to: address,
           subject: SUBJECTS[n.kind as NotificationKind](reference),
@@ -86,9 +104,10 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
           context: { customerId: n.customerId, caseId: n.caseId, notificationId: n.id, kind: n.kind as NotificationKind, caseReference: reference, link, toMasked: maskEmail(address) },
         });
         sent += 1;
+      } catch (error) {
+        await this.db.update(caseNotifications).set({ emailedAt: null }).where(eq(caseNotifications.id, n.id));
+        this.logger.error(`E-mail for notification ${n.id} failed; released for retry`, error instanceof Error ? error.stack : String(error));
       }
-      // Marked either way: an opted-out or address-less customer is not retried every tick.
-      await this.db.update(caseNotifications).set({ emailedAt: now }).where(eq(caseNotifications.id, n.id));
     }
     return sent;
   }

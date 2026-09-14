@@ -472,6 +472,11 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const current = (await request(server).get('/api/staff/settings').set(supervisor).expect(200)).body;
     const allClosed = { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
     await request(server).put('/api/staff/settings').set(supervisor).send({ ...current, reminderAfterHours: 0 }).expect(400);
+    // FND-0030 / FND-0048: an unknown zone or a coerced boolean is refused, and availability keeps answering.
+    const badZone = await request(server).put('/api/staff/settings').set(supervisor).send({ ...current, timezone: 'Mars/Olympus' }).expect(400);
+    expect(badZone.body.issues.map((i: { path: string }) => i.path)).toEqual(['timezone']);
+    await request(server).put('/api/staff/settings').set(supervisor).send({ ...current, attentionThresholdHours: true }).expect(400);
+    await request(server).get('/api/support/availability').set(asCustomer('cust-alice')).expect(200);
     await request(server).put('/api/staff/settings').set(supervisor).send({ ...current, schedule: allClosed }).expect(200);
     try {
       const created = await request(server).post('/api/support/cases').set(asCustomer('cust-night')).send({ category: 'other', message: 'Boa noite' }).expect(201);

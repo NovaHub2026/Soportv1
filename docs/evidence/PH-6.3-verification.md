@@ -28,4 +28,4 @@ Not verified: reminders in a browser (hours cannot elapse in the smoke; unit-tes
 `npm run build` (shared, nest, next) exit 0 before the smoke; `npm run verify` exit 0 at commit time through the gate-then-commit script (check-context OK — ledger 3/3 with `docs/audits/CYCLE-2.md` present; lint/typecheck exit 0; Vitest shared 15/15, api 57/57, web 61/61, api e2e 30/30) — together the `full` profile on the phase candidate.
 
 ## CI
-Pending push. Previous commit (PH-6.2): run 34818207797.
+Commit `70630c4`: run 34818714979 — **success** (recorded during Cycle Audit 2, FND-0037). Previous commit `e68ad26` (PH-6.2): run 34818207797 **success**.

@@ -19,6 +19,8 @@ import { ReminderJob } from './reminder.job.js';
 import { SettingsService } from './settings.service.js';
 import { SupervisionService } from './supervision.service.js';
 
+/** Mutable so a test can take the simulated Orbit down (FND-0032). */
+const orbitEnv: NodeJS.ProcessEnv = {};
 const alice: CustomerActor = { kind: 'customer', id: 'cust-alice', source: 'simulated' };
 const bob: CustomerActor = { kind: 'customer', id: 'cust-bob', source: 'simulated' };
 const ana: StaffActor = { kind: 'staff', id: 'staff-ana', role: 'agent', displayName: 'Ana', source: 'simulated' };
@@ -38,7 +40,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         CasesService,
         CaseEventBus,
         { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory },
-        { provide: ORBIT_RECORDS, useValue: new SimulatedOrbitRecords({}) },
+        { provide: ORBIT_RECORDS, useValue: new SimulatedOrbitRecords(orbitEnv) },
         SettingsService,
         SupervisionService,
         NotificationsService,
@@ -788,6 +790,20 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       await service.postStaffMessage(ana, ghostCase.id, { body: 'Olá' });
       expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0);
       expect(await job.outbox(ghost)).toHaveLength(0);
+
+      // FND-0032: while Orbit cannot answer, nothing is marked as e-mailed; the e-mail goes out once Orbit is back.
+      const bruno: CustomerActor = { kind: 'customer', id: 'cust-bruno', source: 'simulated' }; // known to the simulated Orbit
+      const outage = await service.createCase(bruno, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, outage.id, { body: 'Olá' });
+      orbitEnv.SUPPORT_SIMULATED_ORBIT = 'unavailable';
+      try {
+        expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0);
+        expect(await job.outbox(bruno)).toHaveLength(0);
+      } finally {
+        delete orbitEnv.SUPPORT_SIMULATED_ORBIT;
+      }
+      expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(1);
+      expect(await job.outbox(bruno)).toHaveLength(1);
     });
   });
 
@@ -809,6 +825,13 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         const metrics = await supervision.metrics(carla, 7);
         expect(metrics.firstResponse.count).toBe(0); // the notice is not a human response
         expect(view.awaitingReplySince).not.toBeNull();
+        // FND-0042: a follow-up opened at night is told the same as a new case.
+        const parent = await service.createCase(alice, { category: 'other', message: 'Antigo' });
+        await service.resolve(ana, parent.id, { reason: 'solved', explanation: 'ok' });
+        await service.closeCase(ana, parent.id);
+        const child = await service.createFollowUp(alice, parent.id, { message: 'Voltou a acontecer' });
+        const childView = await service.getStaffCase(child.id);
+        expect(childView.messages.filter((m) => m.authorType === 'system' && m.body.startsWith('Fora do horário'))).toHaveLength(1);
       } finally {
         await settings.update(carla, { ...closed, schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } });
       }
@@ -833,6 +856,19 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       await service.postCustomerMessage(alice, created.id, { body: 'Segue' });
       await service.setStatus(ana, created.id, 'waiting_customer');
       expect(await job.remindDue(new Date(Date.now() + 100 * 3_600_000))).toBe(1); // a new waiting period reminds again
+      // FND-0033: an old staff reply does not count — the wait starts when the case enters waiting_customer.
+      const stale = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, stale.id, { body: 'Pode enviar o comprovante?' });
+      await db.update(supportCases).set({ lastStaffMessageAt: new Date(Date.now() - 72 * 3_600_000) }).where(eq(supportCases.id, stale.id));
+      await service.setStatus(ana, stale.id, 'waiting_customer');
+      expect(await job.remindDue(new Date())).toBe(0);
+      expect(await job.remindDue(new Date(Date.now() + 47 * 3_600_000))).toBe(0);
+      expect(await job.remindDue(new Date(Date.now() + 49 * 3_600_000))).toBe(1);
+      // Staff writing to the waiting customer restates the request: a new period, one more reminder later.
+      await service.postStaffMessage(ana, stale.id, { body: 'Lembrando: precisamos do comprovante.' });
+      expect(await job.remindDue(new Date(Date.now() + 47 * 3_600_000))).toBe(0);
+      expect(await job.remindDue(new Date(Date.now() + 49 * 3_600_000))).toBe(1);
+
       // Closed cases are never reminded.
       const done = await service.createCase(bob, { category: 'other', message: 'x' });
       await service.resolve(ana, done.id, { reason: 'solved', explanation: 'ok' });

@@ -280,3 +280,13 @@
 .bellEmpty {
   padding: 8px;
 }
+
+.bellRetry {
+  background: none;
+  border: 0;
+  color: var(--accent, #4c8dff);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}

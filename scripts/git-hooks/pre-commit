@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Fast guard before every commit (BL-020): context documents stay consistent. The full gate is scripts/gate-commit.sh.
+# Enable once per clone: git config core.hooksPath scripts/git-hooks
+set -e
+cd "$(git rev-parse --show-toplevel)"
+npm run --silent check:context

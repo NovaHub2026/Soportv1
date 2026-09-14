@@ -19,14 +19,14 @@ Canonical entrypoint for this repository (`GOVERNANCE.md` §0.2, §3.1). Other p
 | Index | `CONTEXT_INDEX.md` — topic routing + document catalog, one file while small |
 | Roadmap / ledger | `docs/phases/ROADMAP.md`; phase and subphase docs in `docs/phases/` |
 | Decisions | `docs/decisions/DECISION_LOG.md`; ADRs in `docs/decisions/` |
-| Evidence / audits | `docs/evidence/` (one record per work item), `docs/audits/` (`CYCLE-1.md` closed 2026-09-14) |
+| Evidence / audits | `docs/evidence/` (one record per work item), `docs/audits/` (one record per cycle; status inside each record) |
 | Backlog | `docs/BACKLOG.md` — repository fallback; no external tracker chosen (DEC-0001) |
 | Remote | `origin` → github.com/NovaHub2026/Soportv1 (inspected 2026-09-13); integration branch `main` |
 | Git author (repo-local) | `NovaHub2026 <orbitmarket.pro@gmail.com>` (DEC-0002) |
 | Confirmed stack | Frontend: React + Next.js + TypeScript. Backend: NestJS + TypeScript. Everything else is decided per ADR/decision log as needed. |
 | Verification | `docs/runbooks/VERIFICATION.md` — run `npm run verify` before every commit (profiles: context, static, unit, e2e, verify, full) |
 | CI / release authorization | GitHub Actions `.github/workflows/ci.yml` runs `verify` on push to `main` and PRs; it runs post-integration, so a push is awaiting corroboration until green (§9.2). Release authorization: none granted; production release requires the Owner (§1.1). |
-| Audit cadence | Cycle Audit after 3 first-time phase approvals (§6.4). Cycle 1 closed 2026-09-14; cycle 2 at 0/3. Independent review: subagents are available in this runtime. |
+| Audit cadence | Cycle Audit after 3 first-time phase approvals (§6.4). The count lives only in the `docs/phases/ROADMAP.md` ledger (echoed by `CURRENT_STATE.md`). Independent review: subagents are available in this runtime. |
 | Languages | Developer artifacts: English. Owner communication: Spanish. Customer UI: pt-BR first, es later. |
 | Commands (§12.1) | `START`/resume · `GUARDAR`/save · `PARAR`/stop · `AUDITAR`/audit · `EJECUTA` = execute the current task (new-adoption binding) |
 
@@ -38,4 +38,5 @@ Canonical entrypoint for this repository (`GOVERNANCE.md` §0.2, §3.1). Other p
 - Database: embedded PostgreSQL (PGlite) with Drizzle (ADR-0003); schema changes need `npm run db:generate -w api` and the migration committed.
 - Identity is simulated and header-based; the API refuses `NODE_ENV=production` without an explicit opt-in (DEC-0008). Never treat simulated demos as proof of a connected Orbit capability.
 - Case domain rules from Cycle Audit 1: every case change goes through `CasesService.mutate` (row lock in one transaction, DEC-0017); customer responses are the `CustomerCaseSummary` projection (DEC-0015); idempotency keys are per case and author (DEC-0016).
+- Commits are produced only by the gate-then-commit script `scripts/gate-commit.sh` (`npm run gate <message-file>`): `npm run verify` exit 0 → commit → push; enable the pre-commit hook once per clone with `git config core.hooksPath scripts/git-hooks` (BL-020, Cycle Audit 2 FND-0040).
 - Never commit secrets, real customer data or probe code (§11).

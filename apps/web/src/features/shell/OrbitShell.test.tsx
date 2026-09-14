@@ -3,7 +3,13 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { message, mockFetch, summary } from "@/features/support/test-utils";
 import { OrbitShell } from "./OrbitShell";
 
-vi.mock("@/lib/sse", () => ({ subscribeStream: () => () => {} }));
+const streams = vi.hoisted(() => ({ opened: 0 }));
+vi.mock("@/lib/sse", () => ({
+  subscribeStream: () => {
+    streams.opened += 1;
+    return () => {};
+  },
+}));
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -82,4 +88,33 @@ describe("OrbitShell", () => {
     expect(screen.queryByText(/WD-48213/)).toBeNull();
   });
 
+  test("FND-0034: host re-renders (panel toggles, records reloads) do not re-open the customer stream", async () => {
+    mockFetch((request) => (request.url === "/api/support/notifications" ? { body: { notifications: [], unread: 0 } } : { body: [] }));
+    render(<OrbitShell />);
+    await screen.findByText("Você ainda não falou com o suporte.");
+    const opened = streams.opened;
+    expect(opened).toBeGreaterThan(0);
+    const toggle = () => document.querySelector<HTMLButtonElement>('button[aria-controls="support-panel"]')!;
+    for (let i = 0; i < 3; i += 1) fireEvent.click(toggle());
+    await waitFor(() => expect(toggle().getAttribute("aria-expanded")).toBe("true"));
+    expect(streams.opened).toBe(opened);
+  });
+
+  test("FND-0035: switching the simulated customer never shows the previous customer's notifications, even when the new list fails", async () => {
+    mockFetch((request) => {
+      const customer = request.headers["x-simulated-customer-id"];
+      if (request.url === "/api/support/notifications") {
+        if (customer !== "cust-alice") return { status: 500, body: { error: "boom" } };
+        return { body: { notifications: [{ id: "n1", caseId: "c1", caseReference: "SUP-000001", kind: "staff_reply", createdAt: new Date().toISOString(), readAt: null }], unread: 1 } };
+      }
+      return { body: [] };
+    });
+    render(<OrbitShell />);
+    expect((await screen.findByTestId("notifications-badge")).textContent).toBe("1");
+    fireEvent.change(screen.getByLabelText("Conta simulada"), { target: { value: "cust-bruno" } });
+    await waitFor(() => expect(screen.queryByTestId("notifications-badge")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Notificações" }));
+    expect(await screen.findByText("Não foi possível carregar as notificações.")).toBeDefined();
+    expect(screen.queryByText(/SUP-000001/)).toBeNull();
+  });
 });

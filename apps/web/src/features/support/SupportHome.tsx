@@ -25,26 +25,37 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const [availability, setAvailability] = useState<Availability | null>(null);
-  const [emailPreference, setEmailPreference] = useState<boolean | null>(null);
-  const [emails, setEmails] = useState<EmailNotification[]>([]);
+  // null = still loading, "error" = could not load (said so, never assumed) — FND-0041.
+  const [emailPreference, setEmailPreference] = useState<boolean | null | "error">(null);
+  const [preferenceError, setPreferenceError] = useState<string | null>(null);
+  const [emails, setEmails] = useState<EmailNotification[] | null | "error">(null);
 
-  // Preference and the labeled simulated outbox (PH-6.2); a failure just hides them.
+  // Preference and the labeled simulated outbox (PH-6.2); a failure is shown as such (RULE-SUP-07).
   useEffect(() => {
     const controller = new AbortController();
     customerApi
       .getPreferences(identity, controller.signal)
-      .then((p) => setEmailPreference(typeof p?.emailNotifications === "boolean" ? p.emailNotifications : null))
-      .catch(() => undefined);
+      .then((p) => setEmailPreference(typeof p?.emailNotifications === "boolean" ? p.emailNotifications : "error"))
+      .catch(() => {
+        if (!controller.signal.aborted) setEmailPreference("error");
+      });
     customerApi
       .listEmails(identity, controller.signal)
-      .then((result) => setEmails(Array.isArray(result?.emails) ? result.emails : []))
-      .catch(() => undefined);
+      .then((result) => setEmails(Array.isArray(result?.emails) ? result.emails : "error"))
+      .catch(() => {
+        if (!controller.signal.aborted) setEmails("error");
+      });
     return () => controller.abort();
   }, [identity, attempt]);
 
   const toggleEmails = (value: boolean) => {
     setEmailPreference(value);
-    customerApi.updatePreferences(identity, { emailNotifications: value }).catch(() => setEmailPreference(!value));
+    setPreferenceError(null);
+    customerApi.updatePreferences(identity, { emailNotifications: value }).catch((error: unknown) => {
+      console.warn("support: could not save the e-mail preference", error);
+      setEmailPreference(!value); // the previous value stays in force and the customer is told (FND-0041)
+      setPreferenceError(t.support.emails.preferenceFailed);
+    });
   };
 
   // Availability comes from the configured schedule (RULE-SUP-08); without it, only the neutral copy is shown.
@@ -125,7 +136,7 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
       {active.length > 0 && <CaseList title={t.support.home.active} cases={active} onOpenCase={onOpenCase} />}
       {previous.length > 0 && <CaseList title={t.support.home.previous} cases={previous} onOpenCase={onOpenCase} />}
 
-      {emailPreference !== null && (
+      {typeof emailPreference === "boolean" && (
         <label className={styles.preference}>
           <input type="checkbox" checked={emailPreference} onChange={(event) => toggleEmails(event.target.checked)} />
           <span>
@@ -134,14 +145,32 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
           </span>
         </label>
       )}
+      {emailPreference === "error" && (
+        <p className={styles.muted} role="note">
+          {t.support.emails.preferenceUnavailable}
+        </p>
+      )}
+      {preferenceError && (
+        <p className={styles.errorText} role="alert">
+          {preferenceError}
+        </p>
+      )}
       <section className={styles.listSection} aria-label={t.support.emails.outboxTitle} data-testid="email-outbox">
         <h3 className={styles.listTitle}>
           {t.support.emails.outboxTitle} <span className={styles.simBadge}>{t.app.simulationBadge}</span>
         </h3>
         <p className={styles.muted}>{t.support.emails.outboxHint}</p>
-        {emails.length === 0 ? (
-          <p className={styles.muted}>{t.support.emails.outboxEmpty}</p>
-        ) : (
+        {emails === null && <p className={styles.muted}>{t.support.home.loading}</p>}
+        {emails === "error" && (
+          <p className={styles.errorText} role="alert">
+            {t.support.emails.outboxError}{" "}
+            <button type="button" className={styles.linkButton} onClick={retry}>
+              {t.support.home.retry}
+            </button>
+          </p>
+        )}
+        {Array.isArray(emails) && emails.length === 0 && <p className={styles.muted}>{t.support.emails.outboxEmpty}</p>}
+        {Array.isArray(emails) && emails.length > 0 && (
           <ul className={styles.caseList}>
             {emails.map((email) => (
               <li key={email.id}>

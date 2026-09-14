@@ -25,11 +25,27 @@ describe("availability from the configured schedule (RULE-SUP-08)", () => {
     expect(computeAvailability(closed, new Date("2026-09-16T15:00:00.000Z"))).toMatchObject({ openNow: false, nextOpening: null });
   });
 
+  test("the next opening is next week when the only open day is today and it already closed (FND-0043)", () => {
+    const wedOnly = { ...settings, schedule: { mon: null, tue: null, wed: { open: "09:00", close: "18:00" }, thu: null, fri: null, sat: null, sun: null } };
+    // Wednesday 22:30 UTC = 19:30 in São Paulo: closed for today, next opening next Wednesday.
+    expect(computeAvailability(wedOnly, new Date("2026-09-16T22:30:00.000Z"))).toMatchObject({ openNow: false, nextOpening: { weekday: "wed", open: "09:00" } });
+  });
+
+  test("an unknown time zone is refused on input and fails closed when stored (FND-0030)", () => {
+    expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, timezone: "Mars/Olympus" }).success).toBe(false);
+    expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, timezone: "UTC\u0000" }).success).toBe(false);
+    expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, timezone: "Europe/Madrid" }).success).toBe(true);
+    expect(computeAvailability({ ...settings, timezone: "Mars/Olympus" }, new Date("2026-09-16T15:00:00.000Z"))).toMatchObject({ openNow: false, today: null, nextOpening: null });
+  });
+
   test("settings input validates times and ordering", () => {
     expect(supportSettingsInputSchema.safeParse(DEFAULT_SUPPORT_SETTINGS).success).toBe(true);
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, schedule: { ...DEFAULT_SUPPORT_SETTINGS.schedule, mon: { open: "18:00", close: "09:00" } } }).success).toBe(false);
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, attentionThresholdHours: 0 }).success).toBe(false);
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, emailDelayMinutes: 0 }).success).toBe(true);
+    // JSON bodies carry numbers; booleans and strings are not coerced (FND-0048).
+    expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, attentionThresholdHours: true }).success).toBe(false);
+    expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, attentionThresholdHours: "4" }).success).toBe(false);
   });
 });
 

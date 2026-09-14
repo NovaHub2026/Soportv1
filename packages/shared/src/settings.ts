@@ -16,18 +16,34 @@ export const dayScheduleSchema = z
   .nullable();
 export type DaySchedule = z.infer<typeof dayScheduleSchema>;
 
+/** True when `Intl` knows the zone; an unknown zone would make every availability computation throw (FND-0030). */
+export function isValidTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const supportSettingsInputSchema = z.object({
-  /** IANA time zone the schedule is expressed in. */
-  timezone: z.string().trim().min(1).max(64),
+  /** IANA time zone the schedule is expressed in — validated against `Intl` (Cycle Audit 2, FND-0030). */
+  timezone: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .refine((value) => !value.includes("\u0000"), "invalid_characters")
+    .refine(isValidTimeZone, "invalid_timezone"),
   schedule: z.object(Object.fromEntries(WEEKDAYS.map((d) => [d, dayScheduleSchema])) as Record<Weekday, typeof dayScheduleSchema>),
   /** After this many hours without a human reply, a case is overdue in the supervision overview. */
-  attentionThresholdHours: z.coerce.number().int().min(1).max(720),
+  attentionThresholdHours: z.number().int().min(1).max(720),
   /** Days a resolved case stays reopenable before it closes (context §7.3, §13.1). */
-  followUpWindowDays: z.coerce.number().int().min(1).max(90),
+  followUpWindowDays: z.number().int().min(1).max(90),
   /** Minutes a notification stays unread before an e-mail brings the customer back (PH-6.2); 0 = at once. */
-  emailDelayMinutes: z.coerce.number().int().min(0).max(1440).default(15),
+  emailDelayMinutes: z.number().int().min(0).max(1440).default(15),
   /** Hours a case may wait for the customer before one reminder is sent (PH-6.3, §7.4). */
-  reminderAfterHours: z.coerce.number().int().min(1).max(720).default(48),
+  reminderAfterHours: z.number().int().min(1).max(720).default(48),
 });
 export type SupportSettingsInput = z.infer<typeof supportSettingsInputSchema>;
 
@@ -81,20 +97,24 @@ export function localClock(now: Date, timezone: string): { weekday: Weekday; tim
 }
 
 export function computeAvailability(settings: SupportSettings, now: Date = new Date()): Availability {
+  const base = { timezone: settings.timezone, workingDefault: settings.workingDefault, checkedAt: now.toISOString() };
+  // A stored zone Intl no longer knows fails closed: "not open, no next opening" is honest; a throw took the
+  // customer's availability line down with a 500 (FND-0030).
+  if (!isValidTimeZone(settings.timezone)) return { ...base, openNow: false, today: null, nextOpening: null };
   const { weekday, time } = localClock(now, settings.timezone);
   const today = settings.schedule[weekday];
   const openNow = today !== null && time >= today.open && time < today.close;
   let nextOpening: Availability["nextOpening"] = null;
   const start = WEEKDAY_BY_INDEX.indexOf(weekday);
-  for (let offset = 0; offset < 7 && !nextOpening; offset += 1) {
+  // Offset 7 is today again: when today is the only open day and it already closed, next week counts (FND-0043).
+  for (let offset = 0; offset <= 7 && !nextOpening; offset += 1) {
     const day = WEEKDAY_BY_INDEX[(start + offset) % 7];
     const window = settings.schedule[day];
     if (!window) continue;
-    if (offset === 0 && time >= window.close) continue;
-    if (offset === 0 && openNow) continue;
+    if (offset === 0 && (openNow || time >= window.close)) continue;
     nextOpening = { weekday: day, open: window.open };
   }
-  return { openNow, timezone: settings.timezone, today, nextOpening, workingDefault: settings.workingDefault, checkedAt: now.toISOString() };
+  return { ...base, openNow, today, nextOpening };
 }
 
 // ---- Supervision (PH-5.4, context §5.4) ----

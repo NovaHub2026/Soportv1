@@ -162,9 +162,10 @@ export class SimulatedOrbitRecords implements OrbitRecordsPort {
     };
   }
 
-  async contactEmail(userId: string): Promise<string | null> {
-    if (this.env.SUPPORT_SIMULATED_ORBIT === 'unavailable') return null;
-    return CUSTOMERS.find((c) => c.userId === userId)?.email ?? null;
+  async contactEmail(userId: string): Promise<OrbitLookup<string | null>> {
+    const meta = { source: 'simulated' as const, fetchedAt: new Date().toISOString() };
+    if (this.env.SUPPORT_SIMULATED_ORBIT === 'unavailable') return { ...meta, state: 'unavailable', reason: 'unavailable' };
+    return { ...meta, state: 'available', data: CUSTOMERS.find((c) => c.userId === userId)?.email ?? null };
   }
 
   async listRecords(userId: string): Promise<OrbitLookup<OrbitRecord[]>> {

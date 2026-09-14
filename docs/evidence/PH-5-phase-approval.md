@@ -30,3 +30,5 @@ FND-0028 (process): two commits created after a failed gate (`3217c53`, `6d11ee8
 
 ## Approval
 PH-5 `APPROVED` on 2026-09-14 by the Agent (evidence-based, not a human review). Ledger: cycle 2, 2/3 — one more first-time phase approval triggers Cycle Audit 2 (§6.4).
+
+Limitation recorded by Cycle Audit 2 (FND-0044, BL-021): scenario (a) "sees since when each case waits" is demonstrated for unanswered customer messages ("Sem resposta há …") and for the waiting-for-customer view; a case waiting for an internal team shows no age and never enters the overdue list.

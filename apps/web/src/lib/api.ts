@@ -9,7 +9,6 @@ import {
   type CustomerPreferences,
   type CustomerPreferencesInput,
   type EmailNotification,
-  type MarkNotificationsReadInput,
   type FollowUpInput,
   type OrbitLookup,
   type OrbitRecordListItem,
@@ -127,8 +126,6 @@ export const customerApi = {
     apiRequest<{ emails: EmailNotification[]; delivery: "simulated" }>("/support/emails", customerHeaders(identity), { signal }),
   listNotifications: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<{ notifications: CustomerNotification[]; unread: number }>("/support/notifications", customerHeaders(identity), { signal }),
-  markNotificationsRead: (identity: CustomerIdentity, input: MarkNotificationsReadInput) =>
-    apiRequest<{ marked: number; unread: number }>("/support/notifications/read", customerHeaders(identity), { method: "POST", body: input }),
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<CustomerCaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
   getCase: (identity: CustomerIdentity, caseId: string, signal?: AbortSignal) =>
