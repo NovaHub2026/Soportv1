@@ -587,7 +587,11 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).get('/api/staff/access-recovery').set(asCustomer('cust-alice')).expect(403);
     const list = await request(server).get('/api/staff/access-recovery?status=received').set(asStaff('staff-ana', 'Ana')).expect(200);
     const mine = list.body.find((r: { reference: string }) => r.reference === receipt.body.reference);
-    expect(mine).toMatchObject({ contact: 'alice@example.com', status: 'received' });
+    expect(mine).toMatchObject({ contact: 'alice@example.com', status: 'received', descriptionMasked: false });
+    // BL-027: a code typed into a description never reaches staff in clear.
+    await request(server).post('/api/public/access-recovery').send({ contact: 'codigo@example.com', description: 'O código 654321 que recebi não funciona.' }).expect(201);
+    const withCode = (await request(server).get('/api/staff/access-recovery?status=received').set(asStaff('staff-ana', 'Ana')).expect(200)).body.find((r: { contact: string }) => r.contact === 'codigo@example.com');
+    expect(withCode).toMatchObject({ description: 'O código [oculto] que recebi não funciona.', descriptionMasked: true });
     expect(JSON.stringify(list.body)).not.toContain('customerId');
     const handled = await request(server).post(`/api/staff/access-recovery/${mine.id}/handle`).set(asStaff('staff-ana', 'Ana')).send({ outcome: 'forwarded', note: 'Encaminhado.' }).expect(200);
     expect(handled.body).toMatchObject({ status: 'forwarded', handledById: 'staff-ana', handledByName: 'Ana Ribeiro' });

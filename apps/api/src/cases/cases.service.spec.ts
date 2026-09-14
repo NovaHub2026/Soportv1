@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { DataExportService } from './data-export.service.js';
 import { ATTACHMENT_STORAGE, type AttachmentStorage } from '../attachments/storage.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
@@ -10,14 +11,14 @@ import type { Db } from '../database/database.js';
 import { type CaseStreamEvent, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-support/shared';
 import { AttachmentsModule } from '../attachments/attachments.module.js';
 import { DatabaseModule, DB } from '../database/database.module.js';
-import { caseConsultations, caseMessages, supportCases, caseAttachments } from '../database/schema.js';
+import { caseConsultations, caseMessages, supportCases, caseAttachments, caseNotifications } from '../database/schema.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { ORBIT_RECORDS } from '../identity/orbit-records.js';
 import { SimulatedOrbitRecords } from '../identity/simulated-orbit-records.js';
 import { SimulatedStaffDirectory, STAFF_DIRECTORY } from '../identity/staff-directory.js';
 import { CasesService } from './cases.service.js';
-import { EMAIL_NOTIFIER, SimulatedEmailNotifier } from './email-notifier.js';
+import { EMAIL_NOTIFIER, SimulatedEmailNotifier, type EmailNotifierPort } from './email-notifier.js';
 import { NotificationJob } from './notification.job.js';
 import { NotificationsService } from './notifications.service.js';
 import { ReminderJob } from './reminder.job.js';
@@ -1203,6 +1204,36 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       const empty = await exports.exportCustomer(dani, 'cust-nobody', { reason: 'Pedido do cliente.' });
       expect(empty).toMatchObject({ cases: [], record: { caseCount: 0 } });
       expect(empty.preferences).toEqual({ emailNotifications: true, updatedAt: null }); // never set: the default
+    });
+  });
+
+  describe('e-mail dead letters (PH-12.1, BL-028)', () => {
+    it('a send that keeps failing is retried up to the limit, then parked with the notification kept in the product', async () => {
+      const job = moduleRef.get(NotificationJob);
+      const notifier = moduleRef.get<EmailNotifierPort>(EMAIL_NOTIFIER);
+      const notifications = moduleRef.get(NotificationsService);
+      const carlos: CustomerActor = { kind: 'customer', id: 'cust-bruno', source: 'simulated' }; // known to the simulated Orbit (its address exists)
+      const created = await service.createCase(carlos, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, created.id, { body: 'Olá' });
+      const failing = vi.spyOn(notifier, 'send').mockRejectedValue(new Error('provider down'));
+      try {
+        const later = new Date(Date.now() + 60 * 60_000);
+        for (let i = 1; i <= 5; i += 1) {
+          expect(await job.emailDue(later)).toBe(0);
+          const [row] = await db.select().from(caseNotifications).where(eq(caseNotifications.caseId, created.id));
+          expect(row.emailAttempts).toBe(i);
+          expect(row.emailedAt).toBeNull();
+          expect(row.emailFailedAt === null).toBe(i < 5);
+        }
+        expect(failing).toHaveBeenCalledTimes(5);
+        expect(await job.emailDue(later)).toBe(0); // a dead letter is not retried
+        expect(failing).toHaveBeenCalledTimes(5);
+      } finally {
+        failing.mockRestore();
+      }
+      expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0); // still parked once the provider is back
+      expect((await notifications.list(carlos)).map((n) => n.kind)).toEqual(['staff_reply']); // the in-product notification stays
+      expect(await job.outbox(carlos)).toHaveLength(0);
     });
   });
 });

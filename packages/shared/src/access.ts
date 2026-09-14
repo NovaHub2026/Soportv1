@@ -45,6 +45,41 @@ export function normalizeContact(contact: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** What a masked secret is replaced with in the staff view (BL-027). */
+export const SECRET_MASK = "[oculto]";
+/** A word that announces a secret, followed by something that looks like one (a code, a password, a token). */
+const SECRET_AFTER_KEYWORD = /\b(senha|password|contrase[nñ]a|c[oó]digo|code|pin|token|otp|2fa|frase(?:\s+de\s+recupera[cç][aã]o)?|seed)\b\s*(?:[:=]|é|es|is|de|do|da)?\s*["'“”]?([^\s"'“”,;]{4,})/giu;
+/** A bare 6–8 digit number: the shape of a one-time code (phones are longer or formatted). */
+const BARE_CODE = /(?<![\d./-])\d{6,8}(?![\d./-])/g;
+const COMMON_WORDS = new Set(["nunca", "chega", "chegou", "não", "nao", "errado", "errada", "esqueci", "perdi", "expirou", "invalido", "inválido", "expired", "wrong", "never", "arrives", "reset", "recuperar", "mudar", "trocar", "redefinir", "verificação", "verificacao", "verification", "acesso", "conta", "email", "e-mail", "sms"]);
+
+/** Whether the token after a keyword looks like a secret rather than a word about one ("a senha nunca chega" keeps "nunca"). */
+function looksSecret(token: string): boolean {
+  const t = token.toLowerCase().replace(/[.!?)]+$/, "");
+  if (COMMON_WORDS.has(t)) return false;
+  if (/\d/.test(t)) return true;
+  return t.length >= 8 && /[A-Z]/.test(token) && /[a-z]/.test(token);
+}
+
+/**
+ * Masks what looks like a password, a one-time code or a recovery phrase in a description (BL-027, Cycle Audit 3
+ * FND-0074): staff read the masked text; the original stays only in the stored request for the verification process.
+ * Over-masking hides a word from staff; under-masking shows a secret — the rules lean towards masking.
+ */
+export function maskLikelySecrets(text: string): { text: string; masked: boolean } {
+  let masked = false;
+  let out = text.replace(SECRET_AFTER_KEYWORD, (whole, keyword: string, token: string) => {
+    if (!looksSecret(token)) return whole;
+    masked = true;
+    return whole.slice(0, whole.length - token.length) + SECRET_MASK;
+  });
+  out = out.replace(BARE_CODE, () => {
+    masked = true;
+    return SECRET_MASK;
+  });
+  return { text: out, masked };
+}
+
 export const accessRecoveryInputSchema = z.object({
   contact: contactText(z.string().trim().min(5).max(120)).refine(looksLikeContact, "contact_invalid"),
   description: freeText(z.string().trim().min(10, "description_too_short").max(1000, "description_too_long")),
@@ -79,6 +114,8 @@ export interface AccessRecoveryRequest {
   note: string | null;
   /** The team a forwarded request went to (DEC-0039 i); null until forwarded. */
   forwardedTo: typeof RECOVERY_HANDLING_TEAM | null;
+  /** True when `description` had a likely secret masked for staff (BL-027); the original stays in the stored request. */
+  descriptionMasked: boolean;
 }
 
 export const accessRecoveryOutcomeSchema = z.object({

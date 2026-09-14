@@ -266,6 +266,9 @@ export const caseNotifications = pgTable(
     readAt: tz('read_at'),
     /** When the e-mail about it was handed to the notifier (or skipped for an opted-out customer) — PH-6.2. */
     emailedAt: tz('emailed_at'),
+    /** Failed sends so far (BL-028); after `SUPPORT_EMAIL_MAX_ATTEMPTS` the row is a dead letter (`email_failed_at`) and is not retried. */
+    emailAttempts: integer('email_attempts').notNull().default(0),
+    emailFailedAt: tz('email_failed_at'),
   },
   (t) => [index('case_notifications_customer_idx').on(t.customerId, t.readAt, t.createdAt), index('case_notifications_case_idx').on(t.caseId)],
 );

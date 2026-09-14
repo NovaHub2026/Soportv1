@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ConflictException, HttpException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, count, desc, eq, gt } from 'drizzle-orm';
-import { ACCESS_RECOVERY_LIMITS, type AccessRecoveryInput, type AccessRecoveryOutcomeInput, type AccessRecoveryReceipt, type AccessRecoveryRequest, type AccessRecoveryStatus, formatRecoveryReference, normalizeContact, RECOVERY_HANDLING_TEAM } from '@orbit-support/shared';
+import { ACCESS_RECOVERY_LIMITS, type AccessRecoveryInput, type AccessRecoveryOutcomeInput, type AccessRecoveryReceipt, type AccessRecoveryRequest, type AccessRecoveryStatus, formatRecoveryReference, normalizeContact, RECOVERY_HANDLING_TEAM, maskLikelySecrets } from '@orbit-support/shared';
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { type AccessRecoveryRow, accessRecoveryRequests } from '../database/schema.js';
@@ -120,11 +120,14 @@ function toReceipt(row: AccessRecoveryRow): AccessRecoveryReceipt {
 }
 
 function toRequest(row: AccessRecoveryRow): AccessRecoveryRequest {
+  // Staff read a masked description (BL-027); the original stays in the row for the verification process only.
+  const { text: description, masked: descriptionMasked } = maskLikelySecrets(row.description);
   return {
     id: row.id,
     reference: formatRecoveryReference(row.referenceNumber),
     contact: row.contact,
-    description: row.description,
+    description,
+    descriptionMasked,
     status: row.status,
     createdAt: row.createdAt.toISOString(),
     handledById: row.handledById,

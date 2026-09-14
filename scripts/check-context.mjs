@@ -17,6 +17,9 @@
  *  8. Paths inside command spans (`node scripts/x.mjs …`) exist like single-path spans, from the root, the
  *     document or a workspace; commit hashes and release tags quoted in live documents exist in this clone
  *     (CI checks out full history for it). Added for BL-030.
+ *  9. Repository paths (apps/…, packages/…, scripts/…, docs/…, docker/…) named in shell scripts, Dockerfiles,
+ *     compose files, `.env.example` and the CI workflow exist (git-ignored build outputs skipped). PH-12.1, BL-030.
+ *     Still unchecked: CI run ids (network) and prose freshness.
  *
  * Limitations: syntax and links only. It cannot judge prose freshness, semantic correctness or product
  * alignment, nor whether an audit record is complete. Bare filenames without a directory
@@ -120,6 +123,30 @@ for (const doc of liveDocs) {
       }
     }
   });
+}
+
+// ---------- 1b. Repository paths in non-Markdown sources (PH-12.1, BL-030) ----------
+{
+  const sources = [
+    ...walk(join(ROOT, 'scripts')).filter((p) => p.endsWith('.sh')),
+    ...walk(join(ROOT, 'docker')),
+    ...walk(join(ROOT, '.github')).filter((p) => /\.ya?ml$/.test(p)),
+    join(ROOT, '.env.example'),
+  ].filter(existsSync);
+  // A repository path: one of the known roots, not preceded by a slash, a dot or a word (container paths such as
+  // /app/apps/web and ./apps/web are the image's, not the repository's).
+  const REPO_PATH = /(?<![\w/.$-])(?:apps|packages|scripts|docs|docker)\/[A-Za-z0-9_./-]*[A-Za-z0-9_-]/g;
+  for (const source of sources) {
+    read(source).forEach((line, i) => {
+      for (const m of line.matchAll(REPO_PATH)) {
+        const tok = m[0];
+        if (/[*$<>{}]/.test(tok) || TEMPLATE_TOKEN.test(tok)) continue;
+        if (existsSync(join(ROOT, tok))) linksChecked++;
+        else if (gitIgnored(tok)) linksIgnored++;
+        else fail(source, `line ${i + 1}: repository path not found: ${tok}`);
+      }
+    });
+  }
 }
 
 // ---------- 2–3. Lifecycle vocabulary and consistency ----------

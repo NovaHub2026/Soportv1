@@ -162,6 +162,13 @@
       "when": 1789403457573,
       "tag": "0022_worried_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789404287144,
+      "tag": "0023_bright_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
-import { and, asc, eq, isNull, lt } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, sql } from 'drizzle-orm';
 import { type CustomerPreferences, type EmailNotification, formatCaseReference, maskEmail, type NotificationKind } from '@orbit-support/shared';
 import { jobDisabled, positiveNumberEnv } from '../common/env.js';
 import type { Db } from '../database/database.js';
@@ -24,7 +24,10 @@ const SUBJECTS: Record<NotificationKind, (reference: string) => string> = {
  * E-mails unread notifications after the configured delay (PH-6.2, context §4.4): once per notification,
  * only for customers who did not opt out and whose address the boundary knows. Runs in the API process
  * (single instance until PH-8); `SUPPORT_NOTIFICATION_JOB=off` disables it, `SUPPORT_NOTIFICATION_INTERVAL_MS` sets the cadence.
+ * A send that keeps failing is retried up to `SUPPORT_EMAIL_MAX_ATTEMPTS` times (5) and then parked as a dead letter
+ * with an error in the log (BL-028): the in-product notification stays, the e-mail is given up on.
  */
+export const DEFAULT_EMAIL_MAX_ATTEMPTS = 5;
 @Injectable()
 export class NotificationJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationJob.name);
@@ -69,7 +72,7 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
       .select({ n: caseNotifications, referenceNumber: supportCases.referenceNumber })
       .from(caseNotifications)
       .innerJoin(supportCases, eq(supportCases.id, caseNotifications.caseId))
-      .where(and(isNull(caseNotifications.readAt), isNull(caseNotifications.emailedAt), lt(caseNotifications.createdAt, cutoff)))
+      .where(and(isNull(caseNotifications.readAt), isNull(caseNotifications.emailedAt), isNull(caseNotifications.emailFailedAt), lt(caseNotifications.createdAt, cutoff)))
       .orderBy(asc(caseNotifications.createdAt))
       .limit(200);
     let sent = 0;
@@ -105,8 +108,17 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
         });
         sent += 1;
       } catch (error) {
-        await this.db.update(caseNotifications).set({ emailedAt: null }).where(eq(caseNotifications.id, n.id));
-        this.logger.error(`E-mail for notification ${n.id} failed; released for retry`, error instanceof Error ? error.stack : String(error));
+        // Released for the next tick; after the last allowed attempt the row is a dead letter (BL-028).
+        const attempts = n.emailAttempts + 1;
+        const dead = attempts >= positiveNumberEnv('SUPPORT_EMAIL_MAX_ATTEMPTS', DEFAULT_EMAIL_MAX_ATTEMPTS);
+        await this.db
+          .update(caseNotifications)
+          .set({ emailedAt: null, emailAttempts: sql`${caseNotifications.emailAttempts} + 1`, ...(dead ? { emailFailedAt: now } : {}) })
+          .where(eq(caseNotifications.id, n.id));
+        this.logger.error(
+          dead ? `E-mail for notification ${n.id} failed ${attempts} times; parked as a dead letter (the in-product notification stays)` : `E-mail for notification ${n.id} failed (attempt ${attempts}); released for retry`,
+          error instanceof Error ? error.stack : String(error),
+        );
       }
     }
     return sent;

@@ -82,4 +82,15 @@ describe('AccessRecoveryService (PH-7.1, §4.5)', () => {
     const later = await service.create({ contact: 'e@example.com', description: 'Dez minutos depois, de novo.' }, new Date(now.getTime() + 11 * 60_000), '203.0.113.7');
     expect(later.reference).toMatch(/^REC-[0-9]{6}$/);
   });
+
+  it('masks a likely password or code in the staff view and keeps the original in the row (BL-027)', async () => {
+    await service.create({ contact: 'segredo@example.com', description: 'Minha senha é Abc12345 e o código 482913 expirou.' });
+    const [shown] = await service.list('received');
+    expect(shown.description).toBe('Minha senha é [oculto] e o código [oculto] expirou.');
+    expect(shown.descriptionMasked).toBe(true);
+    const [stored] = await db.select().from(accessRecoveryRequests);
+    expect(stored.description).toContain('Abc12345');
+    await service.create({ contact: 'claro@example.com', description: 'O código não chega no e-mail cadastrado.' });
+    expect((await service.list('received')).find((r) => r.contact === 'claro@example.com')).toMatchObject({ description: 'O código não chega no e-mail cadastrado.', descriptionMasked: false });
+  });
 });

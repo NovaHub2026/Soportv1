@@ -117,6 +117,11 @@ export function AccessRecoveryPanel({ identity, onClose }: AccessRecoveryPanelPr
                 {r.contact}: {request.contact}
               </p>
               <p className={styles.replyBody}>{request.description}</p>
+              {request.descriptionMasked && (
+                <p className={styles.hint} role="note" data-testid="recovery-masked">
+                  {r.masked}
+                </p>
+              )}
               {request.handledById && (
                 <p className={styles.consultationMeta}>
                   {fill(r.handledBy, { agent: request.handledByName ?? request.handledById, time: request.handledAt ? formatMessageTime(request.handledAt) : "" })}

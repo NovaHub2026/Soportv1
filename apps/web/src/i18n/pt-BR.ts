@@ -337,6 +337,7 @@ export const ptBR = {
       forwardedDone: "{reference} encaminhado à equipe de Verificação (simulação).",
       closedDone: "{reference} encerrado.",
       handledBy: "Tratado por {agent} em {time}",
+      masked: "Trecho oculto: parecia uma senha ou um código. O texto original fica apenas com o processo de verificação.",
       alreadyHandled: "Este pedido já foi tratado.",
       failed: "Não foi possível registrar o desfecho.",
       loadFailed: "Não foi possível carregar os pedidos.",

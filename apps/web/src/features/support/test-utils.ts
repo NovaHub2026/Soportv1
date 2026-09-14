@@ -104,3 +104,21 @@ export function attachment(overrides: Partial<import("@orbit-support/shared").Ca
     ...overrides,
   };
 }
+
+export function recoveryRequest(overrides: Partial<import("@orbit-support/shared").AccessRecoveryRequest> = {}) {
+  return {
+    id: "44444444-4444-4444-8444-444444444444",
+    reference: "REC-000001",
+    contact: "alice@example.com",
+    description: "O código de verificação nunca chega.",
+    descriptionMasked: false,
+    status: "received" as const,
+    createdAt: new Date().toISOString(),
+    handledById: null,
+    handledByName: null,
+    handledAt: null,
+    note: null,
+    forwardedTo: null,
+    ...overrides,
+  };
+}
