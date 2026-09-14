@@ -14,7 +14,7 @@ Environment: as in `CYCLE-1-verification.md` (Windows 11 native, Node v24.19.0, 
 | 4 | Web: the context column shows the summary (username, masked e-mail, "Verificada", "Conta real") labeled Simulação and never the raw domain; an unavailable lookup shows "Dados do Orbit indisponíveis: Orbit sem resposta." with "Tentar novamente", which re-reads | EXECUTED | `npm test -w web` (1 test updated, 1 new) | 8 files, 48 tests passed; `lint` and `typecheck` exit 0 |
 | 5 | Integrated behavior in Chromium: staff see the Orbit summary in the real staff workspace | OBSERVED | `npm run build`; `SUPPORT_DB_DIR=<scratch> SUPPORT_UPLOADS_DIR=<scratch> node scripts/ui-smoke.mjs docs/evidence/screenshots/ph-4.1` | see "Smoke" |
 | 6 | Full gate on the candidate | EXECUTED | `npm run verify` | see "Final gate run" |
-| 7 | CI executes the gate on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
+| 7 | CI executes the gate on the pushed commit | EXECUTED (post-integration) | `.github/workflows/ci.yml` | see "CI" |
 
 Not verified: the unavailable state in a real browser (jsdom only — the smoke runs the adapter in its normal mode); a real Orbit adapter (none exists, DEC-0003).
 
@@ -25,4 +25,4 @@ Not verified: the unavailable state in a real browser (jsdom only — the smoke 
 `npm run verify`, 2026-09-14, on the completed PH-4.1 tree: exit 0 — `check-context: 55 documents, 594 links (6 gitignored skipped), 8 phases, 17 subphases, active: PH-4 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 11/11, api 46/46, web 48/48, api e2e 22/22. `npm run build` (shared, nest, next) exit 0 before the smoke.
 
 ## CI
-Pending push.
+Commit `bb92d9e`: run 34811611890 — **success**, 2026-09-14T06:00:33Z (gate incl. api e2e). Claim 7 is therefore EXECUTED post-integration.

@@ -1,7 +1,7 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the PH-4.1 commit (child of `85dc567`): Orbit records boundary, simulated adapter with masking, `GET /api/staff/cases/:id/orbit`, staff context section, PH-4 opened and PH-4.1 approved. No intended local delta after it.
+Checkpoint: branch `main`; `bb92d9e` (PH-4.1: Orbit records boundary, simulated adapter with masking, `GET /api/staff/cases/:id/orbit`, staff context section; PH-4 opened, PH-4.1 approved) plus the CI-verdict commit that follows it. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
@@ -16,7 +16,7 @@ PH-4 is `ACTIVE` with PH-4.1 approved; PH-4.2 (record cards and contextual entry
 - The Owner instruction «Continua hasta el final sin parar» (2026-09-13) remains in force: continue autonomously into PH-4.
 
 ## Resume here
-1. `git status -sb`; `gh run list --limit 3` — record the PH-4.1 commit's CI verdict in `docs/evidence/PH-4.1-verification.md` if missing.
+1. `git status -sb`; `gh run list --limit 3` (`bb92d9e` is green: run 34811611890; the CI-verdict commit's own run is documentation only).
 2. Validate `CURRENT_STATE.md`; plan `docs/phases/PH-4.2.md` (to be created) and start it.
 
 ## Temporary environment notes
