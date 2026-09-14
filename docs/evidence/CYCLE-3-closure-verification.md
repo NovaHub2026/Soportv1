@@ -26,3 +26,6 @@ Environment: Windows 11 native, Git Bash, Node v24.19.0, npm 11.17.0, Playwright
 - FND-0098 cannot prove that past commits came through the gate; it holds from this commit on.
 - The PostgreSQL race test (claim 6) orders the link and the cleanup with short waits; it shows the guard holding when the cleanup meets a held lock, not every interleaving.
 - A silent network drop still keeps "Ao vivo" until the stale-stream watchdog fires (FND-0089, documented).
+
+## CI of the remediation commit
+`7d6404f`: run 34861942932 failed before any job started — the new "came through the gate" step had an unquoted `: ` in its `run:` value, which YAML reads as a mapping, so GitHub rejected the workflow file (no suite ran). The next commit writes the command as a block scalar and was parsed locally before the push; its run is recorded at closure.
