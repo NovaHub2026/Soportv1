@@ -1,13 +1,20 @@
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite';
-import { migrate } from 'drizzle-orm/pglite/migrator';
+import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres';
+import { migrate as migrateNodePg } from 'drizzle-orm/node-postgres/migrator';
+import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
+import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
+import { Pool } from 'pg';
 import * as schema from './schema.js';
 
-export type Db = PgliteDatabase<typeof schema>;
+/** The common Drizzle surface both drivers implement; services never see which one is behind it (ADR-0003). */
+export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export interface DatabaseHandle {
   db: Db;
+  /** Which driver opened the database — reported by /api/health so a demo never passes for a deployment. */
+  driver: 'pglite' | 'postgres';
   close(): Promise<void>;
 }
 
@@ -15,16 +22,24 @@ export interface DatabaseHandle {
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url));
 
 /**
- * Embedded PostgreSQL (PGlite): in memory when `dataDir` is undefined, persisted to that directory
- * otherwise. Migrations are applied on open so every environment runs the committed schema.
- * Deployed environments swap this factory for a PostgreSQL server driver (ADR-0003).
+ * Opens the database and applies the committed migrations so every environment runs the same schema.
+ * - `SUPPORT_DATABASE_URL` set (PH-8.2, BL-019): a PostgreSQL server through a `pg` pool — deployments and the
+ *   `test:pg` runs; `dataDir` is ignored.
+ * - otherwise embedded PostgreSQL (PGlite): in memory when `dataDir` is undefined, persisted to that directory
+ *   otherwise — development and the fast test path.
  */
-export async function createDatabase(dataDir?: string): Promise<DatabaseHandle> {
+export async function createDatabase(dataDir?: string, url: string | undefined = process.env.SUPPORT_DATABASE_URL): Promise<DatabaseHandle> {
+  if (url && url.trim() !== '') {
+    const pool = new Pool({ connectionString: url.trim() });
+    const db = drizzleNodePg({ client: pool, schema });
+    await migrateNodePg(db, { migrationsFolder: MIGRATIONS_FOLDER });
+    return { db: db as unknown as Db, driver: 'postgres', close: () => pool.end() };
+  }
   const client = dataDir ? new PGlite(dataDir) : new PGlite();
   await client.waitReady;
-  const db = drizzle({ client, schema });
-  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-  return { db, close: () => client.close() };
+  const db = drizzlePglite({ client, schema });
+  await migratePglite(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  return { db: db as unknown as Db, driver: 'pglite', close: () => client.close() };
 }
 
 /** PostgreSQL unique-violation detector; Drizzle wraps driver errors, so look one level down too. */

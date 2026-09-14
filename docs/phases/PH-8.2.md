@@ -1,6 +1,6 @@
 # PH-8.2 — PostgreSQL verification
 Type: SUBPHASE TECHNICAL PLAN
-Status: ACTIVE
+Status: APPROVED
 Parent: `PH-8.md`
 Feature context: `../features/FEAT-CASE/CONTEXT.md`
 
@@ -15,10 +15,14 @@ Confirm the case domain's lock-in-transaction rule (DEC-0017) and every migratio
 ## Required behavior, failures and acceptance evidence
 - Both suites green against PostgreSQL locally (Docker) and in CI; the concurrent-take, concurrent-retry and overlapping-closure tests pass under the pool.
 - Without `SUPPORT_DATABASE_URL` nothing changes (PGlite in memory / persisted).
-Acceptance evidence: `../evidence/PH-8.2-verification.md` (to be created).
+Acceptance evidence: `../evidence/PH-8.2-verification.md`.
 
 ## Work performed and important decisions
-Pending.
+- `apps/api/src/database/database.ts`: `createDatabase(dataDir, url = SUPPORT_DATABASE_URL)` — `pg` pool + `drizzle-orm/node-postgres` + its migrator when the URL is set, PGlite otherwise; `Db = PgDatabase<PgQueryResultHKT, typeof schema>` (services untouched); the handle reports its `driver` and `/api/health` says `postgres (server)` or `pglite (embedded PostgreSQL)`.
+- `apps/api/scripts/pg-reset.mjs` (only `*_test` databases), `npm run test:pg -w api` (reset → unit suites without file parallelism → reset → e2e), `docker/compose.test.yml` (PostgreSQL 16 on 5433), CI job `verify-postgres` with a `postgres:16-alpine` service.
+- Dependencies: `pg` 8.23, `@types/pg`. ADR-0003 revisit recorded in DEC-0032: PGlite stays the development and fast-test database; a PostgreSQL server is the deployment database and the second verification path.
 
 ## Verification, limitations and context updates
-Pending.
+Evidence: `../evidence/PH-8.2-verification.md`. Limitations: the local Docker run depends on Docker Desktop's engine being up (see the evidence for what ran where); the CI job is the required verdict for BL-019.
+Context updated: `PH-8.md`, `ROADMAP.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-CASE/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../BACKLOG.md`, `../runbooks/VERIFICATION.md`, `CLAUDE.md`.
+Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review) — conditional on the CI PostgreSQL job being green on the pushed commit (recorded in the next record).

@@ -27,4 +27,4 @@ Not verified: the upload limit over HTTP (31 uploads; the limiter is unit-tested
 `npm run build` (shared, nest, next) exit 0 before the smoke; `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (check-context OK; lint/typecheck exit 0; Vitest shared 21/21, api 65/65, web 73/73, api e2e 34/34).
 
 ## CI
-Pending push. Previous commit `f6ae3f4` (PH-7.3): run 34825250815 **success**.
+Commit `354be8a`: run 34826149511 — **success**. Previous commit `f6ae3f4` (PH-7.3): run 34825250815 **success**.

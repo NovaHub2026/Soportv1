@@ -20,3 +20,34 @@ jobs:
       # Production builds are part of the phase-candidate profile locally; CI runs them too so a broken build
       # never waits for the next phase candidate (Cycle Audit 2, FND-0052).
       - run: npm run build
+
+  verify-postgres:
+    # BL-019 (PH-8.2): the api unit and e2e suites against a server PostgreSQL with a real pool, so the
+    # lock-in-transaction rule (DEC-0017) is verified where it matters, not only on PGlite's single connection.
+    name: api suites on PostgreSQL 16
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: orbit
+          POSTGRES_DB: orbit_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d orbit_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SUPPORT_DATABASE_URL: postgres://postgres:orbit@localhost:5432/orbit_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:shared
+      - run: npm run test:pg -w api

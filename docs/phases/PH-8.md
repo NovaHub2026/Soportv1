@@ -27,8 +27,8 @@ Scenarios: (a) the ninth concurrent stream of one identity is refused with 429 a
 | ID | Block | Status |
 |---|---|---|
 | PH-8.1 | Hardening and carried debt: BL-012, BL-021, BL-024 (partial) — `PH-8.1.md`, approved 2026-09-14 | APPROVED |
-| PH-8.2 | PostgreSQL verification (BL-019): `SUPPORT_DATABASE_URL` driver, `test:pg`, Docker locally, CI service container — `PH-8.2.md` | ACTIVE |
-| PH-8.3 | Deployment and runbooks: containers, compose rehearsal, environment reference, release and operations runbooks; phase closure — `PH-8.3.md` (to be created) | PLANNED |
+| PH-8.2 | PostgreSQL verification (BL-019): `SUPPORT_DATABASE_URL` driver, `test:pg`, Docker locally, CI service container — `PH-8.2.md`, approved 2026-09-14 (conditional on the CI PostgreSQL job) | APPROVED |
+| PH-8.3 | Deployment and runbooks: containers, compose rehearsal, environment reference, release and operations runbooks; phase closure — `PH-8.3.md` | ACTIVE |
 
 ## Verification and operational readiness
 Per subphase: unit/e2e negatives for each hardening control, the PostgreSQL run as its own evidence, the compose rehearsal recorded with commands and outputs, the runbooks reviewed against §9.3. `npm run gate` for every commit; `npm run verify:full` and the smoke on the phase candidate.

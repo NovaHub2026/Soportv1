@@ -2,7 +2,7 @@ import { type DynamicModule, Inject, Injectable, Module, type OnApplicationShutd
 import { createDatabase, type DatabaseHandle } from './database.js';
 
 export const DB = Symbol('DB');
-const DB_HANDLE = Symbol('DB_HANDLE');
+export const DB_HANDLE = Symbol('DB_HANDLE');
 
 export interface DatabaseModuleOptions {
   /** Directory for the persisted embedded database. Defaults to `SUPPORT_DB_DIR`; unset means in memory. */
@@ -36,7 +36,7 @@ export class DatabaseModule {
         { provide: DB, useFactory: (handle: DatabaseHandle) => handle.db, inject: [DB_HANDLE] },
         DatabaseLifecycle,
       ],
-      exports: [DB],
+      exports: [DB, DB_HANDLE],
     };
   }
 }
