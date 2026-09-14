@@ -153,6 +153,13 @@ export class StaffCasesController {
     return this.cases.resolve(actor, id, input);
   }
 
+  /** Close a resolved case explicitly (PH-3.4); the follow-up window job does the same automatically. */
+  @Post(':id/close')
+  @HttpCode(200)
+  close(@CurrentActor() actor: StaffActor, @Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
+    return this.cases.closeCase(actor, id);
+  }
+
   /** Internal note: staff-only message (RULE-SUP-04). */
   @Post(':id/notes')
   @HttpCode(201)

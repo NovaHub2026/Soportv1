@@ -113,6 +113,18 @@ export const answerConsultationSchema = z.object({
 });
 export type AnswerConsultationInput = z.infer<typeof answerConsultationSchema>;
 
+// ---- Closure and follow-up (PH-3.4, context §7.3) ----
+
+export const CLOSED_REASONS = ["auto_window", "staff"] as const;
+export type ClosedReason = (typeof CLOSED_REASONS)[number];
+
+/** "Preciso de mais ajuda" from a closed case: a new linked case with the customer's first message. */
+export const followUpSchema = z.object({
+  message: z.string().trim().min(1, "message_required").max(5000, "message_too_long"),
+  clientMessageId: z.string().trim().min(1).max(100).optional(),
+});
+export type FollowUpInput = z.infer<typeof followUpSchema>;
+
 // ---- Assignment and attributes (PH-3.3, context §5.2, §5.4) ----
 
 /** `agentId: null` releases the case back to the unassigned queue. */
@@ -255,6 +267,10 @@ export const caseSummarySchema = z.object({
   unreadCount: z.number().int().nonnegative(),
   resolvedAt: z.string().nullable(),
   resolutionReason: z.enum(RESOLUTION_REASONS).nullable(),
+  closedAt: z.string().nullable(),
+  /** The case this one continues (set on a follow-up opened from a closed case — §7.3). */
+  parentCaseId: z.string().nullable(),
+  parentReference: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 

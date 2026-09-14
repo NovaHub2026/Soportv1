@@ -24,4 +24,4 @@ Not verified: a real staff directory (transfer targets are the simulated agents)
 `npm run verify`, 2026-09-14 01:56 UTC, on the completed PH-3.3 tree: `check-context: 31 documents, 422 links (2 gitignored skipped), 8 phases, 14 subphases, active: PH-3 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 34/34, web 38/38; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34797586909` on `637af01` (PH-3.3 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 02:04 UTC. Claim 6 is EXECUTED for `637af01`.

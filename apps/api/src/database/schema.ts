@@ -59,6 +59,10 @@ export const supportCases = pgTable(
     /** Reason code of the latest resolution (PH-3.1); the explanation is a public message. */
     resolutionReason: text('resolution_reason'),
     closedAt: tz('closed_at'),
+    /** `auto_window` (follow-up window elapsed) or `staff` (PH-3.4). */
+    closedReason: text('closed_reason'),
+    /** The closed case this one continues (PH-3.4); self-reference kept nullable and non-cascading. */
+    parentCaseId: uuid('parent_case_id'),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),

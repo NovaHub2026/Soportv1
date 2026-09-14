@@ -57,6 +57,9 @@ export function summary(overrides: Partial<import("@orbit-support/shared").CaseS
     unreadCount: 0,
     resolvedAt: null,
     resolutionReason: null,
+    closedAt: null,
+    parentCaseId: null,
+    parentReference: null,
     ...overrides,
   };
 }

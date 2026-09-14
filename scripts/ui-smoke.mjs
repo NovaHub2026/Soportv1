@@ -334,6 +334,29 @@ try {
     await staffPage.getByRole('button', { name: 'Assumir caso' }).click();
     await staffPage.getByText('staff-ana').first().waitFor({ timeout: 5000 });
     note('release-retake', 'as Bruno the case appeared under "Meus casos" and was returned to the queue; as Ana it reappeared under "Não atribuídos" and was taken again — history preserved throughout');
+
+    // Closure and follow-up (PH-3.4): resolve → close → the customer opens a linked continuation.
+    await staffPage.getByRole('button', { name: 'Resolver caso' }).click();
+    await staffPage.getByLabel('Motivo').selectOption('answered');
+    await staffPage.getByLabel('Explicação para o cliente').fill('Tudo esclarecido por aqui. Vamos encerrar este caso.');
+    await staffPage.getByRole('button', { name: 'Confirmar resolução' }).click();
+    await staffPage.getByRole('button', { name: 'Encerrar caso' }).click();
+    await staffPage.getByText('Encerrado pela equipe').waitFor({ timeout: 5000 });
+    await desktop.getByText('Encerrado', { exact: true }).waitFor({ timeout: 5000 });
+    await desktop.getByText(/Esta conversa foi encerrada/).waitFor();
+    note('closed', 'staff closed the resolved case; the customer sees "Encerrado", the closure notice and the follow-up form instead of the composer');
+    await desktop.getByLabel('O que ainda precisa').fill('O problema voltou a acontecer hoje.');
+    await desktop.getByRole('button', { name: 'Preciso de mais ajuda' }).click();
+    await desktop.getByText(/Referência SUP-000002/).waitFor({ timeout: 10_000 });
+    await desktop.getByText(/Continuação do caso SUP-000001/).first().waitFor();
+    await desktop.getByText('Continuação do caso SUP-000001.', { exact: true }).waitFor();
+    note('follow-up', 'the customer opened a linked continuation: new reference SUP-000002, "Continuação do caso SUP-000001" in the header and a system message pointing back');
+    await shot(desktop, '16-customer-follow-up');
+    await staffPage.getByRole('tab', { name: 'Não atribuídos' }).click();
+    await staffPage.getByRole('button', { name: /SUP-000002/ }).waitFor({ timeout: 10_000 });
+    await staffPage.getByRole('button', { name: /SUP-000002/ }).click();
+    await staffPage.getByText(/Continuação do caso SUP-000001/).first().waitFor({ timeout: 5000 });
+    note('follow-up-staff', 'the continuation reached the staff queue with the link to the previous case');
     await staffPage.close();
 
     // Continuity: reload, history still there.

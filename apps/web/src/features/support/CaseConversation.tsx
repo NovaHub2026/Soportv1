@@ -2,7 +2,7 @@
 
 import { type CaseMessage, type CustomerCaseDetail, isStreamEvent } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { dictionary as t, formatMessageTime } from "@/i18n";
+import { dictionary as t, fill, formatMessageTime } from "@/i18n";
 import { type AttachmentClient, type CustomerIdentity, customerApi, customerIdentityHeaders, newClientMessageId } from "@/lib/api";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
 import { AttachmentComposer } from "./AttachmentComposer";
@@ -21,6 +21,8 @@ export const FAILED_RETRY_INTERVAL_MS = 15_000;
 interface CaseConversationProps {
   identity: CustomerIdentity;
   caseId: string;
+  /** Navigate to another case of this customer (a follow-up just opened, or the previous case of one). */
+  onOpenCase?: (caseId: string) => void;
 }
 
 /** A message the customer typed that the server has not confirmed yet, or that failed to send. */
@@ -36,10 +38,13 @@ type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"
 
 const pageVisible = () => typeof document === "undefined" || document.visibilityState === "visible";
 
-export function CaseConversation({ identity, caseId }: CaseConversationProps) {
+export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversationProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [followUpDraft, setFollowUpDraft] = useState("");
+  const [followUp, setFollowUp] = useState<{ status: "idle" } | { status: "sending" } | { status: "error" }>({ status: "idle" });
+  const [followUpClientId, setFollowUpClientId] = useState(() => newClientMessageId());
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [attachClearToken, setAttachClearToken] = useState(0);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
@@ -175,6 +180,23 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
     logRef.current?.lastElementChild?.scrollIntoView?.({ block: "end" });
   }, [load, pending]);
 
+  async function handleFollowUp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const message = followUpDraft.trim();
+    if (!message) return;
+    setFollowUp({ status: "sending" });
+    try {
+      const created = await customerApi.followUp(identity, caseId, { message, clientMessageId: followUpClientId });
+      setFollowUpDraft("");
+      setFollowUpClientId(newClientMessageId());
+      setFollowUp({ status: "idle" });
+      onOpenCase?.(created.id);
+    } catch (error) {
+      console.warn("support: could not open follow-up", error);
+      setFollowUp({ status: "error" });
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const body = draft.trim();
@@ -221,6 +243,19 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
           <p className={styles.caseHeaderSubject}>{detail.subject}</p>
           <ConnectionIndicator status={streamStatus} labels={t.support.connection} />
         </div>
+        {detail.parentReference && (
+          <p className={styles.followUpLink}>
+            {fill(t.support.conversation.followUpOf, { reference: detail.parentReference })}
+            {detail.parentCaseId && onOpenCase && (
+              <>
+                {" · "}
+                <button type="button" className={styles.linkButton} onClick={() => onOpenCase(detail.parentCaseId!)}>
+                  {t.support.conversation.openPrevious}
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       <ol ref={logRef} className={styles.messageLog} aria-live="polite" aria-relevant="additions">
@@ -272,9 +307,31 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
       )}
 
       {closed ? (
-        <p className={styles.notice} role="status">
-          {t.support.conversation.closedNotice}
-        </p>
+        <form className={styles.followUpForm} onSubmit={handleFollowUp} aria-label={t.support.conversation.followUpSubmit}>
+          <p className={styles.notice} role="status">
+            {t.support.conversation.closedNotice}
+          </p>
+          <label htmlFor="follow-up-message" className="visually-hidden">
+            {t.support.conversation.followUpLabel}
+          </label>
+          <textarea
+            id="follow-up-message"
+            className={styles.composerInput}
+            rows={3}
+            maxLength={5000}
+            placeholder={t.support.conversation.followUpPlaceholder}
+            value={followUpDraft}
+            onChange={(event) => setFollowUpDraft(event.target.value)}
+          />
+          {followUp.status === "error" && (
+            <p className={styles.errorText} role="alert">
+              {t.support.conversation.followUpFailed}
+            </p>
+          )}
+          <button type="submit" className={styles.primaryButton} disabled={!followUpDraft.trim() || followUp.status === "sending"}>
+            {followUp.status === "sending" ? t.support.conversation.followUpSending : t.support.conversation.followUpSubmit}
+          </button>
+        </form>
       ) : (
         <form className={styles.composer} onSubmit={handleSubmit}>
           <div className={styles.composerRow}>

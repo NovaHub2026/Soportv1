@@ -97,6 +97,7 @@ export function StaffWorkspace() {
             onChanged={() => setRefreshToken((n) => n + 1)}
             signal={caseSignal}
             live={streamStatus === "connected"}
+            onOpenCase={setSelectedCaseId}
           />
         ) : (
           <section className={styles.emptyConversation} aria-live="polite">

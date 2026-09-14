@@ -174,11 +174,28 @@ describe("CaseConversation", () => {
     expect(screen.queryByRole("button", { name: "Ainda preciso de ajuda" })).toBeNull();
   });
 
-  test("a closed case shows the closure notice instead of the composer", async () => {
-    mockFetch(() => ({ body: { ...detail, status: "closed" } }));
-    render(<CaseConversation identity={identity} caseId={detail.id} />);
+  test("a closed case shows the closure notice and opens a linked follow-up instead of the composer (PH-3.4)", async () => {
+    const child = { ...summary({ id: "99999999-9999-4999-8999-999999999999", reference: "SUP-000002", parentCaseId: detail.id, parentReference: "SUP-000001" }), messages: [] };
+    const { requests } = mockFetch((request) => (request.url.endsWith("/follow-up") ? { status: 201, body: child } : { body: { ...detail, status: "closed" } }));
+    const onOpenCase = vi.fn();
+    render(<CaseConversation identity={identity} caseId={detail.id} onOpenCase={onOpenCase} />);
     expect(await screen.findByText(/Esta conversa foi encerrada/)).toBeDefined();
     expect(screen.queryByLabelText("Sua mensagem")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("O que ainda precisa"), { target: { value: "Voltou a acontecer." } });
+    fireEvent.click(screen.getByRole("button", { name: "Preciso de mais ajuda" }));
+    await waitFor(() => expect(onOpenCase).toHaveBeenCalledWith(child.id));
+    const post = requests.find((r) => r.url.endsWith("/follow-up"));
+    expect(post?.body).toMatchObject({ message: "Voltou a acontecer." });
+  });
+
+  test("a follow-up shows which case it continues and can open it", async () => {
+    mockFetch(() => ({ body: { ...detail, parentCaseId: "77777777-7777-4777-8777-777777777777", parentReference: "SUP-000001", reference: "SUP-000002" } }));
+    const onOpenCase = vi.fn();
+    render(<CaseConversation identity={identity} caseId={detail.id} onOpenCase={onOpenCase} />);
+    expect(await screen.findByText(/Continuação do caso SUP-000001/)).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Ver caso anterior" }));
+    expect(onOpenCase).toHaveBeenCalledWith("77777777-7777-4777-8777-777777777777");
   });
 
   test("reports when the conversation cannot be loaded", async () => {

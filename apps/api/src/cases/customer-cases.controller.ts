@@ -23,6 +23,8 @@ import {
   createCaseSchema,
   type CreateCaseInput,
   type CustomerCaseDetail,
+  followUpSchema,
+  type FollowUpInput,
   postMessageSchema,
   type PostMessageInput,
 } from '@orbit-support/shared';
@@ -79,6 +81,16 @@ export class CustomerCasesController {
   async stream(@CurrentActor() actor: CustomerActor, @Param('id', ParseUUIDPipe) id: string): Promise<Observable<MessageEvent>> {
     await this.cases.getCustomerCase(actor, id);
     return this.streams.customerCaseStream(actor.id, id);
+  }
+
+  /** "Preciso de mais ajuda" from a closed case: a new linked case (§7.3). */
+  @Post(':id/follow-up')
+  followUp(
+    @CurrentActor() actor: CustomerActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(followUpSchema)) input: FollowUpInput,
+  ): Promise<CustomerCaseDetail> {
+    return this.cases.createFollowUp(actor, id, input);
   }
 
   /** The customer has the conversation in front of them: mark everything received as read. */

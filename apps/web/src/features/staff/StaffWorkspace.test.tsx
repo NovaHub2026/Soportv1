@@ -241,6 +241,24 @@ describe("StaffCaseView", () => {
     expect(patch?.body).toEqual({ priority: "high" });
   });
 
+  test("a resolved case offers 'Encerrar caso' which posts to /close and shows the closure (PH-3.4)", async () => {
+    let status: "resolved" | "closed" = "resolved";
+    const { requests } = mockFetch((request) => {
+      if (request.url.endsWith("/close")) {
+        status = "closed";
+        return { body: summary({ status }) };
+      }
+      return { body: { ...detail, status, resolutionReason: "solved", assignedAgentId: "staff-ana" } };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    fireEvent.click(await screen.findByRole("button", { name: "Encerrar caso" }));
+    await waitFor(() => expect(requests.some((r) => r.url === `/api/staff/cases/${detail.id}/close`)).toBe(true));
+    expect(await screen.findByText("Encerrado")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Encerrar caso" })).toBeNull();
+    expect(screen.queryByLabelText("Resposta ao cliente")).toBeNull();
+  });
+
   test("a public reply is posted and then shown in the conversation", async () => {
     let replied = false;
     mockFetch((request) => {

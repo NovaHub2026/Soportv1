@@ -10,6 +10,7 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 - Database: embedded PostgreSQL (PGlite, ADR-0003). No server or Docker needed. Dev data lives in `apps/api/.data/pglite` (gitignored; delete to reset). `SUPPORT_DB_DIR` overrides the directory; unset means in memory (tests).
 - Schema change: edit `apps/api/src/database/schema.ts`, run `npm run db:generate -w api`, commit the new file under `apps/api/drizzle/`. Migrations apply automatically when the API opens the database.
 - Attachments (DEC-0009): files are stored under `SUPPORT_UPLOADS_DIR` (default `apps/api/.data/uploads`, gitignored); the UI smoke must point it at scratch too. Allowed: PNG, JPEG, WebP, PDF; 10 MB; 3 per message.
+- Closure job (DEC-0013): the API closes resolved cases after `SUPPORT_FOLLOW_UP_WINDOW_DAYS` (default 7) every `SUPPORT_CLOSURE_INTERVAL_MS` (default 60 000); `SUPPORT_CLOSURE_JOB=off` disables it (tests). Run one API instance.
 - Identity (DEC-0008): `SUPPORT_IDENTITY_PROVIDER=simulated` is the only provider; with `NODE_ENV=production` the API refuses to start unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` is set deliberately for an isolated demo. `GET /api/identity/me` shows who the API thinks you are.
 
 ## Profiles (`GOVERNANCE.md` §7.2–7.3)

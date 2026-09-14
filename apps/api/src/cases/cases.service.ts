@@ -1,5 +1,5 @@
 import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, count, desc, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import {
   type AnswerConsultationInput,
   type AssignCaseInput,
@@ -11,6 +11,7 @@ import {
   type CreateCaseInput,
   type CustomerCaseDetail,
   deriveSubject,
+  type FollowUpInput,
   formatCaseReference,
   OPEN_CASE_STATUSES,
   type PostMessageInput,
@@ -131,7 +132,79 @@ export class CasesService {
       .where(eq(supportCases.id, row.id))
       .returning();
     this.publishCaseUpdated(updated);
-    return toSummary(updated, 0);
+    return this.summaryOf(updated, 'customer');
+  }
+
+  /**
+   * "Preciso de mais ajuda" from a closed case (§7.3, RULE-SUP-06): a new case for the same customer, linked
+   * to the closed one, with a system message pointing back so nobody retells the whole story.
+   */
+  async createFollowUp(customer: CustomerActor, parentCaseId: string, input: FollowUpInput): Promise<CustomerCaseDetail> {
+    const parent = await this.requireCustomerCase(customer, parentCaseId);
+    if (parent.status !== 'closed') throw new ConflictException('case_not_closed');
+    if (input.clientMessageId) {
+      const existing = await this.findCaseByClientMessage(customer.id, input.clientMessageId);
+      if (existing) return this.customerDetail(existing);
+    }
+    const parentReference = formatCaseReference(parent.referenceNumber);
+    const { child, firstMessage } = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [created] = await tx
+        .insert(supportCases)
+        .values({
+          customerId: customer.id,
+          subject: deriveSubject(input.message),
+          category: parent.category,
+          parentCaseId: parent.id,
+          createdAt: now,
+          updatedAt: now,
+          lastMessageAt: now,
+          lastCustomerMessageAt: now,
+        })
+        .returning();
+      const childReference = formatCaseReference(created.referenceNumber);
+      await tx.insert(caseMessages).values({
+        caseId: created.id,
+        authorType: 'system',
+        authorId: 'system',
+        body: `Continuação do caso ${parentReference}.`,
+        createdAt: now,
+      });
+      const [message] = await tx
+        .insert(caseMessages)
+        .values({
+          caseId: created.id,
+          authorType: 'customer',
+          authorId: customer.id,
+          body: input.message,
+          clientMessageId: input.clientMessageId ?? null,
+          createdAt: new Date(now.getTime() + 1),
+        })
+        .returning();
+      await tx.insert(caseEvents).values([
+        {
+          caseId: created.id,
+          type: 'follow_up_created',
+          actorType: 'customer',
+          actorId: customer.id,
+          data: { parentCaseId: parent.id, parentReference },
+          createdAt: now,
+        },
+        {
+          caseId: parent.id,
+          type: 'follow_up_created',
+          actorType: 'customer',
+          actorId: customer.id,
+          data: { followUpCaseId: created.id, followUpReference: childReference },
+          createdAt: now,
+        },
+      ]);
+      return { child: created, firstMessage: message };
+    });
+    this.publishCaseUpdated(child);
+    this.publishMessage(child, toMessage(firstMessage));
+    this.publishCaseUpdated(parent);
+    return this.customerDetail(child);
   }
 
   async postCustomerMessage(customer: CustomerActor, caseId: string, input: PostMessageInput): Promise<CaseMessage> {
@@ -206,13 +279,13 @@ export class CasesService {
 
   async getStaffCase(caseId: string): Promise<StaffCaseDetail> {
     const row = await this.requireCase(caseId);
-    const [messages, events, unread, consultations] = await Promise.all([
+    const [messages, events, summary, consultations] = await Promise.all([
       this.loadMessages(row.id, false),
       this.loadEvents(row.id),
-      this.unreadCounts([row.id], 'staff'),
+      this.summaryOf(row),
       this.loadConsultations(row.id),
     ]);
-    return { ...toSummary(row, unread.get(row.id) ?? 0), messages, events, consultations };
+    return { ...summary, messages, events, consultations };
   }
 
   // ---------- Internal collaboration (PH-3.2): never visible to customers (RULE-SUP-04) ----------
@@ -341,21 +414,69 @@ export class CasesService {
       .where(eq(supportCases.id, row.id))
       .returning();
     this.publishCaseUpdated(updated);
-    return toSummary(updated, 0);
+    return this.summaryOf(updated);
+  }
+
+  // ---------- Closure (PH-3.4, §7.3): only resolved cases close; history stays; follow-ups link back ----------
+
+  /** Staff close a resolved case explicitly. */
+  async closeCase(staff: StaffActor, caseId: string): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    if (row.status !== 'resolved') throw new ConflictException('case_not_resolved');
+    const updated = await this.closeRow(row, 'staff', { actorType: 'staff', actorId: staff.id });
+    return this.summaryOf(updated);
+  }
+
+  /**
+   * Closes resolved cases whose latest resolution is older than the follow-up window (working default 7 days,
+   * context §13.1). Idempotent; returns how many were closed. Called by the closure job and by tests.
+   */
+  async closeExpired(now = new Date(), windowDays = followUpWindowDays()): Promise<number> {
+    const cutoff = new Date(now.getTime() - windowDays * 24 * 60 * 60 * 1000);
+    const expired = await this.db
+      .select()
+      .from(supportCases)
+      .where(and(eq(supportCases.status, 'resolved'), lt(supportCases.resolvedAt, cutoff)));
+    for (const row of expired) {
+      await this.closeRow(row, 'auto_window', { actorType: 'system', actorId: 'closure-job' }, now);
+    }
+    return expired.length;
+  }
+
+  private async closeRow(
+    row: SupportCaseRow,
+    reason: 'auto_window' | 'staff',
+    actor: { actorType: 'staff' | 'system'; actorId: string },
+    now = new Date(),
+  ): Promise<SupportCaseRow> {
+    const updated = await this.db.transaction(async (tx) => {
+      await tx.insert(caseEvents).values([
+        { ...statusChange(row, 'closed', actor.actorId, actor.actorType, now) },
+        { caseId: row.id, type: 'case_closed', actorType: actor.actorType, actorId: actor.actorId, data: { reason }, createdAt: now },
+      ]);
+      const [changed] = await tx
+        .update(supportCases)
+        .set({ status: 'closed', closedAt: now, closedReason: reason, updatedAt: now })
+        .where(and(eq(supportCases.id, row.id), eq(supportCases.status, 'resolved')))
+        .returning();
+      return changed ?? row;
+    });
+    this.publishCaseUpdated(updated);
+    return updated;
   }
 
   async takeCase(staff: StaffActor, caseId: string): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
     if (!OPEN.includes(row.status)) throw new ConflictException('case_not_open');
     if (row.assignedAgentId && row.assignedAgentId !== staff.id) throw new ConflictException('case_assigned_to_other');
-    if (row.assignedAgentId === staff.id) return toSummary(row);
+    if (row.assignedAgentId === staff.id) return this.summaryOf(row);
     const updated = await this.db.transaction(async (tx) => {
       const now = new Date();
       const [changed] = await this.assign(tx, row, staff, now);
       return changed;
     });
     this.publishCaseUpdated(updated);
-    return toSummary(updated);
+    return this.summaryOf(updated);
   }
 
   async postStaffMessage(staff: StaffActor, caseId: string, input: PostMessageInput): Promise<CaseMessage> {
@@ -427,7 +548,7 @@ export class CasesService {
     if (row.status === 'closed') throw new ConflictException('case_closed');
     const mayReassign = row.assignedAgentId === null || row.assignedAgentId === staff.id || staff.role !== 'agent';
     if (!mayReassign) throw new ForbiddenException('not_case_owner');
-    if (row.assignedAgentId === input.agentId) return toSummary(row);
+    if (row.assignedAgentId === input.agentId) return this.summaryOf(row);
     const updated = await this.db.transaction(async (tx) => {
       const now = new Date();
       await tx.insert(caseEvents).values({
@@ -448,7 +569,7 @@ export class CasesService {
       return changed;
     });
     this.publishCaseUpdated(updated);
-    return toSummary(updated);
+    return this.summaryOf(updated);
   }
 
   /** Priority and category corrections, each recorded as an attributable event (§5.4, RULE-SUP-09). */
@@ -484,7 +605,7 @@ export class CasesService {
       return changed;
     });
     this.publishCaseUpdated(updated);
-    return toSummary(updated);
+    return this.summaryOf(updated);
   }
 
   // ---------- Lifecycle (PH-3.1): status means "work still required" (§7) ----------
@@ -509,7 +630,7 @@ export class CasesService {
       return changed;
     });
     this.publishCaseUpdated(updated);
-    return toSummary(updated);
+    return this.summaryOf(updated);
   }
 
   /**
@@ -560,7 +681,7 @@ export class CasesService {
     });
     this.publishMessage(updated, toMessage(message));
     this.publishCaseUpdated(updated);
-    return toSummary(updated);
+    return this.summaryOf(updated);
   }
 
   // ---------- Rows for controllers that need the case before acting (attachments) ----------
@@ -642,13 +763,36 @@ export class CasesService {
   }
 
   private async customerDetail(row: SupportCaseRow): Promise<CustomerCaseDetail> {
-    const [messages, unread] = await Promise.all([this.loadMessages(row.id, true), this.unreadCounts([row.id], 'customer')]);
-    return { ...toSummary(row, unread.get(row.id) ?? 0), messages };
+    const [messages, summary] = await Promise.all([this.loadMessages(row.id, true), this.summaryOf(row, 'customer')]);
+    return { ...summary, messages };
   }
 
+  /** Summaries with viewer-dependent unread counts and the parent reference for follow-ups. */
   private async withUnread(rows: SupportCaseRow[], viewer: 'customer' | 'staff'): Promise<CaseSummary[]> {
-    const unread = await this.unreadCounts(rows.map((r) => r.id), viewer);
-    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0));
+    const [unread, parents] = await Promise.all([this.unreadCounts(rows.map((r) => r.id), viewer), this.parentReferences(rows)]);
+    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0, parents.get(row.id) ?? null));
+  }
+
+  private async summaryOf(row: SupportCaseRow, viewer: 'customer' | 'staff' = 'staff'): Promise<CaseSummary> {
+    const [summary] = await this.withUnread([row], viewer);
+    return summary;
+  }
+
+  /** `SUP-…` of each row's parent case, keyed by the child's id. */
+  private async parentReferences(rows: SupportCaseRow[]): Promise<Map<string, string>> {
+    const parentIds = [...new Set(rows.map((r) => r.parentCaseId).filter((id): id is string => id !== null))];
+    if (parentIds.length === 0) return new Map();
+    const parents = await this.db
+      .select({ id: supportCases.id, referenceNumber: supportCases.referenceNumber })
+      .from(supportCases)
+      .where(inArray(supportCases.id, parentIds));
+    const byParent = new Map(parents.map((p) => [p.id, formatCaseReference(p.referenceNumber)]));
+    const result = new Map<string, string>();
+    for (const row of rows) {
+      const reference = row.parentCaseId ? byParent.get(row.parentCaseId) : undefined;
+      if (reference) result.set(row.id, reference);
+    }
+    return result;
   }
 
   /**
@@ -718,7 +862,13 @@ function statusChange(
 
 const iso = (value: Date | null): string | null => (value ? value.toISOString() : null);
 
-function toSummary(row: SupportCaseRow, unreadCount = 0): CaseSummary {
+/** Follow-up window in days (context §13.1 working default 7); `SUPPORT_FOLLOW_UP_WINDOW_DAYS` overrides. */
+export function followUpWindowDays(): number {
+  const parsed = Number(process.env.SUPPORT_FOLLOW_UP_WINDOW_DAYS ?? 7);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
+}
+
+function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string | null = null): CaseSummary {
   return {
     id: row.id,
     reference: formatCaseReference(row.referenceNumber),
@@ -738,6 +888,9 @@ function toSummary(row: SupportCaseRow, unreadCount = 0): CaseSummary {
     unreadCount,
     resolvedAt: iso(row.resolvedAt),
     resolutionReason: (row.resolutionReason as ResolutionReason | null) ?? null,
+    closedAt: iso(row.closedAt),
+    parentCaseId: row.parentCaseId,
+    parentReference,
   };
 }
 

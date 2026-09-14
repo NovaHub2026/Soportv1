@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `8a5f211` plus the PH-3.1 change (resolved notice and "Ainda preciso de ajuda")
+Verified against: `637af01` plus the PH-3.4 change (closed notice with follow-up form, continuation header)
 Verified on: 2026-09-13
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
@@ -21,7 +21,8 @@ Implemented (PH-1.3, refined in PH-1.4):
 - Delivery states (PH-2.2): unread badges on the home lists (fed by `/api/support/cases/stream`), automatic read marking while the conversation is visible (`POST …/read`), connection indicator "Ao vivo / Reconectando… / Sem conexão", and automatic resend of failed messages on reconnect with the same `clientMessageId` — observed with network emulation: sent once, shown once on both sides.
 - Attachments (PH-2.3): "Anexar arquivo" in the composer uploads immediately and shows each file's state (enviando / tamanho / recusado com motivo); ready ids are linked when the message is sent; images render as thumbnails fetched with the identity header (blob URLs), PDFs as chips with "Abrir"; unavailable files show a state instead of a broken image.
 - Resolution (PH-3.1): a resolved case shows a notice with the staff explanation in the conversation and the button "Ainda preciso de ajuda", which sends "Ainda preciso de ajuda." and reactivates the same case (§7.2); "Aguardando sua resposta" is shown while staff wait for the customer.
-Gaps (accepted target): "Preciso de mais ajuda" linked follow-up from a closed case (PH-3.4); attachments on the first message of a new case (BL-010); in-product notifications outside the conversation (PH-6); contextual entry from a record with a card ("Preciso de ajuda", PH-4); "Ainda preciso de ajuda" / linked follow-up from closed (PH-3); "Não consigo acessar minha conta" route (PH-7); Spanish locale (structure ready, content later).
+- Closure (PH-3.4): a closed case replaces the composer with the closure notice and a form whose button "Preciso de mais ajuda" opens a linked continuation and navigates to it; a continuation shows "Continuação do caso SUP-…" with "Ver caso anterior".
+Gaps (accepted target): attachments on the first message of a new case (BL-010); in-product notifications outside the conversation (PH-6); contextual entry from a record with a card ("Preciso de ajuda", PH-4); "Ainda preciso de ajuda" / linked follow-up from closed (PH-3); "Não consigo acessar minha conta" route (PH-7); Spanish locale (structure ready, content later).
 
 ## Dependencies and consumers
 Depends on: FEAT-CASE endpoints and contracts (`@orbit-support/shared`), FEAT-ORBIT identity (simulated header `x-simulated-customer-id`), Next rewrites `/api/*` → `API_ORIGIN`.

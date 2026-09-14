@@ -90,6 +90,56 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     });
   });
 
+  describe('closure and linked follow-up (PH-3.4, RULE-SUP-06)', () => {
+    it('only resolved cases close; the job closes those past the window and leaves recent ones; staff can close explicitly', async () => {
+      const recent = await service.createCase(alice, { category: 'other', message: 'Recente' });
+      const old = await service.createCase(alice, { category: 'other', message: 'Antigo' });
+      const open = await service.createCase(alice, { category: 'other', message: 'Aberto' });
+      await service.resolve(ana, recent.id, { reason: 'solved', explanation: 'ok' });
+      await service.resolve(ana, old.id, { reason: 'solved', explanation: 'ok' });
+      const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+      await db.update(supportCases).set({ resolvedAt: eightDaysAgo }).where(eq(supportCases.id, old.id));
+
+      expect(await service.closeExpired(new Date(), 7)).toBe(1);
+      expect(await service.closeExpired(new Date(), 7)).toBe(0); // idempotent
+      const closedOld = await service.getStaffCase(old.id);
+      expect(closedOld).toMatchObject({ status: 'closed' });
+      expect(closedOld.closedAt).not.toBeNull();
+      expect(closedOld.events.at(-1)).toMatchObject({ type: 'case_closed', actorType: 'system', data: { reason: 'auto_window' } });
+      expect((await service.getStaffCase(recent.id)).status).toBe('resolved');
+      expect((await service.getStaffCase(open.id)).status).toBe('new');
+
+      await expect(service.closeCase(ana, open.id)).rejects.toBeInstanceOf(ConflictException);
+      const closedByStaff = await service.closeCase(ana, recent.id);
+      expect(closedByStaff.status).toBe('closed');
+      expect((await service.getStaffCase(recent.id)).events.at(-1)).toMatchObject({ type: 'case_closed', actorId: ana.id, data: { reason: 'staff' } });
+    });
+
+    it('a follow-up from a closed case is a new linked case with the previous reference; other states and customers are refused', async () => {
+      const parent = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Saque' });
+      await expect(service.createFollowUp(alice, parent.id, { message: 'Ainda não' })).rejects.toBeInstanceOf(ConflictException);
+      await service.resolve(ana, parent.id, { reason: 'solved', explanation: 'ok' });
+      await service.closeCase(ana, parent.id);
+
+      await expect(service.createFollowUp(bob, parent.id, { message: 'Não é meu' })).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.postCustomerMessage(alice, parent.id, { body: 'Oi?' })).rejects.toBeInstanceOf(ConflictException);
+
+      const child = await service.createFollowUp(alice, parent.id, { message: 'O saque voltou a atrasar.', clientMessageId: 'fu-1' });
+      expect(child).toMatchObject({ status: 'new', category: 'deposits_withdrawals', parentCaseId: parent.id, parentReference: parent.reference });
+      expect(child.reference).not.toBe(parent.reference);
+      expect(child.messages.map((m) => m.authorType)).toEqual(['system', 'customer']);
+      expect(child.messages[0].body).toContain(parent.reference);
+
+      const again = await service.createFollowUp(alice, parent.id, { message: 'O saque voltou a atrasar.', clientMessageId: 'fu-1' });
+      expect(again.id).toBe(child.id);
+
+      const parentView = await service.getStaffCase(parent.id);
+      expect(parentView.events.at(-1)).toMatchObject({ type: 'follow_up_created', data: { followUpCaseId: child.id, followUpReference: child.reference } });
+      expect((await service.listCustomerCases(alice)).map((c) => c.parentReference)).toContain(parent.reference);
+      expect((await service.listStaffCases(ana, 'unassigned'))[0].parentReference).toBe(parent.reference);
+    });
+  });
+
   describe('assignment and attributes (PH-3.3, RULE-SUP-02, RULE-SUP-09)', () => {
     it('the owner transfers with history preserved; another agent cannot; a supervisor can; release returns the case to the queue', async () => {
       const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });

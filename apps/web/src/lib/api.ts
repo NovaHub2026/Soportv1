@@ -4,6 +4,7 @@ import {
   type CaseSummary,
   type CreateCaseInput,
   type CustomerCaseDetail,
+  type FollowUpInput,
   type PostMessageInput,
   SIMULATED_IDENTITY_HEADERS,
 } from "@orbit-support/shared";
@@ -88,6 +89,8 @@ export const customerApi = {
     apiRequest<CaseMessage>(`/support/cases/${caseId}/messages`, customerHeaders(identity), { method: "POST", body: input }),
   markRead: (identity: CustomerIdentity, caseId: string) =>
     apiRequest<CaseSummary>(`/support/cases/${caseId}/read`, customerHeaders(identity), { method: "POST" }),
+  followUp: (identity: CustomerIdentity, caseId: string, input: FollowUpInput) =>
+    apiRequest<CustomerCaseDetail>(`/support/cases/${caseId}/follow-up`, customerHeaders(identity), { method: "POST", body: input }),
   attachments: (identity: CustomerIdentity, caseId: string): AttachmentClient => ({
     upload: (file) => uploadFile(`/support/cases/${caseId}/attachments`, customerHeaders(identity), file),
     fetchBlob: (attachmentId, signal) => fetchBlob(`/support/cases/${caseId}/attachments/${attachmentId}`, customerHeaders(identity), signal),

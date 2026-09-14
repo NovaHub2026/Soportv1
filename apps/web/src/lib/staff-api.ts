@@ -46,6 +46,8 @@ export const staffApi = {
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/status`, staffHeaders(identity), { method: "POST", body: { status } }),
   resolve: (identity: StaffIdentity, caseId: string, input: ResolveCaseInput) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/resolve`, staffHeaders(identity), { method: "POST", body: input }),
+  close: (identity: StaffIdentity, caseId: string) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}/close`, staffHeaders(identity), { method: "POST" }),
   assign: (identity: StaffIdentity, caseId: string, input: AssignCaseInput) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/assign`, staffHeaders(identity), { method: "POST", body: input }),
   update: (identity: StaffIdentity, caseId: string, input: UpdateCaseInput) =>

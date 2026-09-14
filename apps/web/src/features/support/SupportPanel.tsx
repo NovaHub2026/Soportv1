@@ -58,7 +58,9 @@ export function SupportPanel({ customer, onClose }: SupportPanelProps) {
       {view.name === "new" && (
         <NewRequestForm identity={identity} onCreated={(created) => setView({ name: "case", caseId: created.id })} />
       )}
-      {view.name === "case" && <CaseConversation identity={identity} caseId={view.caseId} />}
+      {view.name === "case" && (
+        <CaseConversation key={view.caseId} identity={identity} caseId={view.caseId} onOpenCase={(caseId) => setView({ name: "case", caseId })} />
+      )}
     </section>
   );
 }

@@ -91,6 +91,29 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(customerView.body.messages.at(-1).body).toContain('liquidada às 10:31');
   });
 
+  it('closure and follow-up endpoints (PH-3.4): close needs resolved; follow-up needs closed and ownership', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-pia'))
+      .send({ category: 'operations', message: 'Fechar depois' })
+      .expect(201);
+    const id: string = created.body.id;
+
+    await request(server).post(`/api/staff/cases/${id}/close`).set(asStaff('staff-ana', 'Ana')).expect(409);
+    await request(server).post(`/api/support/cases/${id}/follow-up`).set(asCustomer('cust-pia')).send({ message: 'x' }).expect(409);
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'answered', explanation: 'Pronto.' }).expect(200);
+    const closed = await request(server).post(`/api/staff/cases/${id}/close`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(closed.body.status).toBe('closed');
+    await request(server).post(`/api/staff/cases/${id}/close`).set(asCustomer('cust-pia')).expect(403);
+
+    await request(server).post(`/api/support/cases/${id}/follow-up`).set(asCustomer('cust-quim')).send({ message: 'x' }).expect(404);
+    await request(server).post(`/api/support/cases/${id}/follow-up`).set(asCustomer('cust-pia')).send({ message: '   ' }).expect(400);
+    const child = await request(server).post(`/api/support/cases/${id}/follow-up`).set(asCustomer('cust-pia')).send({ message: 'Voltou a acontecer.' }).expect(201);
+    expect(child.body).toMatchObject({ parentCaseId: id, parentReference: created.body.reference, status: 'new' });
+    expect(child.body.messages[0]).toMatchObject({ authorType: 'system' });
+  });
+
   it('assignment respects ownership and roles; attribute edits are validated (PH-3.3)', async () => {
     const server = app.getHttpServer();
     const created = await request(server)

@@ -38,13 +38,15 @@ interface StaffCaseViewProps {
   /** Latest change announced by the staff stream; a signal for this case triggers a re-read. */
   signal?: { caseId: string; seq: number } | null;
   live?: boolean;
+  /** Open another case in the workspace (the previous case of a follow-up). */
+  onOpenCase?: (caseId: string) => void;
 }
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; detail: StaffCaseDetail };
 type ActionState = { status: "idle" } | { status: "busy" } | { status: "error"; message: string };
 
 /** Conversation (public replies and internal notes, visibly distinct — RULE-SUP-04) plus case context. */
-export function StaffCaseView({ identity, caseId, onChanged, signal = null, live = false }: StaffCaseViewProps) {
+export function StaffCaseView({ identity, caseId, onChanged, signal = null, live = false, onOpenCase }: StaffCaseViewProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [take, setTake] = useState<ActionState>({ status: "idle" });
   const [reply, setReply] = useState<ActionState>({ status: "idle" });
@@ -153,6 +155,19 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
       onChanged();
     } catch (error) {
       console.warn("staff: could not resolve case", error);
+      setAction({ status: "error", message: t.staff.actions.failed });
+    }
+  }
+
+  async function handleClose() {
+    setAction({ status: "busy" });
+    try {
+      await staffApi.close(identity, caseId);
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not close case", error);
       setAction({ status: "error", message: t.staff.actions.failed });
     }
   }
@@ -307,6 +322,19 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
           {detail.status === "resolved" && detail.resolutionReason && (
             <p className={styles.readState}>{fill(t.staff.actions.resolvedAs, { reason: t.staff.reasons[detail.resolutionReason] })}</p>
           )}
+          {detail.parentReference && (
+            <p className={styles.readState}>
+              {fill(t.staff.actions.followUpOf, { reference: detail.parentReference })}
+              {detail.parentCaseId && onOpenCase && (
+                <>
+                  {" · "}
+                  <button type="button" className={styles.linkButton} onClick={() => onOpenCase(detail.parentCaseId!)}>
+                    {t.staff.actions.openPrevious}
+                  </button>
+                </>
+              )}
+            </p>
+          )}
 
           {detail.status !== "closed" && (
             <div className={styles.actions} role="group" aria-label={t.staff.actions.title}>
@@ -343,6 +371,11 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
               {detail.status !== "resolved" && !resolving && (
                 <button type="button" className={styles.resolveButton} disabled={action.status === "busy"} onClick={() => setResolving(true)}>
                   {t.staff.actions.resolve}
+                </button>
+              )}
+              {detail.status === "resolved" && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleClose()}>
+                  {t.staff.actions.close}
                 </button>
               )}
             </div>
@@ -600,6 +633,12 @@ function describeEvent(event: CaseEvent): string {
     }
     case "consultation_answered":
       return fill(t.staff.events.consultation_answered, { agent: str("answeredByName") || event.actorId });
+    case "case_closed": {
+      const reason = str("reason") as keyof typeof t.staff.closedReasons;
+      return fill(t.staff.events.case_closed, { how: t.staff.closedReasons[reason] ?? reason });
+    }
+    case "follow_up_created":
+      return fill(t.staff.events.follow_up_created, { reference: str("followUpReference") || str("parentReference") });
     case "priority_changed": {
       const from = str("from") as CasePriority;
       const to = str("to") as CasePriority;
@@ -616,7 +655,7 @@ function describeEvent(event: CaseEvent): string {
       return fill(t.staff.events.status_changed, { from: t.staff.status[from] ?? from, to: t.staff.status[to] ?? to });
     }
     default:
-      return t.staff.events[event.type];
+      return fill(t.staff.events[event.type], {});
   }
 }
 
