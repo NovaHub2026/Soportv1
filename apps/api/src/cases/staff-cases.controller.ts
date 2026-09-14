@@ -103,8 +103,8 @@ export class StaffCasesController {
 
   /** `GET /api/staff/cases/stream` — every case change, including internal notes; staff only (ADR-0004). Declared before `:id`. */
   @Sse('stream')
-  stream(): Observable<MessageEvent> {
-    return this.streams.staffStream();
+  stream(@CurrentActor() actor: StaffActor): Observable<MessageEvent> {
+    return this.streams.staffStream(actor.id);
   }
 
   @Get()

@@ -88,6 +88,8 @@ export const supportCases = pgTable(
      * write while it waits, cleared when the customer replies (Cycle Audit 2, FND-0033).
      */
     waitingCustomerSince: tz('waiting_customer_since'),
+    /** Start of the current waiting-for-team period (status `waiting_internal`), for the queue age and the overdue list (PH-8.1, BL-021). */
+    waitingInternalSince: tz('waiting_internal_since'),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),

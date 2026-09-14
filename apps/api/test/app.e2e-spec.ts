@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SIMULATED_IDENTITY_HEADERS, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-support/shared';
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
-import { configureApp } from './../src/app.setup.js';
+import { configureApp, finishApp } from './../src/app.setup.js';
 
 const asCustomer = (id: string) => ({ [SIMULATED_IDENTITY_HEADERS.customerId]: id });
 const asStaff = (id: string, name = id) => ({
@@ -18,7 +18,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     delete process.env.SUPPORT_DB_DIR;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = configureApp(moduleFixture.createNestApplication());
-    await app.init();
+    await finishApp(app);
     // PH-6.3: the outside-hours notice depends on the wall clock; keep the schedule open so every test is deterministic.
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
     const current = (await request(app.getHttpServer()).get('/api/staff/settings').set(supervisor).expect(200)).body;
@@ -465,6 +465,24 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(outbox.text).not.toContain('alice.souza@');
   });
 
+
+  it('PH-8.1 hardening: security headers on every response, no server fingerprint, JSON 404 for unknown routes, waiting-for-team demand in the overview', async () => {
+    const server = app.getHttpServer();
+    const health = await request(server).get('/api/health').expect(200);
+    expect(health.headers['x-powered-by']).toBeUndefined();
+    expect(health.headers['x-content-type-options']).toBe('nosniff');
+    expect(health.headers['x-frame-options']).toBeDefined();
+    expect(health.headers['strict-transport-security']).toBeDefined();
+    const missing = await request(server).get('/api/nope').expect(404);
+    expect(missing.headers['content-type']).toContain('application/json');
+    expect(missing.body).toMatchObject({ statusCode: 404 });
+    const outside = await request(server).get('/nope').expect(404);
+    expect(outside.headers['content-type']).toContain('application/json');
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const overview = await request(server).get('/api/staff/overview').set(supervisor).expect(200);
+    expect(typeof overview.body.waitingInternal.count).toBe('number');
+    expect('oldestSince' in overview.body.waitingInternal).toBe(true);
+  });
 
   it('PH-7.3 privacy re-check: internal notes, consultations and incident broadcasts never reach the customer detail, notifications or outbox under the role model', async () => {
     const server = app.getHttpServer();

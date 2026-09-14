@@ -19,6 +19,11 @@ import type {
 /** Customer-facing copy, Brazilian Portuguese first (PROJECT_CONTEXT.md §10.1). */
 export const ptBR = {
   locale: "pt-BR",
+  units: {
+    minutes: "min",
+    hours: "h",
+    days: "d",
+  },
   app: {
     title: "Orbit — Suporte",
     description: "Atendimento ao cliente Orbit: fale com o suporte e acompanhe seus pedidos.",
@@ -237,6 +242,7 @@ export const ptBR = {
       demand: "Demanda em aberto",
       unassigned: "Sem responsável",
       awaitingReply: "Aguardando resposta humana",
+      waitingInternal: "Aguardando equipe interna",
       oldest: "mais antigo há {age}",
       byAgent: "Carga por atendente",
       noAgents: "Nenhum caso atribuído.",
@@ -341,6 +347,7 @@ export const ptBR = {
     },
     awaitingReply: "Sem resposta há {age}",
     waitingCustomerSince: "Aguardando o cliente há {age}",
+    waitingInternalSince: "Aguardando a equipe há {age}",
     loadMore: "Carregar mais",
     listCapped: "Mostrando os primeiros {n} casos. Use a busca ou os filtros para restringir a lista.",
     queueStale: "A lista pode estar desatualizada: a última atualização falhou.",

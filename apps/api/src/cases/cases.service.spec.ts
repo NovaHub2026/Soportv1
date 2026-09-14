@@ -726,6 +726,16 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       const saved = await settings.update(carla, { ...(await settings.get()), attentionThresholdHours: 12 });
       expect(saved).toMatchObject({ workingDefault: false, updatedById: carla.id, attentionThresholdHours: 12 });
       expect((await supervision.overview(carla)).overdue).toHaveLength(0);
+      // BL-021 (PH-8.1): a case waiting for an internal team longer than the threshold is overdue too, and its age is exposed to staff only.
+      const team = await service.createCase(alice, { category: 'other', message: 'Preciso da equipe' });
+      await service.setStatus(ana, team.id, 'waiting_internal');
+      await db.update(supportCases).set({ waitingInternalSince: new Date(Date.now() - 800 * 3_600_000) }).where(eq(supportCases.id, team.id)); // older than any threshold (max 720 h)
+      const later = await supervision.overview(carla);
+      expect(later.waitingInternal).toMatchObject({ count: 1, oldestSince: expect.any(String) });
+      expect(later.overdue.map((c) => c.id)).toContain(team.id);
+      const [teamSummary] = await service.listStaffCases(carla, 'waiting_internal');
+      expect(teamSummary.waitingInternalSince).toEqual(expect.any(String));
+      expect('waitingInternalSince' in (await service.listCustomerCases(alice)).find((c) => c.id === team.id)!).toBe(false);
       expect(await settings.followUpWindowDays()).toBe(7);
     });
   });

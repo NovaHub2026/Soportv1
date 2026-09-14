@@ -307,6 +307,8 @@ export function deriveSubject(message: string, maxLength = 80): string {
 // ---- Attachments (PROJECT_CONTEXT.md §10.2, §13.1 working defaults) ----
 
 export const ATTACHMENT_LIMITS = {
+  /** Uploads one identity may start per 10 minutes on one API instance (PH-8.1, BL-012 working default). */
+  maxUploadsPer10Minutes: 30,
   maxBytes: 10 * 1024 * 1024,
   maxPerMessage: 3,
   allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "application/pdf"],
@@ -417,6 +419,8 @@ export const caseSummarySchema = z.object({
    * latest staff reply and the case is neither waiting for the customer nor final (PH-5.1, §14 item 9). Staff-only.
    */
   awaitingReplySince: z.string().nullable(),
+  /** Since when the case waits for an internal team (status `waiting_internal`), else null (PH-8.1, BL-021). Staff-only. */
+  waitingInternalSince: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 
@@ -438,7 +442,7 @@ export interface CaseRecord {
  * Fields that describe how staff work the case, never the customer's own matter. They are removed from every
  * customer response and customer stream event (RULE-SUP-04, context §10.2 — Cycle Audit 1, FND-0006).
  */
-export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle", "awaitingReplySince"] as const;
+export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle", "awaitingReplySince", "waitingInternalSince"] as const;
 export type StaffOnlySummaryField = (typeof STAFF_ONLY_SUMMARY_FIELDS)[number];
 
 export const customerCaseSummarySchema = caseSummarySchema.omit({
@@ -448,6 +452,7 @@ export const customerCaseSummarySchema = caseSummarySchema.omit({
   incidentId: true,
   incidentTitle: true,
   awaitingReplySince: true,
+  waitingInternalSince: true,
 });
 export type CustomerCaseSummary = z.infer<typeof customerCaseSummarySchema>;
 

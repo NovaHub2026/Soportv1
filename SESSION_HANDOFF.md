@@ -1,14 +1,14 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the PH-7.3 commit: shared-device sign-out (host and staff), idle sign-out, privacy re-check; PH-7.3 and PH-7 approved, ledger cycle 3 = 1/3. No intended local delta after it.
+Checkpoint: branch `main`; the PH-8.1 commit: hardening (BL-012), waiting-for-team age (BL-021), accessibility basics (BL-024 partial), migration `0017`; PH-8 started, PH-8.1 approved, PH-8.2 active. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
 None. The UI smoke stops its own servers (API 3001, web 3150). Other Node processes on this machine belong to other projects — do not touch them.
 
 ## Unfinished work
-PH-7 is complete; PH-8 (production readiness) is the next phase and has not started (see `CURRENT_STATE.md` "Next valid action"). Owner instruction in force (2026-09-14): «Continua automáticamente hasta finalizar todos los ciclos del proyecto» — continue autonomously through PH-8 without pausing; the production release itself still needs the Owner (§1.1) and the operational policies of BL-002 are Owner/Operations input that PH-8 must request, not invent. Commits go only through `npm run gate <message-file>` (`scripts/gate-commit.sh`). Carried audit items: `docs/BACKLOG.md` BL-012, BL-013, BL-014, BL-016..BL-019, BL-021..BL-024 with their revisit events (BL-016 closed by DEC-0029; BL-021 and BL-024 were due by the end of PH-7 and are carried into PH-8's first subphase — see `docs/BACKLOG.md`).
+PH-8.2 (PostgreSQL verification, BL-019) is ACTIVE and not started in code (see `CURRENT_STATE.md` "Next valid action"); PH-8.3 (deployment and runbooks, phase closure) follows. Owner instruction in force (2026-09-14): «Continua automáticamente hasta finalizar todos los ciclos del proyecto» — continue autonomously through PH-8 without pausing; the production release itself still needs the Owner (§1.1) and the operational policies of BL-002 are Owner/Operations input that PH-8 must request, not invent. Commits go only through `npm run gate <message-file>` (`scripts/gate-commit.sh`). Carried audit items: `docs/BACKLOG.md` BL-012, BL-013, BL-014, BL-016..BL-019, BL-021..BL-024 with their revisit events (BL-016 closed by DEC-0029; BL-021 and BL-024 were due by the end of PH-7 and are carried into PH-8's first subphase — see `docs/BACKLOG.md`).
 
 ## Evidence and limits
 - `docs/audits/CYCLE-2.md` (closed) and `docs/evidence/CYCLE-2-verification.md` (suites, builds, smoke, CI run 34822158367).
@@ -17,7 +17,7 @@ PH-7 is complete; PH-8 (production readiness) is the next phase and has not star
 
 ## Resume here
 1. `git status -sb`; `gh run list --limit 2` — HEAD must be green.
-2. Validate `CURRENT_STATE.md`; record the PH-7.3 CI verdict in `docs/evidence/PH-7.3-verification.md`; start PH-8 by creating its phase document.
+2. Validate `CURRENT_STATE.md`; record the PH-8.1 CI verdict in `docs/evidence/PH-8.1-verification.md`; execute PH-8.2 from `docs/phases/PH-8.2.md`.
 
 ## Temporary environment notes
 - Host observed 2026-09-14: Windows 11 native (Git Bash for the agent's shell; PowerShell forms in the runbook). Paths in env vars are Windows-style (`C:/…`).

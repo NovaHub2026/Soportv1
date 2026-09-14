@@ -1,7 +1,7 @@
 "use client";
 
 import type { OrbitRecordListItem } from "@orbit-support/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { dictionary as t } from "@/i18n";
 import type { CustomerIdentity } from "@/lib/api";
 import type { SimulatedCustomer } from "@/lib/simulated-session";
@@ -37,6 +37,12 @@ interface SupportPanelProps {
  */
 export function SupportPanel({ customer, onClose, visible = true, entry = null, openCase = null }: SupportPanelProps) {
   const [view, setView] = useState<View>({ name: "home" });
+  // "Voltar" removes itself from the DOM: focus moves to the panel title instead of falling to <body> (BL-024).
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const goHome = () => {
+    setView({ name: "home" });
+    requestAnimationFrame(() => titleRef.current?.focus());
+  };
   const identity = useMemo<CustomerIdentity>(() => ({ customerId: customer.id }), [customer.id]);
 
   // "Preciso de ajuda" on a record opens the new-request form about it.
@@ -51,13 +57,15 @@ export function SupportPanel({ customer, onClose, visible = true, entry = null, 
     <section className={styles.panel} data-testid="support-panel">
       <header className={styles.header}>
         {view.name !== "home" ? (
-          <button type="button" className={styles.backButton} onClick={() => setView({ name: "home" })}>
+          <button type="button" className={styles.backButton} onClick={goHome}>
             ← {t.support.back}
           </button>
         ) : (
           <span className={styles.headerSpacer} />
         )}
-        <h2 className={styles.title}>{t.support.title}</h2>
+        <h2 className={styles.title} ref={titleRef} tabIndex={-1}>
+          {t.support.title}
+        </h2>
         {onClose ? (
           <button type="button" className={styles.closeButton} onClick={onClose} aria-label={t.shell.closeSupport}>
             ×

@@ -207,6 +207,11 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                 {c.status === "waiting_customer" && c.lastStaffMessageAt && (
                   <span className={styles.caseMeta}>{fill(t.staff.waitingCustomerSince, { age: formatDuration(c.lastStaffMessageAt) })}</span>
                 )}
+                {c.status === "waiting_internal" && c.waitingInternalSince && (
+                  <span className={styles.caseMeta} data-testid="waiting-internal">
+                    {fill(t.staff.waitingInternalSince, { age: formatDuration(c.waitingInternalSince) })}
+                  </span>
+                )}
               </button>
             </li>
           ))}

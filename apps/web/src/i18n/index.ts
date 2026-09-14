@@ -36,11 +36,15 @@ export function fill(template: string, values: Record<string, string>): string {
 /** `14:05` when today, `13/09 14:05` otherwise. */
 /** Elapsed time in short pt-BR: "5 min", "3 h", "2 d". */
 export function formatDuration(sinceIso: string, now: Date = new Date()): string {
-  const minutes = Math.max(0, Math.round((now.getTime() - new Date(sinceIso).getTime()) / 60_000));
-  if (minutes < 60) return `${minutes} min`;
+  return formatMinutes(Math.max(0, Math.round((now.getTime() - new Date(sinceIso).getTime()) / 60_000)));
+}
+
+/** A duration in minutes as short pt-BR from the dictionary units (BL-024): "5 min", "3 h", "2 d". */
+export function formatMinutes(minutes: number): string {
+  if (minutes < 60) return `${minutes} ${dictionary.units.minutes}`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 48) return `${hours} h`;
-  return `${Math.floor(hours / 24)} d`;
+  if (hours < 48) return `${hours} ${dictionary.units.hours}`;
+  return `${Math.floor(hours / 24)} ${dictionary.units.days}`;
 }
 
 export function formatMessageTime(iso: string, now: Date = new Date()): string {

@@ -487,7 +487,7 @@ export class CasesService {
       });
       let changed = current;
       if (current.status !== 'waiting_internal') {
-        const patch: Partial<SupportCaseRow> = { status: 'waiting_internal', updatedAt: now };
+        const patch: Partial<SupportCaseRow> = { status: 'waiting_internal', updatedAt: now, waitingInternalSince: now };
         if (current.status === 'resolved') {
           // Consulting a team on a resolved case reopens it (§7.2) — consistently with every other exit (FND-0013).
           Object.assign(patch, await this.exitResolved(tx, current, 'waiting_internal', { actorType: 'staff', actorId: staff.id }, now));
@@ -955,6 +955,8 @@ export class CasesService {
       const patch: Partial<SupportCaseRow> = { status: target, updatedAt: now };
       // Each entry into `waiting_customer` is a new waiting period for the reminder (FND-0033).
       if (target === 'waiting_customer') Object.assign(patch, { waitingCustomerSince: now, reminderSentAt: null });
+      // Each entry into `waiting_internal` starts the waiting-for-team age (PH-8.1, BL-021).
+      if (target === 'waiting_internal') Object.assign(patch, { waitingInternalSince: now });
       if (current.status === 'resolved') {
         Object.assign(patch, await this.exitResolved(tx, current, target, { actorType: 'staff', actorId: staff.id }, now));
       } else {
@@ -1328,6 +1330,7 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     recordKind: (row.recordKind as OrbitRecordKind | null) ?? null,
     recordReference: row.recordReference,
     awaitingReplySince: iso(awaitingReplySince(row)),
+    waitingInternalSince: row.status === 'waiting_internal' ? iso(row.waitingInternalSince) : null,
   };
 }
 

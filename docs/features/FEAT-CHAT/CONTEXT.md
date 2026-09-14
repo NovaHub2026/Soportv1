@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the Cycle Audit 2 remediation commit (child of `70630c4`) — covers PH-5.4..PH-6.3 and the audit fixes
+Verified against: the PH-8.1 commit — covers PH-5.4..PH-8.1
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
@@ -29,6 +29,7 @@ Notifications (PH-6.1, FEAT-NOTIFY): the host's "Notificações" button carries 
 Availability (PH-5.4, RULE-SUP-08): the home shows "Atendimento aberto/fechado agora", today's window or "Hoje não há atendimento", the next opening, and whether the schedule is still a working default ("ainda não configurado pela operação") or configured (with the zone) — from `GET /api/support/availability`; no response-time promise anywhere.
 Contextual entry (PH-4.2, §4.2): the simulated host lists the customer's records ("Seus registros", labeled Simulação) with "Preciso de ajuda" per record; the request form shows the record card, preselects the topic from the record's kind and lets the customer remove the record ("Remover registro" — the question becomes general); when the record already has an active case the form offers "Continuar conversa" and disables sending until "É outro problema"; the conversation shows the card with the snapshot captured at opening, or "Registro não encontrado no Orbit…" / "O Orbit não respondeu…" when the boundary could not answer (RULE-SUP-07).
 Access recovery (PH-7.1, FEAT-ACCESS): the host topbar link "Não consigo acessar minha conta" opens a session-less form in place of the trading placeholder; it sends no simulated identity and shows only a `REC-` reference and the next step.
+Accessibility (PH-8.1, BL-024 partial): "Voltar" moves focus to the panel title instead of dropping it to the document body.
 Sign-out (PH-7.3, DEC-0030): "Sair" in the topbar leaves the neutral "Quem está usando este dispositivo?" picker — no panel, bell, records or drafts; the host signs out after 30 min idle with "Sua sessão foi encerrada por inatividade."; the simulated hooks return `null` while signed out so nothing identity-bound mounts.
 Gaps (accepted target): attachments on the first message of a new case (BL-010); Spanish locale (structure ready, content later).
 

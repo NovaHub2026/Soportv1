@@ -1,0 +1,1 @@
+ALTER TABLE "support_cases" ADD COLUMN "waiting_internal_since" timestamp with time zone;

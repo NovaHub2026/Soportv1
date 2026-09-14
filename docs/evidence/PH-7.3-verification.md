@@ -25,4 +25,4 @@ Not verified: the idle timeout in a browser (30 minutes cannot elapse in the smo
 `npm run build` (shared, nest, next) exit 0 before the smoke; `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (check-context OK — ledger cycle 3 at 1/3; lint/typecheck exit 0; Vitest shared 21/21, api 63/63, web 73/73, api e2e 33/33).
 
 ## CI
-Pending push. Previous commit `db67f04` (PH-7.2): run 34824747416 **success**.
+Commit `f6ae3f4`: run 34825250815 — **success**. Previous commit `db67f04` (PH-7.2): run 34824747416 **success**.

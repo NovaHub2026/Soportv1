@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { SlidingWindowLimiter } from '../common/rate-limit.js';
 import {
   BadRequestException,
   ConflictException,
@@ -43,6 +44,8 @@ function safeFileName(name: string): string {
  */
 @Injectable()
 export class AttachmentsService {
+  private readonly uploads = new SlidingWindowLimiter(ATTACHMENT_LIMITS.maxUploadsPer10Minutes, 10 * 60_000);
+
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(ATTACHMENT_STORAGE) private readonly storage: AttachmentStorage,
@@ -56,6 +59,8 @@ export class AttachmentsService {
   async upload(actor: Actor, caseRow: SupportCaseRow, file: UploadedFileLike | undefined): Promise<CaseAttachment> {
     if (caseRow.status === 'closed') throw new ConflictException('case_closed');
     if (!file) throw new BadRequestException({ error: 'file_required' });
+    // PH-8.1 (BL-012): one identity cannot flood the storage — working default 30 uploads per 10 minutes.
+    this.uploads.assert(`${actor.kind}:${actor.id}`, 'too_many_uploads');
     if (file.size > ATTACHMENT_LIMITS.maxBytes || file.buffer.length > ATTACHMENT_LIMITS.maxBytes) {
       throw new PayloadTooLargeException({ error: 'file_too_large', maxBytes: ATTACHMENT_LIMITS.maxBytes });
     }

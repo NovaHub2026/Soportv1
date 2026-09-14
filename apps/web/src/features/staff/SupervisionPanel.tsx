@@ -2,7 +2,7 @@
 
 import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { dictionary as t, fill, formatDuration, formatMessageTime } from "@/i18n";
+import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes } from "@/i18n";
 import { ApiError } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
@@ -14,7 +14,7 @@ interface SupervisionPanelProps {
   onOpenCase: (caseId: string) => void;
 }
 
-const minutes = (value: number | null) => (value === null ? t.staff.supervision.noData : value < 60 ? `${value} min` : value < 2880 ? `${Math.round(value / 60)} h` : `${Math.round(value / 1440)} d`);
+const minutes = (value: number | null) => (value === null ? t.staff.supervision.noData : formatMinutes(value));
 
 /**
  * Supervision (PH-5.4, context §5.4): outstanding demand, overdue follow-up with reassignment, service metrics
@@ -140,6 +140,11 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
             <dd>
               {overview.awaitingReply.count}
               {overview.awaitingReply.oldestSince ? ` · ${fill(s.oldest, { age: formatDuration(overview.awaitingReply.oldestSince) })}` : ""}
+            </dd>
+            <dt>{s.waitingInternal}</dt>
+            <dd>
+              {overview.waitingInternal.count}
+              {overview.waitingInternal.oldestSince ? ` · ${fill(s.oldest, { age: formatDuration(overview.waitingInternal.oldestSince) })}` : ""}
             </dd>
             {CASE_STATUSES.map((st) => (
               <div key={st} className={styles.recordFact}>

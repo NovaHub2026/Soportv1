@@ -129,9 +129,11 @@ export interface SupervisionOverview {
   byStatus: Record<CaseStatus, number>;
   unassigned: { count: number; oldestCreatedAt: string | null };
   awaitingReply: { count: number; oldestSince: string | null };
+  /** Cases waiting for an internal team and since when the oldest waits (PH-8.1, BL-021). */
+  waitingInternal: { count: number; oldestSince: string | null };
   byAgent: AgentLoad[];
   attentionThresholdHours: number;
-  /** Cases awaiting a human reply for longer than the threshold, oldest first (at most 50). */
+  /** Cases awaiting a human reply, or waiting for an internal team, for longer than the threshold; oldest first (at most 50). */
   overdue: CaseSummary[];
   computedAt: string;
 }

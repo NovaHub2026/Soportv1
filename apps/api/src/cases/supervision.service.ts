@@ -62,12 +62,22 @@ export class SupervisionService {
       agents.set(r.assignedAgentId, load);
     }
     const cutoff = now.getTime() - thresholdHours * 3_600_000;
-    const overdueRows = awaiting.filter((x) => x.since.getTime() <= cutoff).slice(0, 50).map((x) => x.row);
+    // Waiting for a team counts as follow-up work too (§5.2 "cases requiring follow-up", BL-021): the same threshold applies.
+    const waitingInternal = open
+      .filter((r) => r.status === 'waiting_internal')
+      .map((r) => ({ row: r, since: r.waitingInternalSince ?? r.updatedAt }))
+      .sort((a, b) => a.since.getTime() - b.since.getTime());
+    const overdueRows = [...awaiting, ...waitingInternal]
+      .filter((x) => x.since.getTime() <= cutoff)
+      .sort((a, b) => a.since.getTime() - b.since.getTime())
+      .slice(0, 50)
+      .map((x) => x.row);
     const overdue = await this.cases.summariesOf(overdueRows);
     const oldestUnassigned = unassigned.reduce<Date | null>((acc, r) => (acc === null || r.createdAt < acc ? r.createdAt : acc), null);
     return {
       byStatus,
       unassigned: { count: unassigned.length, oldestCreatedAt: oldestUnassigned?.toISOString() ?? null },
+      waitingInternal: { count: waitingInternal.length, oldestSince: waitingInternal[0]?.since.toISOString() ?? null },
       awaitingReply: { count: awaiting.length, oldestSince: awaiting[0]?.since.toISOString() ?? null },
       byAgent: [...agents.values()].sort((a, b) => b.open - a.open),
       attentionThresholdHours: thresholdHours,
