@@ -17,7 +17,7 @@ Environment: Windows 11 Pro 10.0.26200 (native, Git Bash), Node v24.19.0, npm 11
 | 7 | Schema and migrations agree after `0007` | EXECUTED | `npx drizzle-kit generate` after the change produced only `0007`; a second run: "No schema changes, nothing to migrate" | no drift |
 | 8 | Full gate and production builds on the remediated tree | EXECUTED | `npm run verify:full` | see "Final gate run" |
 | 9 | Integrated behavior in Chromium after remediation (every PH-1/PH-2/PH-3 journey still passes) | OBSERVED | `npm run build`; `SUPPORT_DB_DIR=<scratch> SUPPORT_UPLOADS_DIR=<scratch> node scripts/ui-smoke.mjs docs/evidence/screenshots/cycle-1` | see "Smoke" |
-| 10 | CI executes the gate (now incl. e2e) on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
+| 10 | CI executes the gate (now incl. e2e) on the pushed commit | EXECUTED (post-integration) | `.github/workflows/ci.yml` | see "CI" |
 
 Not verified: the race fixes against a server PostgreSQL (BL-019); mobile-layout read receipts in a real browser (jsdom only); load behaviour of the SSE cap that is not yet implemented (BL-012).
 
@@ -30,4 +30,4 @@ Harness fix (FND-0019, portability): the first attempt on this Windows host exit
 `npm run verify` again after the documentation edits, 2026-09-14: exit 0 — `check-context: 52 documents, 553 links (6 gitignored skipped), 8 phases, 14 subphases, active: none — OK` (ledger cycle 1 3/3 closed, cycle 2 0/3); shared 9/9, api 44/44, web 47/47, e2e 21/21.
 
 ## CI
-Pending push. Record the verdict of the run for this commit here (`gh run list --limit 3`).
+Commit `541753a`: run 34810836207 — **success**, 2026-09-14T05:46:12Z (first run with the api e2e suite inside `verify`, DEC-0018). Claim 10 is therefore EXECUTED post-integration.

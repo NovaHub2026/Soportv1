@@ -1,7 +1,7 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the Cycle Audit 1 remediation commit (child of `11f178a`): audit record closed, 15 findings fixed with regression tests, migration `0007`, `multer` override, e2e in `verify`, context synchronized. No intended local delta after it.
+Checkpoint: branch `main`; `541753a` (Cycle Audit 1 remediation: audit record closed, 15 findings fixed with regression tests, migration `0007`, `multer` override, e2e in `verify`, context synchronized) plus the CI-verdict commit that follows it. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
@@ -16,7 +16,7 @@ None in progress. Next: PH-4 (see `CURRENT_STATE.md`). Carried audit items live 
 - The Owner instruction «Continua hasta el final sin parar» (2026-09-13) remains in force: continue autonomously into PH-4.
 
 ## Resume here
-1. `git status -sb`; `gh run list --limit 3` — record the CI verdict of the remediation commit in `docs/evidence/CYCLE-1-verification.md` if still missing.
+1. `git status -sb`; `gh run list --limit 3` (`541753a` is green: run 34810836207; the CI-verdict commit's own run should be green too — documentation only).
 2. Validate `CURRENT_STATE.md`; create `docs/phases/PH-4.md` (to be created) and start PH-4.1.
 
 ## Temporary environment notes

@@ -3,7 +3,7 @@ Type: CYCLE AUDIT
 Status: CLOSED
 Cycle / phase membership: cycle 1 — PH-1 (approved 2026-09-13), PH-2 (approved 2026-09-13), PH-3 (approved 2026-09-13); see `../phases/ROADMAP.md` ledger
 Audited revision: `11f178a` on `main` (PH-3.5 commit, phase candidate of PH-3; CI run 34798515452 green)
-Remediation revision: the commit that carries this record (child of `11f178a`); its gate and smoke runs are in `../evidence/CYCLE-1-verification.md`
+Remediation revision: `541753a` (child of `11f178a`); gate, smoke and CI (run 34810836207, success) in `../evidence/CYCLE-1-verification.md`
 Method: INDEPENDENT — five reviewer agents in this runtime that did not author the audited changes, each with the product context, read access to the tree and an isolated runtime (scratch database and upload directories, own API port); the lead consolidated, challenged and remediated. No area was reviewed only by the lead.
 Opened: 2026-09-13 at ledger 3/3 (§6.4). Closed: 2026-09-14.
 
@@ -88,4 +88,4 @@ A fresh reviewer following `CLAUDE.md` reached the correct objective, mode of wo
 - Cost: five reviewer agents (≈ 1.0 M tokens), remediation and re-verification ≈ one session. The Owner's «Continua hasta el final sin parar» instruction covered the audit.
 
 ## Closure
-Closed 2026-09-14 under §8.4: every required area was examined independently with limits documented; the MATERIAL findings FND-0006..0012, FND-0014, FND-0020 and FND-0021 are fixed with regression tests; MINOR findings are fixed or carried with backlog items, containment and a revisit event (BL-011..BL-018); no critical or potentially critical inconclusive claim remains (FND-0026 is a role-model decision, attribution intact). Verified candidate: the remediation commit — gate, builds and browser smoke in `../evidence/CYCLE-1-verification.md`; CI corroboration recorded there once the run completes. Context synchronized: `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `ROADMAP.md` ledger (cycle 1 CLOSED, cycle 2 opens at 0/3), feature contexts, decision log, backlog, runbook. Next: PH-4.
+Closed 2026-09-14 under §8.4: every required area was examined independently with limits documented; the MATERIAL findings FND-0006..0012, FND-0014, FND-0020 and FND-0021 are fixed with regression tests; MINOR findings are fixed or carried with backlog items, containment and a revisit event (BL-011..BL-018); no critical or potentially critical inconclusive claim remains (FND-0026 is a role-model decision, attribution intact). Verified candidate: `541753a` — gate, builds, browser smoke and CI run 34810836207 (success) in `../evidence/CYCLE-1-verification.md`. Context synchronized: `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `ROADMAP.md` ledger (cycle 1 CLOSED, cycle 2 opens at 0/3), feature contexts, decision log, backlog, runbook. Next: PH-4.
