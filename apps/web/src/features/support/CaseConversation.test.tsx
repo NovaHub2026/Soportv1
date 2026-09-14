@@ -16,6 +16,8 @@ vi.mock("@/lib/sse", () => ({
 afterEach(() => {
   vi.restoreAllMocks();
   streams.length = 0;
+  // Pending messages live in sessionStorage per customer and case: every test starts without another test's (PH-9.2 gate flake).
+  window.sessionStorage.clear();
 });
 
 const detail = {
@@ -259,6 +261,8 @@ describe("CaseConversation", () => {
       expect((await screen.findByRole("alert")).textContent).toContain("Não foi possível carregar a conversa.");
       expect(screen.queryByText(/SUP-000001/)).toBeNull();
       expect(screen.queryByText("Segredo")).toBeNull();
+      // Nothing of the case stays in the browser either (PH-9.2 gate flake: a retry re-added it before).
+      expect(Object.keys(window.sessionStorage).filter((k) => k.startsWith("orbit-support.pending."))).toEqual([]);
       const posts = requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages")).length;
       act(() => {
         window.dispatchEvent(new Event("online"));

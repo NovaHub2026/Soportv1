@@ -82,6 +82,8 @@ export function message(overrides: Partial<import("@orbit-support/shared").CaseM
     clientMessageId: null,
     createdAt: new Date().toISOString(),
     attachments: [],
+    systemKind: null,
+    systemData: null,
     ...overrides,
   };
 }

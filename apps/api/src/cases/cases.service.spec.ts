@@ -861,6 +861,8 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         const view = await service.getStaffCase(created.id);
         const notices = view.messages.filter((m) => m.authorType === 'system' && m.body.startsWith('Fora do horário'));
         expect(notices).toHaveLength(1);
+        // PH-9.2: the notice says what it is, so clients word it; no next opening while every day is closed.
+        expect(notices[0]).toMatchObject({ systemKind: 'outside_hours', systemData: {} });
         expect((await notifications.list(alice)).map((n) => n.kind)).toEqual(['outside_hours']);
         const metrics = await supervision.metrics(carla, 7);
         expect(metrics.firstResponse.count).toBe(0); // the notice is not a human response
@@ -872,6 +874,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         const child = await service.createFollowUp(alice, parent.id, { message: 'Voltou a acontecer' });
         const childView = await service.getStaffCase(child.id);
         expect(childView.messages.filter((m) => m.authorType === 'system' && m.body.startsWith('Fora do horário'))).toHaveLength(1);
+        expect(childView.messages.find((m) => m.systemKind === 'follow_up_of')?.systemData).toEqual({ reference: parent.reference });
       } finally {
         await settings.update(carla, { ...closed, schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } });
       }

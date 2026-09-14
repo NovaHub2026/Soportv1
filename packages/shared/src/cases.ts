@@ -368,6 +368,10 @@ export const postMessageSchema = z.object({
 });
 export type PostMessageInput = z.infer<typeof postMessageSchema>;
 
+/** What a system message says, so each client words it through its dictionary (BL-024); `body` keeps the text as written. */
+export const SYSTEM_MESSAGE_KINDS = ["follow_up_of", "outside_hours"] as const;
+export type SystemMessageKind = (typeof SYSTEM_MESSAGE_KINDS)[number];
+
 // ---- Response shapes ----
 
 export const caseMessageSchema = z.object({
@@ -381,6 +385,9 @@ export const caseMessageSchema = z.object({
   clientMessageId: z.string().nullable(),
   createdAt: z.string(),
   attachments: z.array(caseAttachmentSchema),
+  /** Set on system messages written since PH-9.2 (migration `0019`); null on people's messages and on older notices. */
+  systemKind: z.enum(SYSTEM_MESSAGE_KINDS).nullable(),
+  systemData: z.record(z.string(), z.string()).nullable(),
 });
 export type CaseMessage = z.infer<typeof caseMessageSchema>;
 

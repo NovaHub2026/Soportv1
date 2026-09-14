@@ -21,7 +21,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-9 `ACTIVE` (`PH-9.md`) — PH-9.1 approved (case-domain debt, `../evidence/PH-9.1-verification.md`); next PH-9.2 (staff workspace). PH-1..PH-8 `APPROVED`. Internal demos: `v0.1.0-demo` (superseded), `v0.1.1-demo` (`../evidence/RELEASE-2026-09-14b.md`). Cycle Audits 1 and 2 CLOSED; the cycle 3 out-of-band audit CLOSED (`../audits/CYCLE-3-OOB.md`). PH-9's approval will be cycle 3's third first-time approval: the Cycle Audit is due then (§6.4). A production release still needs the Owner (§1.1), Orbit's adapters (BL-001) and the operating policies (BL-002). The ledger table below is the only owner of the audit count.
+Phase: PH-9 `ACTIVE` (`PH-9.md`) — PH-9.1 (case-domain debt) and PH-9.2 (staff workspace debt, `../evidence/PH-9.2-verification.md`) approved; next PH-9.3 (customer panel). PH-1..PH-8 `APPROVED`. Internal demos: `v0.1.0-demo` (superseded), `v0.1.1-demo` (`../evidence/RELEASE-2026-09-14b.md`). Cycle Audits 1 and 2 CLOSED; the cycle 3 out-of-band audit CLOSED (`../audits/CYCLE-3-OOB.md`). PH-9's approval will be cycle 3's third first-time approval: the Cycle Audit is due then (§6.4). A production release still needs the Owner (§1.1), Orbit's adapters (BL-001) and the operating policies (BL-002). The ledger table below is the only owner of the audit count.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.

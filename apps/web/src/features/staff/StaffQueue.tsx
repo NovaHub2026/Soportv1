@@ -1,7 +1,7 @@
 "use client";
 
 import { CASE_CATEGORIES, CASE_PRIORITIES, type CaseSummary, STAFF_LIST_LIMITS, STAFF_QUEUE_VIEWS, type StaffQueueView } from "@orbit-support/shared";
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { UnreadBadge } from "@/features/support/UnreadBadge";
@@ -89,6 +89,18 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `active` is derived from q and filters below
   }, [identity, view, refreshToken, attempt, live, pages, q, filters]);
 
+  // Real tabs (BL-024, FND-0056): arrows, Home and End move between views; only the selected tab is in the Tab order.
+  function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
+    const index = STAFF_QUEUE_VIEWS.indexOf(view);
+    const count = STAFF_QUEUE_VIEWS.length;
+    const next = event.key === "ArrowRight" ? (index + 1) % count : event.key === "ArrowLeft" ? (index + count - 1) % count : event.key === "Home" ? 0 : event.key === "End" ? count - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    const target = STAFF_QUEUE_VIEWS[next];
+    onViewChange(target);
+    document.getElementById(`queue-tab-${target}`)?.focus();
+  }
+
   return (
     <section className={styles.queue} aria-label={t.staff.queues[view]}>
       <form className={styles.filters} role="search" aria-label={t.staff.search.label} onSubmit={(event) => event.preventDefault()}>
@@ -138,13 +150,16 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
           </button>
         )}
       </form>
-      <div className={styles.tabs} role="tablist">
+      <div className={styles.tabs} role="tablist" aria-label={t.staff.queuesLabel} onKeyDown={onTabKey}>
         {STAFF_QUEUE_VIEWS.map((v) => (
           <button
             key={v}
+            id={`queue-tab-${v}`}
             type="button"
             role="tab"
             aria-selected={v === view}
+            aria-controls="queue-panel"
+            tabIndex={v === view ? 0 : -1}
             className={styles.tab}
             data-active={v === view ? "true" : "false"}
             onClick={() => onViewChange(v)}
@@ -153,6 +168,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
           </button>
         ))}
       </div>
+      <div role="tabpanel" id="queue-panel" aria-labelledby={`queue-tab-${view}`}>
 
       {state.status === "loading" && (
         <p className={styles.muted} role="status">
@@ -235,6 +251,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
           {fill(t.staff.listCapped, { n: String(STAFF_LIST_LIMITS.max) })}
         </p>
       )}
+      </div>
     </section>
   );
 }

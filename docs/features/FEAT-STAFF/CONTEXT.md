@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the PH-9.1 commit (child of `c73b1b6`)
+Verified against: the PH-9.2 commit (child of `41adb23`)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -16,6 +16,7 @@ Supervision and configuration (PH-5.4, DEC-0023): "Supervisão" in the topbar (s
 Search and filters (PH-5.2): a search box above the tabs (reference with or without `SUP-`, customer id, subject words, record reference — a bare number matches the reference exactly and also as a substring, FND-0047) plus category, priority and responsible filters; "Limpar" resets; results respect the current view and pagination. Cycle Audit 2: "Carregar mais" stops at the API limit of 200 with a note that the search narrows the list, and a refresh that fails after a list was shown flags "A lista pode estar desatualizada" with a retry instead of freezing silently (FND-0036).
 Saved replies (PH-5.3, DEC-0022): "Inserir resposta salva" in the reply composer appends the template to the draft; "Respostas salvas" in the topbar opens the management panel (new, edit, remove with a second "Confirmar remoção" click; author and last editor shown; edit/remove offered only to the author or a supervisor/admin, mirroring the API; a failed load says so with a retry — FND-0041). The case view marks customer messages read only while the cases page is visible (FND-0054).
 Waiting for a team (PH-8.1, BL-021): the queue shows "Aguardando a equipe há …" on `waiting_internal` cases; the supervision demand adds "Aguardando equipe interna" with the oldest wait, and the overdue list includes waiting-for-team cases older than the threshold. Duration units come from the dictionary (BL-024). Since PH-9.1 (DEC-0035 a/b) supervision also counts a case with an open consultation whatever its status, dated by the oldest open consultation, and the overdue list shows each case once; the queue label still follows the status.
+Workspace debt (PH-9.2, DEC-0036): every case action goes through one `runAction` in `StaffCaseView` (busy → call → re-read → notify; a form closes only after a success); the queue views are real tabs (one tab stop, arrows/Home/End, the list is the tab panel); the composer keeps one retry key per mode, so a retried note is stored once; system messages are worded from their kind through the dictionary; the settings number fields keep what was typed and an emptied field is refused by its label.
 Sign-out (PH-7.3, DEC-0030): "Sair" in the topbar forgets the agent and shows "Quem está usando esta estação?" without queues or the open case.
 Role model (PH-7.2, DEC-0029): on a colleague's case an agent sees "Aguardar cliente", "Aguardar equipe interna", "Consultar equipe", "Transferir", "Devolver à fila", "Resolver caso" and "Encerrar caso" disabled with "Só o responsável ou um supervisor…"; replying and internal notes stay available; a 403 from the API shows the same reason. Supervisors see everything enabled.
 Access recovery (PH-7.1, FEAT-ACCESS): "Recuperação de acesso" in the topbar lists unverified contacts from people who cannot sign in, with the two attributable outcomes; no account or case data is shown there.
@@ -39,7 +40,7 @@ Depends on: FEAT-CASE staff endpoints, FEAT-ORBIT identity headers (`x-simulated
 Used by / affects: supervision and metrics (PH-5) will extend the queue; FEAT-NOTIFY may add unread markers here. Staff copy is under `staff` in the dictionary; staff status labels differ deliberately from customer labels.
 
 ## Where to work
-- Layout and identity: `apps/web/src/features/staff/StaffWorkspace.tsx`; queue `StaffQueue.tsx`; case view + context `StaffCaseView.tsx`; styles `staff.module.css`.
+- Layout and identity: `apps/web/src/features/staff/StaffWorkspace.tsx`; queue `StaffQueue.tsx`; case view `StaffCaseView.tsx` with `CaseActions.tsx` (state actions and their forms), `StaffComposer.tsx`, `StaffMessage.tsx` and `CaseContext.tsx` (context column, history wording) since PH-9.2; styles `staff.module.css`.
 - API client: `apps/web/src/lib/staff-api.ts`.
 - Tests: `apps/web/src/features/staff/StaffWorkspace.test.tsx`. Browser evidence: `scripts/ui-smoke.mjs` (staff steps).
 

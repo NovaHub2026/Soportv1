@@ -26,6 +26,8 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
   const [metrics, setMetrics] = useState<ServiceMetrics | null>(null);
   const [days, setDays] = useState<7 | 30>(7);
   const [settings, setSettings] = useState<SupportSettings | null>(null);
+  /** Number fields as typed (BL-024): an emptied field stays empty instead of becoming 0. */
+  const [numbers, setNumbers] = useState<Record<NumberField, string> | null>(null);
   const [status, setStatus] = useState<{ kind: "idle" } | { kind: "busy" } | { kind: "info"; text: string } | { kind: "error"; text: string }>({ kind: "idle" });
   const [attempt, setAttempt] = useState(0);
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
@@ -52,7 +54,10 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
     const controller = new AbortController();
     staffApi
       .getSettings(identity, controller.signal)
-      .then(setSettings)
+      .then((loaded) => {
+        setSettings(loaded);
+        setNumbers(numbersOf(loaded));
+      })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         console.warn("staff: could not load settings", error);
@@ -75,18 +80,24 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
 
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!settings) return;
+    if (!settings || !numbers) return;
+    // Number fields keep what was typed (BL-024): an emptied or non-integer field is refused here, never sent as 0.
+    const parsed = {} as Record<NumberField, number>;
+    const invalid: string[] = [];
+    for (const field of NUMBER_FIELDS) {
+      const raw = numbers[field].trim();
+      if (/^[0-9]+$/.test(raw)) parsed[field] = Number(raw);
+      else invalid.push(fieldLabel(field));
+    }
+    if (invalid.length > 0) {
+      setStatus({ kind: "error", text: fill(s.invalid, { fields: invalid.join(", ") }) });
+      return;
+    }
     setStatus({ kind: "busy" });
     try {
-      const saved = await staffApi.updateSettings(identity, {
-        timezone: settings.timezone,
-        schedule: settings.schedule,
-        attentionThresholdHours: settings.attentionThresholdHours,
-        followUpWindowDays: settings.followUpWindowDays,
-        emailDelayMinutes: settings.emailDelayMinutes,
-        reminderAfterHours: settings.reminderAfterHours,
-      });
+      const saved = await staffApi.updateSettings(identity, { timezone: settings.timezone, schedule: settings.schedule, ...parsed });
       setSettings(saved);
+      setNumbers(numbersOf(saved));
       setStatus({ kind: "info", text: s.settingsSaved });
       reload();
     } catch (error) {
@@ -234,7 +245,7 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
         </>
       )}
 
-      {settings && (
+      {settings && numbers && (
         <form className={styles.replyForm} onSubmit={saveSettings} aria-label={s.settings}>
           <h3 className={styles.contextTitle}>{s.settings}</h3>
           <p className={styles.hint}>
@@ -271,19 +282,19 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
           <label className={styles.composerLabel} htmlFor="settings-threshold">
             {s.threshold}
           </label>
-          <input id="settings-threshold" type="number" min={1} max={720} className={styles.searchInput} value={settings.attentionThresholdHours} onChange={(event) => setSettings({ ...settings, attentionThresholdHours: Number(event.target.value) })} />
+          <input id="settings-threshold" type="number" min={1} max={720} className={styles.searchInput} value={numbers.attentionThresholdHours} onChange={(event) => setNumbers({ ...numbers, attentionThresholdHours: event.target.value })} />
           <label className={styles.composerLabel} htmlFor="settings-window">
             {s.followUpWindow}
           </label>
-          <input id="settings-window" type="number" min={1} max={90} className={styles.searchInput} value={settings.followUpWindowDays} onChange={(event) => setSettings({ ...settings, followUpWindowDays: Number(event.target.value) })} />
+          <input id="settings-window" type="number" min={1} max={90} className={styles.searchInput} value={numbers.followUpWindowDays} onChange={(event) => setNumbers({ ...numbers, followUpWindowDays: event.target.value })} />
           <label className={styles.composerLabel} htmlFor="settings-email-delay">
             {s.emailDelay}
           </label>
-          <input id="settings-email-delay" type="number" min={0} max={1440} className={styles.searchInput} value={settings.emailDelayMinutes} onChange={(event) => setSettings({ ...settings, emailDelayMinutes: Number(event.target.value) })} />
+          <input id="settings-email-delay" type="number" min={0} max={1440} className={styles.searchInput} value={numbers.emailDelayMinutes} onChange={(event) => setNumbers({ ...numbers, emailDelayMinutes: event.target.value })} />
           <label className={styles.composerLabel} htmlFor="settings-reminder">
             {s.reminderAfter}
           </label>
-          <input id="settings-reminder" type="number" min={1} max={720} className={styles.searchInput} value={settings.reminderAfterHours} onChange={(event) => setSettings({ ...settings, reminderAfterHours: Number(event.target.value) })} />
+          <input id="settings-reminder" type="number" min={1} max={720} className={styles.searchInput} value={numbers.reminderAfterHours} onChange={(event) => setNumbers({ ...numbers, reminderAfterHours: event.target.value })} />
           <div className={styles.composerActions}>
             <button type="submit" className={styles.primaryButton} disabled={status.kind === "busy"}>
               {s.saveSettings}
@@ -293,6 +304,18 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
       )}
     </section>
   );
+}
+
+const NUMBER_FIELDS = ["attentionThresholdHours", "followUpWindowDays", "emailDelayMinutes", "reminderAfterHours"] as const;
+type NumberField = (typeof NUMBER_FIELDS)[number];
+
+function numbersOf(settings: SupportSettings): Record<NumberField, string> {
+  return {
+    attentionThresholdHours: String(settings.attentionThresholdHours),
+    followUpWindowDays: String(settings.followUpWindowDays),
+    emailDelayMinutes: String(settings.emailDelayMinutes),
+    reminderAfterHours: String(settings.reminderAfterHours),
+  };
 }
 
 /** Field names from a 400 `validation_failed` body, so the supervisor learns what to fix (FND-0030). */

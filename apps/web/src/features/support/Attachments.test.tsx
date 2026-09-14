@@ -27,11 +27,11 @@ describe("AttachmentComposer", () => {
     fireEvent.change(screen.getByLabelText("Anexar arquivo"), { target: { files: [file] } });
 
     expect(await screen.findByText("comprovante.png")).toBeDefined();
-    await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith([attachment().id]));
+    await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith([attachment().id], [expect.objectContaining({ fileName: "comprovante.png" })]));
     expect(client.upload).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Remover comprovante.png" }));
-    await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith([]));
+    await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith([], []));
   });
 
   test("refuses oversized and unsupported files before uploading, and shows server refusals honestly", async () => {

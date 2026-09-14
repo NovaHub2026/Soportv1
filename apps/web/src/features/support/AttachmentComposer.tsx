@@ -17,8 +17,8 @@ export interface UploadItem {
 
 interface AttachmentComposerProps {
   client: AttachmentClient;
-  /** Called with the ids of uploads that are ready to be linked to the next message. */
-  onReadyChange: (attachmentIds: string[]) => void;
+  /** Called with the ids of uploads that are ready to be linked to the next message, and the uploads themselves (their names label a pending message — BL-013). */
+  onReadyChange: (attachmentIds: string[], ready: CaseAttachment[]) => void;
   /** Increment to clear the list (after the message was sent). */
   clearToken: number;
   disabled?: boolean;
@@ -54,7 +54,11 @@ export function AttachmentComposer({ client, onReadyChange, clearToken, disabled
   }, [clearToken]);
 
   useEffect(() => {
-    onReadyChange(items.filter((i) => i.state === "ready" && i.attachment).map((i) => i.attachment!.id));
+    const ready = items.filter((i) => i.state === "ready" && i.attachment).map((i) => i.attachment!);
+    onReadyChange(
+      ready.map((a) => a.id),
+      ready,
+    );
   }, [items, onReadyChange]);
 
   async function handleFiles(event: ChangeEvent<HTMLInputElement>) {

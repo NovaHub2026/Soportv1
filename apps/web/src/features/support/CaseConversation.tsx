@@ -1,10 +1,11 @@
 "use client";
 
-import { type CaseMessage, type CustomerCaseDetail, isStreamEvent } from "@orbit-support/shared";
+import { type CaseAttachment, type CaseMessage, type CustomerCaseDetail, isStreamEvent } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
 import { ApiError, apiErrorCode, type AttachmentClient, type CustomerIdentity, customerApi, customerIdentityHeaders, isRetryable, newClientMessageId } from "@/lib/api";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
+import { systemMessageText } from "@/lib/system-messages";
 import { AttachmentComposer } from "./AttachmentComposer";
 import { AttachmentList } from "./AttachmentList";
 import { ConnectionIndicator } from "./ConnectionIndicator";
@@ -38,6 +39,8 @@ export interface PendingMessage {
   createdAt: string;
   state: "sending" | "failed" | "refused";
   attachmentIds?: string[];
+  /** File names shown on the row until the server confirms the message (BL-013, FND-0024). */
+  attachmentNames?: string[];
 }
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; detail: CustomerCaseDetail };
@@ -78,6 +81,12 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
   const [followUp, setFollowUp] = useState<{ status: "idle" } | { status: "sending" } | { status: "error" }>({ status: "idle" });
   const [followUpClientId, setFollowUpClientId] = useState(() => newClientMessageId());
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
+  const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  // Stable identity: the composer reports again whenever this callback changes.
+  const onAttachmentsReady = useCallback((ids: string[], ready: CaseAttachment[]) => {
+    setAttachmentIds(ids);
+    setAttachmentNames(ready.map((a) => a.fileName));
+  }, []);
   const [attachClearToken, setAttachClearToken] = useState(0);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const logRef = useRef<HTMLOListElement>(null);
@@ -125,6 +134,8 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
         if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
           // Not this customer's case (any more): never keep a loaded conversation on screen (RULE-SUP-01, FND-0011).
           unavailable.current = true;
+          // The mirror is emptied now, not after the next render: a retry trigger in between must find nothing to send (PH-9.2).
+          pendingRef.current = [];
           setLoad({ status: "error" });
           setPending([]);
           return;
@@ -154,6 +165,8 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
 
   const send = useCallback(
     async (message: PendingMessage) => {
+      // A case that is no longer this customer's takes nothing more, not even a retry (RULE-SUP-01, FND-0011).
+      if (unavailable.current) return;
       setPending((current) => [...current.filter((p) => p.clientMessageId !== message.clientMessageId), { ...message, state: "sending" }]);
       try {
         const saved = await customerApi.postMessage(identity, caseId, {
@@ -171,6 +184,7 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
         await refresh();
       } catch (error) {
         console.warn("support: could not send message", error);
+        if (unavailable.current) return;
         if (apiErrorCode(error) === "case_closed") {
           // The case closed before the message arrived (§7.4): the text moves to the follow-up form, and the
           // same client id keeps the follow-up single if this is retried too.
@@ -190,6 +204,7 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
 
   /** Resend everything that failed; the same clientMessageId keeps each message single (RULE-SUP-03). */
   const retryFailed = useCallback(() => {
+    if (unavailable.current) return;
     for (const failed of pendingRef.current.filter((p) => p.state === "failed")) void send(failed);
   }, [send]);
 
@@ -268,9 +283,11 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
     if (!body) return;
     setDraft("");
     const ids = attachmentIds;
+    const names = attachmentNames;
     setAttachmentIds([]);
+    setAttachmentNames([]);
     setAttachClearToken((n) => n + 1);
-    void send({ clientMessageId: newClientMessageId(), body, createdAt: new Date().toISOString(), state: "sending", attachmentIds: ids });
+    void send({ clientMessageId: newClientMessageId(), body, createdAt: new Date().toISOString(), state: "sending", attachmentIds: ids, attachmentNames: names });
   }
 
   if (load.status === "loading") {
@@ -335,6 +352,11 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
           <li key={p.clientMessageId} className={styles.messageRowMine} data-state={p.state}>
             <div className={styles.bubbleMine}>
               <p className={styles.bubbleBody}>{p.body}</p>
+              {p.attachmentNames && p.attachmentNames.length > 0 && (
+                <p className={styles.bubbleMeta} data-testid="pending-attachments">
+                  {fill(t.attachments.pendingFiles, { names: p.attachmentNames.join(", ") })}
+                </p>
+              )}
               <span className={styles.bubbleMeta}>
                 {p.state === "sending" ? (
                   t.support.conversation.sending
@@ -439,7 +461,7 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
               {t.support.conversation.send}
             </button>
           </div>
-          <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} idPrefix="customer-attach" />
+          <AttachmentComposer client={attachmentClient} onReadyChange={onAttachmentsReady} clearToken={attachClearToken} idPrefix="customer-attach" />
         </form>
       )}
     </div>
@@ -458,7 +480,7 @@ function MessageBubble({ message, attachmentClient }: { message: CaseMessage; at
     <li className={mine ? styles.messageRowMine : styles.messageRow} data-author={message.authorType}>
       <div className={mine ? styles.bubbleMine : styles.bubble}>
         {!mine && <span className={styles.bubbleAuthor}>{author}</span>}
-        <p className={styles.bubbleBody}>{message.body}</p>
+        <p className={styles.bubbleBody}>{systemMessageText(message)}</p>
         <AttachmentList attachments={message.attachments} client={attachmentClient} />
         <span className={styles.bubbleMeta}>
           <time dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time>

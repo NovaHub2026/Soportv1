@@ -291,7 +291,7 @@ describe("StaffCaseView", () => {
     fireEvent.change(screen.getByLabelText("Nota interna (só a equipe vê)"), { target: { value: "Checar com Finance." } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar nota" }));
     await waitFor(() => expect(requests.some((r) => r.url === `/api/staff/cases/${detail.id}/notes`)).toBe(true));
-    expect(requests.find((r) => r.url.endsWith("/notes"))?.body).toEqual({ body: "Checar com Finance." });
+    expect(requests.find((r) => r.url.endsWith("/notes"))?.body).toEqual({ body: "Checar com Finance.", clientMessageId: expect.any(String) });
 
     fireEvent.click(screen.getByRole("button", { name: "Consultar equipe" }));
     fireEvent.change(screen.getByLabelText("Equipe"), { target: { value: "security" } });

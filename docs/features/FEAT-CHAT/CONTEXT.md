@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`)
+Verified against: the PH-9.2 commit (child of `41adb23`)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
@@ -16,7 +16,7 @@ Implemented (PH-1.3, refined in PH-1.4):
 - Simulated Orbit shell: side panel ≥ 900 px, full-screen view below, toggled from the topbar; simulated-account picker, always labeled **Simulação**.
 - Home: availability copy, "Falar com o suporte", lists "Conversas em andamento" / "anteriores", honest empty/error states with retry. Opening the panel creates nothing.
 - New request: five topic chips + message; send disabled until both; `clientMessageId` kept across retries so a failure never creates a second case; on success the panel lands in the conversation.
-- Conversation: reference, pt-BR status label, own vs staff (by name) vs system messages, composer (Enter sends), pending → failed "Não enviada" + "Reenviar" with the same id, closed-case notice instead of composer, monotonic request counter (FND-0002) so a refresh never hides a just-sent message.
+- Conversation: reference, pt-BR status label, own vs staff (by name) vs system messages, composer (Enter sends), pending → failed "Não enviada" + "Reenviar" with the same id, closed-case notice instead of composer, monotonic request counter (FND-0002) so a refresh never hides a just-sent message. Since PH-9.2 (DEC-0036 a/b) a pending or failed message lists the files it carries ("Anexos: …") until the server confirms it, and system messages are worded from their kind (`apps/web/src/lib/system-messages.ts`), the stored body shown only for older notices.
 - Live updates (PH-2.1, ADR-0004): the open conversation subscribes to `/api/support/cases/:id/stream` (fetch-based SSE with the identity header); `message.created` is applied at once, `case.updated` triggers a re-read, every (re)connect resyncs; polling drops to a 60 s safety net while connected (5 s otherwise). Measured delivery 73 ms staff → customer.
 - Delivery states (PH-2.2): unread badges on the home lists (fed by `/api/support/cases/stream`), automatic read marking while the conversation is visible (`POST …/read`), connection indicator "Ao vivo / Reconectando… / Sem conexão", and automatic resend of failed messages on reconnect with the same `clientMessageId` — observed with network emulation: sent once, shown once on both sides.
 - Attachments (PH-2.3): "Anexar arquivo" in the composer uploads immediately and shows each file's state (enviando / tamanho / recusado com motivo); ready ids are linked when the message is sent; images render as thumbnails fetched with the identity header (blob URLs), PDFs as chips with "Abrir"; unavailable files show a state instead of a broken image.

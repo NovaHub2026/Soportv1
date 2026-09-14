@@ -119,6 +119,9 @@ export const caseMessages = pgTable(
     body: text('body').notNull(),
     /** Client-generated id: a retried send must not duplicate the message (RULE-SUP-03). Unique per case and author (FND-0010). */
     clientMessageId: text('client_message_id'),
+    /** What a system message says (PH-9.2): clients word it through their dictionary; `body` keeps the text as written. */
+    systemKind: text('system_kind'),
+    systemData: jsonb('system_data').$type<Record<string, string>>(),
     createdAt: tz('created_at').notNull().defaultNow(),
   },
   (t) => [

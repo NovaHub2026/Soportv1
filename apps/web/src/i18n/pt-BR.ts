@@ -197,6 +197,11 @@ export const ptBR = {
       } satisfies Record<OrbitRecordKind, string>,
     },
   },
+  /** System messages, worded from their kind (PH-9.2, BL-024); the API keeps the text as written at the time. */
+  systemMessages: {
+    followUpOf: "Continuação do caso {reference}.",
+    outsideHours: "Fora do horário de atendimento. Registramos sua mensagem; ela será atendida por uma pessoa.",
+  },
   attachments: {
     attach: "Anexar arquivo",
     hint: "PNG, JPEG, WebP ou PDF · até 10 MB · máximo de 3 por mensagem",
@@ -210,11 +215,13 @@ export const ptBR = {
     loading: "Carregando arquivo…",
     unavailable: "Arquivo indisponível",
     imageAlt: "Imagem anexada: {name}",
+    pendingFiles: "Anexos: {names}",
   },
   staff: {
     title: "Orbit — Área de suporte",
     workspace: "Área de suporte",
     agentPicker: "Atendente simulado",
+    queuesLabel: "Filas de casos",
     signOut: "Sair",
     signedOut: {
       title: "Quem está usando esta estação?",

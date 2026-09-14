@@ -35,6 +35,7 @@ import {
   type StaffListQuery,
   type StaffQueueView,
   type StaffStatusTarget,
+  type SystemMessageKind,
   toCustomerCaseSummary,
   type UpdateCaseInput,
 } from '@orbit-support/shared';
@@ -229,6 +230,8 @@ export class CasesService {
           authorType: 'system',
           authorId: 'system',
           body: `Continuação do caso ${parentReference}.`,
+          systemKind: 'follow_up_of',
+          systemData: { reference: parentReference },
           createdAt: now,
         });
         const [message] = await tx
@@ -339,7 +342,7 @@ export class CasesService {
         const next = availability.nextOpening ? ` Próximo atendimento: ${WEEKDAY_PT[availability.nextOpening.weekday]} às ${availability.nextOpening.open}.` : '';
         const [notice] = await tx
           .insert(caseMessages)
-          .values({ caseId: row.id, authorType: 'system', authorId: 'system', body: `Fora do horário de atendimento. Registramos sua mensagem; ela será atendida por uma pessoa.${next}`, createdAt: now })
+          .values({ caseId: row.id, authorType: 'system', authorId: 'system', systemKind: 'outside_hours', systemData: availability.nextOpening ? { weekday: availability.nextOpening.weekday, open: availability.nextOpening.open } : {}, body: `Fora do horário de atendimento. Registramos sua mensagem; ela será atendida por uma pessoa.${next}`, createdAt: now })
           .returning();
         const [changed] = await tx.update(supportCases).set({ outsideHoursNotifiedAt: now, lastMessageAt: now }).where(eq(supportCases.id, row.id)).returning();
         await this.notifications.record(tx, row.customerId, row.id, 'outside_hours', now);
@@ -1408,6 +1411,8 @@ function toMessage(row: CaseMessageRow, attachments: CaseMessage['attachments'] 
     clientMessageId: row.clientMessageId,
     createdAt: row.createdAt.toISOString(),
     attachments,
+    systemKind: (row.systemKind as SystemMessageKind | null) ?? null,
+    systemData: row.systemData ?? null,
   };
 }
 
