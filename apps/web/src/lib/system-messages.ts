@@ -12,10 +12,11 @@ export function systemMessageText(message: Pick<CaseMessage, "authorType" | "bod
   const data = message.systemData ?? {};
   switch (message.systemKind) {
     case "follow_up_of":
-      return fill(t.systemMessages.followUpOf, { reference: data.reference ?? "" });
+      // Without its value the notice keeps the text stored with it (Cycle Audit 3 FND-0092).
+      return data.reference ? fill(t.systemMessages.followUpOf, { reference: data.reference }) : message.body;
     case "outside_hours": {
       const day = data.weekday as Weekday | undefined;
-      const next = day && data.open && day in t.support.home.weekdays ? ` ${fill(t.support.home.nextOpening, { day: t.support.home.weekdays[day], time: data.open })}` : "";
+      const next = day && data.open && Object.prototype.hasOwnProperty.call(t.support.home.weekdays, day) ? ` ${fill(t.support.home.nextOpening, { day: t.support.home.weekdays[day], time: data.open })}` : "";
       return `${t.systemMessages.outsideHours}${next}`;
     }
     default:

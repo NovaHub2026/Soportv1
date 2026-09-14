@@ -36,3 +36,8 @@ The smoke and the PostgreSQL run of claims 12–13 ran after the final change of
 - `Retry-After` on the stream cap's 429 (it has no hint, so the filter's 5 s default applies): reasoned from the filter; supertest cannot hold eight open streams (as in PH-8.1).
 - The cleanup job inside a running server: unit tests of `removeUnlinked` and of the job's `tick()` only.
 - A real TLS proxy: claim 9 used a scratch Node proxy that appends `X-Forwarded-For` the way such proxies do.
+
+## Correction and completion (Cycle Audit 3, 2026-09-14)
+- Claim 16: CI run 34858502090 succeeded on both jobs, including the full-history checkout.
+- Gate: shared 23, api 87, web 89, e2e 37.
+- "Not verified: `Retry-After` on the stream cap": two Cycle Audit 3 reviewers observed it live (the ninth stream → 429 with `Retry-After: 5`).

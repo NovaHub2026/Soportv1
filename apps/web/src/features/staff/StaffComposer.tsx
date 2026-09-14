@@ -1,7 +1,7 @@
 "use client";
 
 import type { SavedReply } from "@orbit-support/shared";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { AttachmentComposer } from "@/features/support/AttachmentComposer";
 import { dictionary as t } from "@/i18n";
 import { type AttachmentClient, newClientMessageId } from "@/lib/api";
@@ -32,6 +32,9 @@ export function StaffComposer({ identity, caseId, attachmentClient, onSent }: St
   const [attachClearToken, setAttachClearToken] = useState(0);
   const [send, setSend] = useState<SendState>({ status: "idle" });
   const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
+  const [uploading, setUploading] = useState(false);
+  /** The content the current key was last sent with: a retry reuses the key only for the same message. */
+  const attempted = useRef<{ key: string; content: string } | null>(null);
   // Saved replies are read once per case view; inserting one only edits the draft (PH-5.3).
   useEffect(() => {
     const controller = new AbortController();
@@ -45,16 +48,26 @@ export function StaffComposer({ identity, caseId, attachmentClient, onSent }: St
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body) return;
+    if (!body || (mode === "reply" && uploading)) return;
+    // An edited message after a failure is a new message: a reused key would return the first version, stored or
+    // not, and drop this one while reporting success (Cycle Audit 3 FND-0087). The same content keeps its key.
+    const content = JSON.stringify([mode, body, mode === "reply" ? attachmentIds : []]);
+    let key = mode === "note" ? noteKey : replyKey;
+    if (attempted.current && attempted.current.key === key && attempted.current.content !== content) {
+      key = newClientMessageId();
+      if (mode === "note") setNoteKey(key);
+      else setReplyKey(key);
+    }
+    attempted.current = { key, content };
     setSend({ status: "busy" });
     try {
       if (mode === "note") {
-        await staffApi.postNote(identity, caseId, { body, clientMessageId: noteKey });
+        await staffApi.postNote(identity, caseId, { body, clientMessageId: key });
         setNoteKey(newClientMessageId());
       } else {
         await staffApi.postMessage(identity, caseId, {
           body,
-          clientMessageId: replyKey,
+          clientMessageId: key,
           ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
         });
         setAttachmentIds([]);
@@ -118,9 +131,9 @@ export function StaffComposer({ identity, caseId, attachmentClient, onSent }: St
           {send.message}
         </p>
       )}
-      {mode === "reply" && <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} idPrefix="staff-attach" />}
+      {mode === "reply" && <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} onUploadingChange={setUploading} clearToken={attachClearToken} idPrefix="staff-attach" />}
       <div className={styles.composerActions}>
-        <button type="submit" className={mode === "note" ? styles.noteButton : styles.primaryButton} disabled={!draft.trim() || send.status === "busy"}>
+        <button type="submit" className={mode === "note" ? styles.noteButton : styles.primaryButton} disabled={!draft.trim() || send.status === "busy" || (mode === "reply" && uploading)}>
           {send.status === "busy" ? (mode === "note" ? t.staff.notes.saving : t.staff.sending) : mode === "note" ? t.staff.notes.save : t.staff.reply}
         </button>
       </div>

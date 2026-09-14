@@ -120,4 +120,44 @@ describe("NewRequestForm", () => {
     expect(requests[0].headers["x-simulated-customer-id"]).toBe("cust-test");
     expect(requests[1].body).toMatchObject({ category: "other", message: "Segue o comprovante", attachmentIds: [attachment().id] });
   });
+
+  test("Cycle Audit 3 FND-0088: while a file is still uploading the request cannot be sent", async () => {
+    const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => (finish = resolve));
+    mockFetch(async (request) => {
+      if (request.url === "/api/support/attachments") {
+        await pending;
+        return { status: 201, body: attachment({ caseId: null, messageId: null }) };
+      }
+      return { status: 201, body: { ...summary(), messages: [message()] } };
+    });
+    render(<NewRequestForm identity={identity} onCreated={() => {}} />);
+    fireEvent.click(screen.getByLabelText("Outro assunto"));
+    fireEvent.change(screen.getByLabelText("Conte o que está acontecendo"), { target: { value: "Segue o comprovante" } });
+    fireEvent.change(screen.getByLabelText("Anexar arquivo"), { target: { files: [new File([PNG_BYTES], "comprovante.png", { type: "image/png" })] } });
+    const send = screen.getByRole<HTMLButtonElement>("button", { name: "Enviar" });
+    await waitFor(() => expect(screen.getByText("comprovante.png").closest("li")?.getAttribute("data-state")).toBe("uploading"));
+    expect(send.disabled).toBe(true);
+    finish();
+    await waitFor(() => expect(send.disabled).toBe(false));
+  });
+
+  test("Cycle Audit 3 FND-0093: a file that is no longer available is named as such and can be attached again", async () => {
+    const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    const { requests } = mockFetch((request) =>
+      request.url === "/api/support/attachments" ? { status: 201, body: attachment({ caseId: null, messageId: null }) } : { status: 400, body: { error: "attachment_not_available" } },
+    );
+    render(<NewRequestForm identity={identity} onCreated={() => {}} />);
+    fireEvent.click(screen.getByLabelText("Outro assunto"));
+    fireEvent.change(screen.getByLabelText("Conte o que está acontecendo"), { target: { value: "Segue o comprovante" } });
+    fireEvent.change(screen.getByLabelText("Anexar arquivo"), { target: { files: [new File([PNG_BYTES], "comprovante.png", { type: "image/png" })] } });
+    await waitFor(() => expect(screen.getByText("comprovante.png").closest("li")?.getAttribute("data-state")).toBe("ready"));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("não está mais disponível");
+    await waitFor(() => expect(screen.queryByText("comprovante.png")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    await waitFor(() => expect(requests.filter((r) => r.url === "/api/support/cases")).toHaveLength(2));
+    expect(requests.filter((r) => r.url === "/api/support/cases")[1].body).not.toHaveProperty("attachmentIds");
+  });
 });

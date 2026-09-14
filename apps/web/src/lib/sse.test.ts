@@ -82,4 +82,20 @@ describe("subscribeStream", () => {
     stop();
     await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
   });
+
+  test("Cycle Audit 3 FND-0089: says 'reconnecting' as soon as a stream ends, before the backoff", async () => {
+    vi.useFakeTimers();
+    try {
+      const statuses: string[] = [];
+      vi.spyOn(globalThis, "fetch")
+        .mockImplementationOnce(async () => streamResponse([]))
+        .mockImplementation(() => new Promise<Response>(() => {}));
+      const stop = subscribeStream("/support/cases/stream", {}, { onEvent: () => {}, onStatus: (status) => statuses.push(status) });
+      for (let i = 0; i < 10 && !statuses.includes("reconnecting"); i += 1) await vi.advanceTimersByTimeAsync(0);
+      expect(statuses).toEqual(["connecting", "connected", "reconnecting"]); // no backoff time has passed
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

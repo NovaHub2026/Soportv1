@@ -1,7 +1,7 @@
 import { ATTACHMENT_STORAGE, type AttachmentStorage } from '../attachments/storage.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { randomUUID } from 'node:crypto';
-import { awaitingReplySince, awaitingReplySinceSql } from './case-rules.js';
+import { awaitingReplySince, awaitingReplySinceSql, waitingInternalSince, waitingInternalSinceSql } from './case-rules.js';
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { eq, inArray } from 'drizzle-orm';
@@ -1028,6 +1028,84 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       }
       expect(await attachments.removeUnlinked(new Date(), 24)).toBe(0);
       await db.delete(caseAttachments).where(inArray(caseAttachments.id, [recent.id])); // staged rows outlive the case cleanup of beforeEach
+    });
+  });
+
+  describe('Cycle Audit 3 remediation (FND-0082, FND-0084, FND-0085, FND-0086)', () => {
+    it('a note key replayed as a public reply is refused, never answered with the note (FND-0082)', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.postInternalNote(ana, created.id, { body: 'NOTA secreta', clientMessageId: 'k-note' });
+      await expect(service.postStaffMessage(ana, created.id, { body: 'Resposta', clientMessageId: 'k-note' })).rejects.toBeInstanceOf(ConflictException);
+      expect((await service.getCustomerCase(alice, created.id)).messages.map((m) => m.body)).toEqual(['Oi']);
+    });
+
+    it('the waiting-for-team view, its order and the summaries follow the rule supervision counts by (FND-0084)', async () => {
+      const moved = await service.createCase(alice, { category: 'other', message: 'Consulta aberta' });
+      await service.requestConsultation(ana, moved.id, { team: 'finance', question: '?' });
+      await service.setStatus(ana, moved.id, 'in_progress');
+      await db.update(caseConsultations).set({ requestedAt: new Date(Date.now() - 5 * 3_600_000) }).where(eq(caseConsultations.caseId, moved.id));
+      const plain = await service.createCase(bob, { category: 'other', message: 'Equipe' });
+      await service.setStatus(ana, plain.id, 'waiting_internal');
+      const none = await service.createCase(bob, { category: 'other', message: 'Nada' });
+      const queue = await service.listStaffCases(ana, 'waiting_internal');
+      expect(queue.map((c) => c.id)).toEqual([moved.id, plain.id]); // the oldest wait first
+      expect(queue[0]).toMatchObject({ status: 'in_progress', waitingInternalSince: expect.any(String) });
+      expect((await service.getStaffCase(none.id)).waitingInternalSince).toBeNull();
+      expect((await moduleRef.get(SupervisionService).overview(carla)).waitingInternal.count).toBe(queue.length);
+      const viaSql = new Map((await db.select({ id: supportCases.id, since: waitingInternalSinceSql }).from(supportCases)).map((r) => [r.id, r.since]));
+      const open = await db.select().from(caseConsultations).where(eq(caseConsultations.status, 'open'));
+      const oldest = (id: string) => open.filter((c) => c.caseId === id).map((c) => c.requestedAt).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+      const asTime = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string | Date).getTime());
+      for (const row of await db.select().from(supportCases)) expect(asTime(viaSql.get(row.id))).toBe(waitingInternalSince(row, oldest(row.id))?.getTime() ?? null);
+    });
+
+    it('the cleanup removes every stale upload in one run, batch after batch (FND-0085)', async () => {
+      const attachments = moduleRef.get(AttachmentsService);
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('lote')]);
+      const created = await service.createCase(bob, { category: 'other', message: 'Oi' });
+      const row = await service.requireOwnCaseRow(bob, created.id);
+      const ids: string[] = [];
+      for (let i = 0; i < 5; i += 1) ids.push((await attachments.upload(bob, row, { originalname: `f${i}.png`, mimetype: 'image/png', size: png.length, buffer: png })).id);
+      await db.update(caseAttachments).set({ createdAt: new Date(Date.now() - 25 * 3_600_000) }).where(inArray(caseAttachments.id, ids));
+      expect(await attachments.removeUnlinked(new Date(), 24, 2)).toBe(5);
+    });
+
+    it('a file the cleanup removed fails the send and the creation instead of vanishing from them (FND-0086)', async () => {
+      const attachments = moduleRef.get(AttachmentsService);
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('limpo')]);
+      const file = (name: string) => ({ originalname: name, mimetype: 'image/png', size: png.length, buffer: png });
+      const created = await service.createCase(bob, { category: 'other', message: 'Oi' });
+      const onCase = await attachments.upload(bob, await service.requireOwnCaseRow(bob, created.id), file('caso.png'));
+      const staged = await attachments.uploadStaged(bob, file('staged.png'));
+      await db.update(caseAttachments).set({ createdAt: new Date(Date.now() - 25 * 3_600_000) }).where(inArray(caseAttachments.id, [onCase.id, staged.id]));
+      expect(await attachments.removeUnlinked(new Date(), 24)).toBeGreaterThanOrEqual(2);
+      await expect(service.postCustomerMessage(bob, created.id, { body: 'Segue', attachmentIds: [onCase.id] })).rejects.toBeInstanceOf(BadRequestException);
+      const before = (await service.listCustomerCases(bob)).length;
+      await expect(service.createCase(bob, { category: 'other', message: 'Com anexo', attachmentIds: [staged.id] })).rejects.toBeInstanceOf(BadRequestException);
+      expect((await service.listCustomerCases(bob)).length).toBe(before);
+    });
+
+    it.runIf(Boolean(process.env.SUPPORT_DATABASE_URL))('on PostgreSQL, a cleanup that meets a link in progress leaves the linked file (FND-0086)', async () => {
+      const attachments = moduleRef.get(AttachmentsService);
+      const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('corrida')]);
+      const created = await service.createCase(bob, { category: 'other', message: 'Oi' });
+      const upload = await attachments.upload(bob, await service.requireOwnCaseRow(bob, created.id), { originalname: 'corrida.png', mimetype: 'image/png', size: png.length, buffer: png });
+      await db.update(caseAttachments).set({ createdAt: new Date(Date.now() - 25 * 3_600_000) }).where(eq(caseAttachments.id, upload.id));
+      const messageId = (await service.getStaffCase(created.id)).messages[0].id;
+      let release!: () => void;
+      const hold = new Promise<void>((resolve) => (release = resolve));
+      const linking = db.transaction(async (tx) => {
+        await attachments.linkToMessage(tx, bob, created.id, messageId, [upload.id]);
+        await hold; // the link holds the row lock while the cleanup runs
+      });
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const cleaning = attachments.removeUnlinked(new Date(), 24);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      release();
+      await linking;
+      await cleaning;
+      const [kept] = await db.select().from(caseAttachments).where(eq(caseAttachments.id, upload.id));
+      expect(kept?.messageId).toBe(messageId);
     });
   });
 });

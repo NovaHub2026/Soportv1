@@ -143,8 +143,9 @@ function SignedInShell({ customer, selectCustomer, panelOpen, setPanelOpen, reco
     setDesktopHidden(false);
   };
   const closePanel = () => {
-    if (desktop) setDesktopHidden(true);
-    else setPanelOpen(false);
+    // Both layouts: crossing the breakpoint (a rotated tablet) must not reopen a panel the customer closed (FND-0090).
+    setDesktopHidden(true);
+    setPanelOpen(false);
     // The close control leaves the page with the panel: focus returns to the button that opens it again.
     requestAnimationFrame(() => supportButtonRef.current?.focus());
   };

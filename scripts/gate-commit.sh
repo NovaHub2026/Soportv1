@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Gate-then-commit (GOVERNANCE.md §7.2, §9.1, §9.2; Cycle Audit 1 FND-0028 / BL-020; Cycle Audit 2 FND-0040).
-# The commit exists only if `npm run verify` exited 0, the tree did not change while it ran, and no
-# <NAME>_PLACEHOLDER token is left in the documentation. It stages only what it should (Cycle Audit 3): changes
-# to tracked files, plus untracked paths named with --include; any other untracked file stops the gate, so probe
-# scripts or stray exports never slip into a commit (§9.1, §11).
+# The commit exists only if `npm run verify` exited 0, the tree did not change while it ran — by content, not only
+# by path (Cycle Audit 3 FND-0096) — and no <NAME>_PLACEHOLDER token is left in the documentation. It stages only
+# what it should (Cycle Audit 3): changes to tracked files, plus untracked paths named with --include; any other
+# untracked file stops the gate, so probe scripts or stray exports never slip into a commit (§9.1, §11). The commit
+# carries a `Gate-Verified:` trailer with the suites' counts, and CI refuses a pushed commit without it (FND-0098).
 # Usage: bash scripts/gate-commit.sh <message-file> [--no-push] [--include <path>]...
 #   GATE_LOG=<path> overrides where the verify output is written (default .gate-verify.log, git-ignored).
 set -euo pipefail
@@ -37,15 +38,31 @@ if [[ -n "$stray" ]]; then
   exit 1
 fi
 
-before="$(git status --porcelain=v1 -uall | sha1sum)"
+# Everything verify certifies: paths and states, the content of every tracked change, and the named new files.
+tree_state() {
+  {
+    git status --porcelain=v1 -uall
+    git diff HEAD --binary
+    for inc in "${INCLUDE[@]+"${INCLUDE[@]}"}"; do
+      if [[ -d "$inc" ]]; then
+        find "$inc" -type f -print0 | sort -z | xargs -0 -r sha1sum
+      elif [[ -f "$inc" ]]; then
+        sha1sum "$inc"
+      fi
+    done
+  } | sha1sum
+}
+
+before="$(tree_state)"
 if ! npm run verify > "$LOG" 2>&1; then
   echo "verify FAILED — nothing committed. Last lines of $LOG:"
   tail -40 "$LOG"
   exit 1
 fi
-echo "verify exit 0"
+counts="$(grep -oE 'Tests  [0-9]+ passed' "$LOG" | awk '{print $2}' | paste -sd/ - || true)"
+echo "verify exit 0 (tests ${counts:-none})"
 grep -E "check-context:|Tests  " "$LOG" || true
-after="$(git status --porcelain=v1 -uall | sha1sum)"
+after="$(tree_state)"
 if [[ "$before" != "$after" ]]; then
   echo "The working tree changed while verify ran — nothing committed. Re-run the gate."
   exit 1
@@ -57,9 +74,13 @@ if grep -rlE '[A-Z0-9_]+_PLACEHOLDER' docs CURRENT_STATE.md SESSION_HANDOFF.md >
   exit 1
 fi
 
+message="$(mktemp)"
+trap 'rm -f "$message"' EXIT
+git interpret-trailers --trailer "Gate-Verified: verify exit 0; tests ${counts:-none} (shared/api/web/e2e)" "$MSG" > "$message"
+
 git add -u
 for inc in "${INCLUDE[@]+"${INCLUDE[@]}"}"; do git add -- "$inc"; done
-git -c core.safecrlf=false commit -q -F "$MSG"
+git -c core.safecrlf=false commit -q -F "$message"
 if [[ $PUSH -eq 1 ]]; then git push -q; fi
 git log --oneline -1
 git status -sb | head -1

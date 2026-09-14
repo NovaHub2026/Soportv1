@@ -40,3 +40,7 @@ The first `scripts/gate-commit.sh` run refused the commit: three Cycle Audit 1 r
 
 ## CI
 Pending at recording time; recorded in `../../CURRENT_STATE.md` with the next update. `41adb23` (PH-9.1): run 34851816846 **success** (both jobs).
+
+## Correction and completion (Cycle Audit 3, 2026-09-14)
+- Screenshot `screenshots/ph-9.2/07` shows the settings form without the emptied field or the refusal message: it does not show what claim 10 says. The refusal is established by claim 5 (unit test) and by the probe's DOM check, not by the image (FND-0094).
+- Gate: the accepted run passed shared 23, api 81, web 86, e2e 35 (after the refused run described above); CI run 34854751897 succeeded on both jobs.

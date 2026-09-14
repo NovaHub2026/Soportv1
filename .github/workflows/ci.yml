@@ -14,6 +14,9 @@ jobs:
         with:
           # Full history and tags: check-context verifies the commit hashes and tags cited in live documents (BL-030).
           fetch-depth: 0
+      - name: the pushed commit came through the gate (Cycle Audit 3, FND-0098)
+        if: github.event_name == 'push'
+        run: git log -1 --format=%B "$GITHUB_SHA" | grep -q '^Gate-Verified: verify exit 0'
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc

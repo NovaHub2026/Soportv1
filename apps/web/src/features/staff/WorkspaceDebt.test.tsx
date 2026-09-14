@@ -176,4 +176,58 @@ describe("PH-9.2 staff workspace debt", () => {
     expect(await screen.findByRole("button", { name: t.staff.supervision.open })).toBeDefined();
     await waitFor(() => expect(requests.at(-1)?.headers["x-simulated-staff-id"]).toBe("staff-carla"));
   });
+
+  test("Cycle Audit 3 FND-0087: an edited note after a failure is a new message with a new key; the same text keeps its key", async () => {
+    let failures = 2;
+    const { requests } = mockFetch(
+      caseResponder((request) => {
+        if (!request.url.endsWith("/notes")) return undefined;
+        if (failures > 0) {
+          failures -= 1;
+          return { status: 503, body: { error: "unavailable" } };
+        }
+        return { status: 201, body: message({ id: "n2", visibility: "internal", authorType: "staff", authorId: "staff-ana" }) };
+      }),
+    );
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    fireEvent.click(screen.getByLabelText("Nota interna"));
+    const box = screen.getByLabelText("Nota interna (só a equipe vê)") as HTMLTextAreaElement;
+    const save = () => fireEvent.click(screen.getByRole("button", { name: "Salvar nota" }));
+    const notes = () => requests.filter((r) => r.url.endsWith("/notes"));
+    fireEvent.change(box, { target: { value: "Primeira versão." } });
+    save();
+    await waitFor(() => expect(notes()).toHaveLength(1));
+    await screen.findByRole("button", { name: "Salvar nota" });
+    fireEvent.change(box, { target: { value: "Versão corrigida." } });
+    save();
+    await waitFor(() => expect(notes()).toHaveLength(2));
+    await screen.findByRole("button", { name: "Salvar nota" });
+    save();
+    await waitFor(() => expect(notes()).toHaveLength(3));
+    const keys = notes().map((r) => (r.body as { clientMessageId: string }).clientMessageId);
+    expect(keys[1]).not.toBe(keys[0]); // edited → a new message
+    expect(keys[2]).toBe(keys[1]); // same text → the retry of that message
+  });
+
+  test("Cycle Audit 3 FND-0091: a failed reply's key never becomes a note's key", async () => {
+    const { requests } = mockFetch(
+      caseResponder((request) => {
+        if (request.method === "POST" && request.url.endsWith("/messages")) return { status: 503, body: {} };
+        if (request.url.endsWith("/notes")) return { status: 201, body: message({ id: "n3", visibility: "internal", authorType: "staff", authorId: "staff-ana" }) };
+        return undefined;
+      }),
+    );
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    fireEvent.change(screen.getByLabelText("Resposta ao cliente"), { target: { value: "Olá, estamos verificando." } });
+    fireEvent.click(screen.getByRole("button", { name: "Responder ao cliente" }));
+    await screen.findByText(t.staff.sendFailed);
+    fireEvent.click(screen.getByLabelText("Nota interna"));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar nota" }));
+    await waitFor(() => expect(requests.some((r) => r.url.endsWith("/notes"))).toBe(true));
+    const replyKey = (requests.find((r) => r.method === "POST" && r.url.endsWith("/messages"))?.body as { clientMessageId: string }).clientMessageId;
+    const noteKey = (requests.find((r) => r.url.endsWith("/notes"))?.body as { clientMessageId: string }).clientMessageId;
+    expect(noteKey).not.toBe(replyKey);
+  });
 });

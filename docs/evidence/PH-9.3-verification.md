@@ -29,3 +29,7 @@ The browser runs (claims 6–8) used a build that includes the layout-effect cha
 
 ## CI
 Pending at recording time. `9ce5874` (PH-9.2): run 34854751897 **success** (both jobs).
+
+## Correction and completion (Cycle Audit 3, 2026-09-14)
+- Gate: shared 23, api 81, web 88, e2e 36; CI run 34855948382 succeeded on both jobs.
+- The staff side of claim 6 was read from the API by the probe, not shown in a screenshot; the thumbnail in `02` is a 1×1 PNG.

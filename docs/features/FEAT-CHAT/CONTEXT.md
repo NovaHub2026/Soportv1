@@ -49,7 +49,7 @@ Used by / affects: the future Orbit host (placement, §4.1) and FEAT-NOTIFY (dee
 The browser only ever sends the current simulated customer's header; the API enforces ownership (404 for others). Network failure on create/send shows an error and keeps the draft and id for retry. Load errors show retry (home) or an alert (conversation); a transient refresh error never wipes an already loaded conversation, but a 401/403/404 does (the case is not this customer's). Nothing here may promise response times or show agents online (RULE-SUP-08).
 
 ## Decisions and assumptions
-DEC-0006 (CSS Modules, rewrites, polling, Playwright smoke), DEC-0003 (simulated identity, labeled). Assumptions: Orbit will host the panel as a side panel on desktop and full screen on mobile (context §13.1 working default); the topbar picker disappears when a real session exists.
+DEC-0006 (CSS Modules, rewrites, polling, Playwright smoke), DEC-0003 (simulated identity, labeled), DEC-0036 (system messages worded from their kind, pending rows list their files), DEC-0037 (staged uploads, desktop close). Assumptions: Orbit will host the panel as a side panel on desktop and full screen on mobile (context §13.1 working default); the topbar picker disappears when a real session exists.
 
 ## Verification and change checklist
 Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs` (screenshots under `docs/evidence/screenshots/`); vocabulary change → dictionary test. Last scoped evidence: `docs/evidence/PH-5.4-verification.md`, `docs/evidence/PH-4.2-verification.md`.

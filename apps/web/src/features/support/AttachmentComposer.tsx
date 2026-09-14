@@ -21,6 +21,8 @@ interface AttachmentComposerProps {
   onReadyChange: (attachmentIds: string[], ready: CaseAttachment[]) => void;
   /** Increment to clear the list (after the message was sent). */
   clearToken: number;
+  /** Whether an upload is still running: a send must wait for it instead of leaving the file behind (Cycle Audit 3 FND-0088). */
+  onUploadingChange?: (uploading: boolean) => void;
   disabled?: boolean;
   idPrefix?: string;
 }
@@ -37,7 +39,7 @@ function errorMessage(error: unknown): string {
  * Pick files → upload right away → chips with state → the parent links the ready ids when sending
  * (PROJECT_CONTEXT.md §10.2: the user always sees a file's actual state). Limits from the shared contract.
  */
-export function AttachmentComposer({ client, onReadyChange, clearToken, disabled = false, idPrefix = "attach" }: AttachmentComposerProps) {
+export function AttachmentComposer({ client, onReadyChange, onUploadingChange, clearToken, disabled = false, idPrefix = "attach" }: AttachmentComposerProps) {
   const [items, setItems] = useState<UploadItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +62,8 @@ export function AttachmentComposer({ client, onReadyChange, clearToken, disabled
       ready.map((a) => a.id),
       ready,
     );
-  }, [items, onReadyChange]);
+    onUploadingChange?.(items.some((i) => i.state === "uploading"));
+  }, [items, onReadyChange, onUploadingChange]);
 
   async function handleFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);

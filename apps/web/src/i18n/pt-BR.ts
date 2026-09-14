@@ -109,6 +109,7 @@ export const ptBR = {
       send: "Enviar",
       sending: "Enviando…",
       error: "Não foi possível enviar. Verifique sua conexão e tente novamente.",
+      attachmentGone: "Um dos arquivos anexados não está mais disponível. Anexe de novo e envie.",
       validation: "Escolha um assunto e escreva sua mensagem.",
     },
     conversation: {

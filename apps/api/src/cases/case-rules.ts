@@ -34,3 +34,13 @@ export function waitingInternalSince(row: WaitingInternalFields, oldestOpenConsu
   if (candidates.length === 0) return null;
   return candidates.reduce((a, b) => (b.getTime() < a.getTime() ? b : a));
 }
+
+/** The outer case in a correlated subquery, always qualified (drizzle omits table names in single-table select lists). */
+const OUTER_CASE_ID = sql.raw('"support_cases"."id"');
+
+/**
+ * SQL twin of `waitingInternalSince` for the `waiting_internal` queue view and its order (Cycle Audit 3 FND-0084):
+ * the older of the waiting period and the oldest open consultation; null when no team owes anything. A test in
+ * `cases.service.spec.ts` keeps it in agreement with the rule.
+ */
+export const waitingInternalSinceSql = sql<Date | null>`least(case when ${supportCases.status} = 'waiting_internal' then coalesce(${supportCases.waitingInternalSince}, ${supportCases.updatedAt}) end, (select min(cc.requested_at) from case_consultations cc where cc.case_id = ${OUTER_CASE_ID} and cc.status = 'open'))`;

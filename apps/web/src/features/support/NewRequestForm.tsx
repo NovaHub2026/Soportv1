@@ -3,7 +3,7 @@
 import { CASE_CATEGORIES, type CaseCategory, type CustomerCaseDetail, createCaseSchema, type OrbitRecordKind, type OrbitRecordListItem } from "@orbit-support/shared";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { dictionary as t, fill } from "@/i18n";
-import { type CustomerIdentity, customerApi, newClientMessageId } from "@/lib/api";
+import { ApiError, type CustomerIdentity, customerApi, newClientMessageId } from "@/lib/api";
 import { AttachmentComposer } from "./AttachmentComposer";
 import { RecordCard } from "./RecordCard";
 import styles from "./support.module.css";
@@ -39,6 +39,7 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
   const attachmentClient = useMemo(() => customerApi.stagedAttachments(identity), [identity]);
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [attachClearToken, setAttachClearToken] = useState(0);
+  const [uploading, setUploading] = useState(false);
 
   // The active-case flag may be stale (the list was read when the shell loaded): re-read it for this record.
   useEffect(() => {
@@ -57,7 +58,7 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
 
   const recordRef = record ? { kind: record.kind, reference: record.reference } : undefined;
   const parsed = createCaseSchema.safeParse({ category, message, clientMessageId, ...(recordRef ? { record: recordRef } : {}), ...(attachmentIds.length > 0 ? { attachmentIds } : {}) });
-  const canSubmit = parsed.success && submit.status !== "sending";
+  const canSubmit = parsed.success && submit.status !== "sending" && !uploading;
   const activeCase = record && record.activeCaseId && !differentIssue ? record : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -66,6 +67,7 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
       setSubmit({ status: "error", message: t.support.newRequest.validation });
       return;
     }
+    if (uploading) return;
     setSubmit({ status: "sending" });
     try {
       const created = await customerApi.createCase(identity, parsed.data);
@@ -75,6 +77,13 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
       onCreated(created);
     } catch (error) {
       console.warn("support: could not create case", error);
+      if (error instanceof ApiError && (error.body as { error?: unknown } | null)?.error === "attachment_not_available") {
+        // A file that expired or is gone can never be sent: say so and let the customer attach it again (FND-0093).
+        setAttachmentIds([]);
+        setAttachClearToken((n) => n + 1);
+        setSubmit({ status: "error", message: t.support.newRequest.attachmentGone });
+        return;
+      }
       setSubmit({ status: "error", message: t.support.newRequest.error });
     }
   }
@@ -149,7 +158,7 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
       <p id="new-request-hint" className={styles.hint}>
         {t.support.newRequest.messageHint}
       </p>
-      <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} disabled={submit.status === "sending"} idPrefix="new-request-attach" />
+      <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} onUploadingChange={setUploading} clearToken={attachClearToken} disabled={submit.status === "sending"} idPrefix="new-request-attach" />
 
       {submit.status === "error" && (
         <p className={styles.errorText} role="alert">

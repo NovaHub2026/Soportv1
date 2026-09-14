@@ -572,6 +572,26 @@ try {
     await desktop.getByLabel('Conta simulada').selectOption('cust-alice');
     await desktop.getByText('Conversas em andamento').waitFor();
 
+    // PH-9.3 (Cycle Audit 3 FND-0094): a file on the very first message (BL-010) and the desktop close control (BL-015).
+    await desktop.getByRole('button', { name: 'Falar com o suporte' }).click();
+    await desktop.getByText('Outro assunto', { exact: true }).click();
+    await desktop.getByLabel('Conte o que está acontecendo').fill('Segue o print do erro que aparece na tela.');
+    await desktop.getByLabel('Anexar arquivo').setInputFiles({ name: 'print-erro.png', mimeType: 'image/png', buffer: TINY_PNG });
+    await desktop.locator('li[data-state="ready"]', { hasText: 'print-erro.png' }).waitFor({ timeout: 10_000 });
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    const attachedRef = await shownReference(desktop, [reference, followUpRef, recordRef]);
+    await desktop.getByAltText(/print-erro\.png/).waitFor({ timeout: 10_000 });
+    note('first-message-attachment', `a new request carried a PNG on its very first message: the chip was ready before any case existed and ${attachedRef} opened with the image on message 1 (PH-9.3, BL-010)`);
+    await shot(desktop, '30-customer-first-message-attachment');
+    await desktop.getByTestId('support-panel').getByRole('button', { name: 'Fechar suporte' }).click();
+    await desktop.locator('#support-panel').waitFor({ state: 'hidden' });
+    note('desktop-close', 'on desktop "×" hid the side panel and the trading area took the whole width; the topbar then offered "Suporte", which brought it back (PH-9.3, BL-015)');
+    await shot(desktop, '31-desktop-panel-closed');
+    await desktop.getByRole('button', { name: 'Suporte', exact: true }).click();
+    await desktop.locator('#support-panel').waitFor({ state: 'visible' });
+    await desktop.getByRole('button', { name: 'Voltar' }).click();
+    await desktop.getByText('Conversas em andamento').waitFor();
+
     // PH-7.1: "Não consigo acessar minha conta" from the host, without any session; staff handle it in their own page.
     await desktop.getByRole('button', { name: 'Não consigo acessar minha conta' }).click();
     await desktop.getByLabel(/E-mail ou telefone/).fill('recupera@example.com');

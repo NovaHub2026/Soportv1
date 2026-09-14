@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, min, ne, or, sql } from 'drizzle-orm';
 import {
   type AnswerConsultationInput,
   type AssignCaseInput,
@@ -60,7 +60,7 @@ import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { caseOwnership, type StaffAction, staffMay } from '@orbit-support/shared';
 import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-directory.js';
-import { awaitingReplySince, awaitingReplySinceSql } from './case-rules.js';
+import { awaitingReplySince, awaitingReplySinceSql, waitingInternalSince, waitingInternalSinceSql } from './case-rules.js';
 import { NotificationsService } from './notifications.service.js';
 import { SettingsService } from './settings.service.js';
 
@@ -381,7 +381,10 @@ export class CasesService {
           ? and(open, eq(supportCases.assignedAgentId, staff.id))
           : view === 'active'
             ? open
-            : eq(supportCases.status, view);
+            : view === 'waiting_internal'
+              ? // A team owes an answer — status or an open consultation — exactly as supervision counts it (FND-0084).
+                and(open, sql`(${waitingInternalSinceSql}) is not null`)
+              : eq(supportCases.status, view);
     const order =
       view === 'unassigned'
         ? [asc(supportCases.createdAt)]
@@ -390,7 +393,7 @@ export class CasesService {
           : view === 'waiting_customer'
             ? [asc(supportCases.lastStaffMessageAt), asc(supportCases.updatedAt)]
             : view === 'waiting_internal'
-              ? [asc(supportCases.updatedAt)]
+              ? [sql`${waitingInternalSinceSql} asc`, asc(supportCases.updatedAt)]
               : view === 'resolved'
                 ? [desc(supportCases.resolvedAt)]
                 : [desc(supportCases.closedAt)];
@@ -667,9 +670,15 @@ export class CasesService {
     if (row.status === 'closed') throw new ConflictException('case_closed');
     if (input.clientMessageId) {
       const duplicate = await this.findMessageByClientId(row.id, 'staff', staff.id, input.clientMessageId);
-      if (duplicate) return this.messageWithAttachments(duplicate);
+      if (duplicate) return this.sameReply(await this.messageWithAttachments(duplicate));
     }
-    return this.onceByClientMessageId(row.id, 'staff', staff.id, input.clientMessageId, () => this.insertStaffMessage(staff, row.id, input));
+    return this.onceByClientMessageId(row.id, 'staff', staff.id, input.clientMessageId, () => this.insertStaffMessage(staff, row.id, input)).then((message) => this.sameReply(message));
+  }
+
+  /** A key the author used for an internal note cannot be replayed as a public reply: the reply would be lost while reported sent (FND-0082). */
+  private sameReply(message: CaseMessage): CaseMessage {
+    if (message.visibility !== 'public') throw new ConflictException('client_message_id_reused');
+    return message;
   }
 
   private async insertStaffMessage(staff: StaffActor, caseId: string, input: PostMessageInput): Promise<CaseMessage> {
@@ -1194,12 +1203,24 @@ export class CasesService {
 
   /** Summaries with viewer-dependent unread counts, the parent reference for follow-ups and the incident title. */
   private async withUnread(rows: SupportCaseRow[], viewer: 'customer' | 'staff'): Promise<CaseSummary[]> {
-    const [unread, parents, incidentTitles] = await Promise.all([
+    const [unread, parents, incidentTitles, consultations] = await Promise.all([
       this.unreadCounts(rows.map((r) => r.id), viewer),
       this.parentReferences(rows),
       viewer === 'staff' ? this.incidentTitles(rows) : Promise.resolve(new Map<string, string>()),
+      viewer === 'staff' ? this.oldestOpenConsultations(rows.map((r) => r.id)) : Promise.resolve(new Map<string, Date>()),
     ]);
-    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0, parents.get(row.id) ?? null, incidentTitles.get(row.id) ?? null));
+    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0, parents.get(row.id) ?? null, incidentTitles.get(row.id) ?? null, consultations.get(row.id) ?? null));
+  }
+
+  /** Request time of each case's oldest open consultation (FND-0084: the summary's waiting-for-team age). */
+  private async oldestOpenConsultations(caseIds: string[]): Promise<Map<string, Date>> {
+    if (caseIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ caseId: caseConsultations.caseId, since: min(caseConsultations.requestedAt) })
+      .from(caseConsultations)
+      .where(and(inArray(caseConsultations.caseId, caseIds), eq(caseConsultations.status, 'open')))
+      .groupBy(caseConsultations.caseId);
+    return new Map(rows.filter((r) => r.since !== null).map((r) => [r.caseId, new Date(r.since as Date | string)]));
   }
 
   private async summaryOf(row: SupportCaseRow, viewer: 'customer' | 'staff' = 'staff'): Promise<CaseSummary> {
@@ -1336,7 +1357,7 @@ function toIncident(row: IncidentRow, linkedCaseCount: number): Incident {
   };
 }
 
-function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string | null = null, incidentTitle: string | null = null): CaseSummary {
+function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string | null = null, incidentTitle: string | null = null, oldestOpenConsultation: Date | null = null): CaseSummary {
   return {
     id: row.id,
     reference: formatCaseReference(row.referenceNumber),
@@ -1364,7 +1385,8 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     recordKind: (row.recordKind as OrbitRecordKind | null) ?? null,
     recordReference: row.recordReference,
     awaitingReplySince: iso(awaitingReplySince(row)),
-    waitingInternalSince: row.status === 'waiting_internal' ? iso(row.waitingInternalSince) : null,
+    // Stream events carry no consultations: they re-read the case, so the status-only value there is a hint (FND-0084).
+    waitingInternalSince: iso(waitingInternalSince(row, oldestOpenConsultation)),
   };
 }
 

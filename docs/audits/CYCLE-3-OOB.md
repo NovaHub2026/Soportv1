@@ -1,4 +1,4 @@
-# Out-of-band audit — cycle 3 ("Cycle Audit 3")
+# Out-of-band audit in cycle 3 (not the cycle's Cycle Audit — that is `CYCLE-3.md`)
 Type: CYCLE AUDIT
 Status: CLOSED
 Cycle / phase membership: cycle 3 — PH-7 (approved 2026-09-14); PH-8 was approved 2026-09-14 and its approval is WITHDRAWN by this audit (FND-0062). Out of band on the Owner's request («Ejecuta todo en orden», 2026-09-14, step 3 of the options offered), `GOVERNANCE.md` §8.5. It does not reset the ledger: the audit due at cycle 3's third first-time approval is still due.

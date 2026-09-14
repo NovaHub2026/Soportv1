@@ -26,3 +26,6 @@ Not verified: the browser — no screen changed in this subphase (§7.2: API-onl
 
 ## CI
 Pending at recording time; the verdict is recorded in `../../CURRENT_STATE.md` and in this record's successor.
+
+## Correction and completion (Cycle Audit 3, 2026-09-14)
+- Gate: the `.gate-verify.log` of this commit was overwritten by later runs, so its counts were not kept; CI run 34851816846 succeeded on both jobs. Since Cycle Audit 3 the gate writes its counts into the commit (`Gate-Verified:` trailer — FND-0098).

@@ -60,4 +60,32 @@ describe("PH-9.2 customer conversation debt", () => {
     expect(screen.queryByText("TEXTO ANTIGO")).toBeNull();
     expect(screen.getByText("Aviso gravado antes da migração.")).toBeDefined();
   });
+
+  test("Cycle Audit 3 FND-0092: a notice whose value is missing keeps its stored text", async () => {
+    mockFetch(() => ({ body: { ...detail, messages: [message({ id: "s9", authorType: "system", authorId: "system", body: "Continuação do caso anterior.", systemKind: "follow_up_of", systemData: {} })] } }));
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    expect(await screen.findByText("Continuação do caso anterior.")).toBeDefined();
+    expect(screen.queryByText("Continuação do caso .")).toBeNull();
+  });
+
+  test("Cycle Audit 3 FND-0088: the customer cannot send while a file is still uploading", async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => (finish = resolve));
+    mockFetch(async (request) => {
+      if (request.url.endsWith("/attachments") && request.method === "POST") {
+        await pending;
+        return { status: 201, body: attachment({ messageId: null }) };
+      }
+      return { body: detail };
+    });
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    await screen.findByText(/SUP-000001/);
+    fireEvent.change(screen.getByLabelText(t.support.conversation.composerLabel), { target: { value: "Segue" } });
+    fireEvent.change(screen.getByLabelText(t.attachments.attach), { target: { files: [new File([PNG_BYTES], "comprovante.png", { type: "image/png" })] } });
+    const send = screen.getByRole<HTMLButtonElement>("button", { name: t.support.conversation.send });
+    await waitFor(() => expect(screen.getByText("comprovante.png").closest("li")?.getAttribute("data-state")).toBe("uploading"));
+    expect(send.disabled).toBe(true);
+    finish();
+    await waitFor(() => expect(send.disabled).toBe(false));
+  });
 });

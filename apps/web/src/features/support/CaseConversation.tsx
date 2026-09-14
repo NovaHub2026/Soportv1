@@ -82,6 +82,7 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
   const [followUpClientId, setFollowUpClientId] = useState(() => newClientMessageId());
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [attachmentNames, setAttachmentNames] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   // Stable identity: the composer reports again whenever this callback changes.
   const onAttachmentsReady = useCallback((ids: string[], ready: CaseAttachment[]) => {
     setAttachmentIds(ids);
@@ -280,7 +281,7 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body) return;
+    if (!body || uploading) return;
     setDraft("");
     const ids = attachmentIds;
     const names = attachmentNames;
@@ -457,11 +458,11 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
                 }
               }}
             />
-            <button type="submit" className={styles.primaryButton} disabled={!draft.trim()}>
+            <button type="submit" className={styles.primaryButton} disabled={!draft.trim() || uploading}>
               {t.support.conversation.send}
             </button>
           </div>
-          <AttachmentComposer client={attachmentClient} onReadyChange={onAttachmentsReady} clearToken={attachClearToken} idPrefix="customer-attach" />
+          <AttachmentComposer client={attachmentClient} onReadyChange={onAttachmentsReady} onUploadingChange={setUploading} clearToken={attachClearToken} idPrefix="customer-attach" />
         </form>
       )}
     </div>

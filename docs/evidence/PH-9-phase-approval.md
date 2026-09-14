@@ -37,3 +37,8 @@ Why the phase existed: the Owner asked to continue with the pending phases («co
 - BL-030 carried part (non-Markdown sources, CI run ids). Owner-dependent: BL-001, BL-002, BL-027, BL-028. Toolchain: BL-005, BL-006, BL-017.
 - Observed in passing and handed to the audit: the customer panel kept saying "Ao vivo" for a few seconds after the API stopped (PH-9.2 evidence).
 - Identity, Orbit records and e-mail remain simulated (ADR-0002, DEC-0003); no production release is implied (§1.1).
+
+## Correction and completion (Cycle Audit 3, 2026-09-14)
+- The phase-candidate smoke's 54 observations cover the PH-1..PH-9.2 journeys; attaching a file to the first message and the desktop close (PH-9.3) were observed only by the PH-9.3 probe on the PH-9.3 candidate. The Cycle Audit 3 remediation added both journeys to the smoke (FND-0094, `CYCLE-3-closure-verification.md`).
+- The approval commit's CI (run 34858502090) succeeded on both jobs after this record was written.
+- The commit message of `c9618c8` says "SUPPORT_TRUST_PROXY hops, default 1": that was the first design; the shipped default trusts no proxy (DEC-0038 b, FND-0097).

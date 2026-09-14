@@ -15,6 +15,7 @@ import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { type AccessRecoveryRow, accessRecoveryRequests } from '../database/schema.js';
 import { SlidingWindowLimiter } from '../common/rate-limit.js';
+import { clientBucket } from './client-bucket.js';
 import type { StaffActor } from '../identity/identity.types.js';
 
 const HOUR_MS = 3_600_000;
@@ -47,7 +48,7 @@ export class AccessRecoveryService {
     }
     this.assertBurst(now);
     if (client) {
-      const verdict = this.perClient.take(client, now.getTime());
+      const verdict = this.perClient.take(clientBucket(client), now.getTime());
       if (!verdict.allowed) throw tooMany('too_many_from_client', verdict.retryAfterSeconds);
     }
     const [{ recent }] = await this.db

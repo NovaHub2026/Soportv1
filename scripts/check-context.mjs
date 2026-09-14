@@ -233,7 +233,10 @@ if (existsSync(roadmap)) {
       }
       entry.statusCell = statusCell ?? '';
       // The cell may annotate its record ("… (out-of-band audit)"): the record is its first .md path (BL-030).
-      if (recordCell && recordCell !== '—') entry.record = (recordCell.match(/[^\s()]+\.md/) ?? [recordCell])[0];
+      if (recordCell && recordCell !== '—') {
+        const paths = recordCell.match(/[^\s()[\]]+\.md/g) ?? [];
+        entry.record = paths.find((p) => !/-oob\.md$/i.test(p)) ?? paths[0] ?? recordCell;
+      }
       cycles.set(cycle, entry);
     }
     for (const [id, status] of phases) {
@@ -249,7 +252,7 @@ if (existsSync(roadmap)) {
       const hasRecord = entry.record && (existsSync(join(ROOT, entry.record)) || existsSync(join(phasesDir, entry.record)));
       if (entry.count >= AUDIT_CADENCE && !hasRecord) {
         fail(roadmap, `cycle ${cycle}: ${entry.count} first-time approvals without an audit record — Cycle Audit is due (§6.4)`);
-      } else if (entry.count >= AUDIT_CADENCE && /-OOB\.md$/.test(entry.record)) {
+      } else if (entry.count >= AUDIT_CADENCE && /-oob\.md$/i.test(entry.record)) {
         // An out-of-band audit does not silently reset the count (§6.4): the due cycle needs its own record (BL-030).
         fail(roadmap, `cycle ${cycle}: an out-of-band audit record does not discharge the due Cycle Audit (§6.4)`);
       }

@@ -168,8 +168,19 @@ export class AttachmentsService {
    * deleted only while still unlinked — a send linking it at that moment wins — and its bytes go after the row, so a
    * failure can leave an unreferenced file on disk, never a row whose bytes are gone (FND-0015). Returns how many.
    */
-  async removeUnlinked(now = new Date(), graceHours = 24, batch = 200): Promise<number> {
+  async removeUnlinked(now = new Date(), graceHours = 24, batch = 200, maxBatches = 50): Promise<number> {
+    // Batch after batch until one comes back short, at most `maxBatches` per run (10 000 by default — Cycle Audit 3 FND-0085).
     const cutoff = new Date(now.getTime() - graceHours * 3_600_000);
+    let total = 0;
+    for (let i = 0; i < maxBatches; i += 1) {
+      const removed = await this.removeUnlinkedBatch(cutoff, batch);
+      total += removed;
+      if (removed < batch) break;
+    }
+    return total;
+  }
+
+  private async removeUnlinkedBatch(cutoff: Date, batch: number): Promise<number> {
     const stale = this.db
       .select({ id: caseAttachments.id })
       .from(caseAttachments)

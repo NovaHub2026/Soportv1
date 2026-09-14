@@ -149,6 +149,8 @@ export function subscribeStream(
       if (signal.aborted) break;
       attempt += 1;
       const backoff = Math.min(MAX_BACKOFF_MS, 1000 * 2 ** Math.min(attempt - 1, 4)) + Math.random() * 500;
+      // Say so at once: "Ao vivo" must not outlive the connection for the whole backoff (Cycle Audit 3 FND-0089).
+      handlers.onStatus?.("reconnecting");
       await sleep(backoff, signal);
     }
     handlers.onStatus?.("closed");

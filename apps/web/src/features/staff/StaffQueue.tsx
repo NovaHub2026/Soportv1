@@ -168,7 +168,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
           </button>
         ))}
       </div>
-      <div role="tabpanel" id="queue-panel" aria-labelledby={`queue-tab-${view}`}>
+      <div role="tabpanel" id="queue-panel" aria-labelledby={`queue-tab-${view}`} tabIndex={0}>
 
       {state.status === "loading" && (
         <p className={styles.muted} role="status">
@@ -231,7 +231,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                 {c.status === "waiting_customer" && c.lastStaffMessageAt && (
                   <span className={styles.caseMeta}>{fill(t.staff.waitingCustomerSince, { age: formatDuration(c.lastStaffMessageAt) })}</span>
                 )}
-                {c.status === "waiting_internal" && c.waitingInternalSince && (
+                {c.waitingInternalSince && (
                   <span className={styles.caseMeta} data-testid="waiting-internal">
                     {fill(t.staff.waitingInternalSince, { age: formatDuration(c.waitingInternalSince) })}
                   </span>
