@@ -129,3 +129,16 @@ export class CustomerCasesController {
     return this.cases.postCustomerMessage(actor, id, input);
   }
 }
+
+/** Files a customer attaches before the case exists (PH-9.3, BL-010): linked to its first message when the case is created. */
+@Controller('support/attachments')
+@UseGuards(CustomerGuard)
+export class CustomerStagedAttachmentsController {
+  constructor(private readonly attachments: AttachmentsService) {}
+
+  @Post()
+  @UseInterceptors(FileInterceptor('file', UPLOAD_OPTIONS))
+  upload(@CurrentActor() actor: CustomerActor, @UploadedFile() file?: UploadedFileLike): Promise<CaseAttachment> {
+    return this.attachments.uploadStaged(actor, file);
+  }
+}

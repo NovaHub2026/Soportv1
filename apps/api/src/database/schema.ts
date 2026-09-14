@@ -157,9 +157,8 @@ export const caseAttachments = pgTable(
   'case_attachments',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    caseId: uuid('case_id')
-      .notNull()
-      .references(() => supportCases.id, { onDelete: 'cascade' }),
+    /** Null while a customer's upload waits for the case it will open (PH-9.3, BL-010); set when that case is created. */
+    caseId: uuid('case_id').references(() => supportCases.id, { onDelete: 'cascade' }),
     messageId: uuid('message_id').references(() => caseMessages.id, { onDelete: 'set null' }),
     uploaderType: actorTypeEnum('uploader_type').notNull(),
     uploaderId: text('uploader_id').notNull(),

@@ -160,4 +160,25 @@ describe('Attachments (e2e)', () => {
     await request(server).post(`/api/support/cases/${closed.body.id}/attachments`).set(asCustomer('cust-alice')).attach('file', PNG, 'x.png').expect(409);
   });
 
+  it('PH-9.3: a customer attaches files before the case exists; the creation links them to the first message; nobody else can use them (BL-010)', async () => {
+    const server = app.getHttpServer();
+    await request(server).post('/api/support/attachments').set(asStaff('staff-ana', 'Ana')).attach('file', PNG, 'x.png').expect(403);
+    await request(server).post('/api/support/attachments').set(asCustomer('cust-stage')).attach('file', EXE, 'foto.png').expect(415);
+    const staged = await request(server).post('/api/support/attachments').set(asCustomer('cust-stage')).attach('file', PNG, 'comprovante.png').expect(201);
+    expect(staged.body).toMatchObject({ caseId: null, messageId: null, fileName: 'comprovante.png', mimeType: 'image/png' });
+    // Another customer cannot link it, and the refused creation leaves no case behind.
+    await request(server).post('/api/support/cases').set(asCustomer('cust-other')).send({ category: 'other', message: 'Pego o arquivo?', attachmentIds: [staged.body.id] }).expect(400);
+    await request(server).get('/api/support/cases').set(asCustomer('cust-other')).expect(200, []);
+    const body = { category: 'deposits_withdrawals', message: 'Segue o comprovante do depósito', attachmentIds: [staged.body.id], clientMessageId: 'stage-1' };
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-stage')).send(body).expect(201);
+    expect(created.body.messages[0].attachments).toEqual([expect.objectContaining({ id: staged.body.id, caseId: created.body.id, messageId: created.body.messages[0].id })]);
+    const retry = await request(server).post('/api/support/cases').set(asCustomer('cust-stage')).send(body).expect(201);
+    expect(retry.body.id).toBe(created.body.id); // a retried creation returns the same case
+    const file = await request(server).get(`/api/support/cases/${created.body.id}/attachments/${staged.body.id}`).set(asCustomer('cust-stage')).expect(200);
+    expect(file.headers['content-type']).toBe('image/png');
+    const staffView = await request(server).get(`/api/staff/cases/${created.body.id}`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(staffView.body.messages[0].attachments[0].id).toBe(staged.body.id);
+    // Already linked: it cannot open a second case.
+    await request(server).post('/api/support/cases').set(asCustomer('cust-stage')).send({ category: 'other', message: 'De novo', attachmentIds: [staged.body.id] }).expect(400);
+  });
 });

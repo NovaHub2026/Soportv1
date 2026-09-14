@@ -58,6 +58,18 @@ export class AttachmentsService {
    */
   async upload(actor: Actor, caseRow: SupportCaseRow, file: UploadedFileLike | undefined): Promise<CaseAttachment> {
     if (caseRow.status === 'closed') throw new ConflictException('case_closed');
+    return this.store(actor, caseRow.id, file);
+  }
+
+  /**
+   * A customer's file for a case that does not exist yet (PH-9.3, BL-010): same checks and limits, no case; only
+   * `linkStaged` by the same customer at creation attaches it. Until then nobody can download it.
+   */
+  uploadStaged(actor: Actor, file: UploadedFileLike | undefined): Promise<CaseAttachment> {
+    return this.store(actor, null, file);
+  }
+
+  private async store(actor: Actor, caseId: string | null, file: UploadedFileLike | undefined): Promise<CaseAttachment> {
     if (!file) throw new BadRequestException({ error: 'file_required' });
     if (file.size > ATTACHMENT_LIMITS.maxBytes || file.buffer.length > ATTACHMENT_LIMITS.maxBytes) {
       throw new PayloadTooLargeException({ error: 'file_too_large', maxBytes: ATTACHMENT_LIMITS.maxBytes });
@@ -70,14 +82,14 @@ export class AttachmentsService {
     // after the size and type checks, so a refused file never locks the person out (Cycle Audit 3).
     this.uploads.assert(`${actor.kind}:${actor.id}`, 'too_many_uploads');
     const id = randomUUID();
-    const storageKey = `${caseRow.id}/${id}`;
+    const storageKey = caseId ? `${caseId}/${id}` : `staged/${id}`;
     await this.storage.put(storageKey, file.buffer);
     try {
       const [row] = await this.db
         .insert(caseAttachments)
         .values({
           id,
-          caseId: caseRow.id,
+          caseId,
           uploaderType: actor.kind,
           uploaderId: actor.id,
           fileName: safeFileName(file.originalname),
@@ -116,6 +128,32 @@ export class AttachmentsService {
       );
     if (rows.length !== unique.length) throw new BadRequestException({ error: 'attachment_not_available' });
     return tx.update(caseAttachments).set({ messageId }).where(inArray(caseAttachments.id, unique)).returning();
+  }
+
+  /**
+   * Links the creator's staged uploads to the first message of the case being created, inside its transaction
+   * (PH-9.3, BL-010). Every id must be unattached, without a case and uploaded by the same actor; otherwise the
+   * creation fails as a whole and leaves no case behind.
+   */
+  async linkStaged(tx: Db, actor: Actor, caseId: string, messageId: string, attachmentIds: string[]): Promise<CaseAttachmentRow[]> {
+    if (attachmentIds.length === 0) return [];
+    if (attachmentIds.length > ATTACHMENT_LIMITS.maxPerMessage) throw new BadRequestException({ error: 'too_many_attachments' });
+    const unique = [...new Set(attachmentIds)];
+    const rows = await tx
+      .select()
+      .from(caseAttachments)
+      .where(
+        and(
+          inArray(caseAttachments.id, unique),
+          isNull(caseAttachments.caseId),
+          eq(caseAttachments.uploaderType, actor.kind),
+          eq(caseAttachments.uploaderId, actor.id),
+          isNull(caseAttachments.messageId),
+        ),
+      )
+      .for('update');
+    if (rows.length !== unique.length) throw new BadRequestException({ error: 'attachment_not_available' });
+    return tx.update(caseAttachments).set({ caseId, messageId }).where(inArray(caseAttachments.id, unique)).returning();
   }
 
   /** Attachments of a set of messages, grouped by message id (only messages the caller may see are passed in). */

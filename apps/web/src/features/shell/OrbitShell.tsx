@@ -1,7 +1,7 @@
 "use client";
 
 import type { OrbitLookup, OrbitRecordListItem } from "@orbit-support/shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type SupportEntry, SupportPanel } from "@/features/support/SupportPanel";
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { customerApi } from "@/lib/api";
@@ -134,11 +134,25 @@ function SignedOutShell({ reason, recoveryOpen, onRecovery, onEnter }: { reason:
 
 function SignedInShell({ customer, selectCustomer, panelOpen, setPanelOpen, recoveryOpen, setRecoveryOpen, onSignOut }: SignedInShellProps) {
   const desktop = useMediaQuery(DESKTOP_QUERY);
+  // Desktop shows the side panel unless the customer closed it (BL-015): "Fechar suporte" and "×" really hide it there.
+  const [desktopHidden, setDesktopHidden] = useState(false);
+  const panelShown = desktop ? !desktopHidden : panelOpen;
+  const supportButtonRef = useRef<HTMLButtonElement>(null);
+  const showPanel = () => {
+    setPanelOpen(true);
+    setDesktopHidden(false);
+  };
+  const closePanel = () => {
+    if (desktop) setDesktopHidden(true);
+    else setPanelOpen(false);
+    // The close control leaves the page with the panel: focus returns to the button that opens it again.
+    requestAnimationFrame(() => supportButtonRef.current?.focus());
+  };
   const [entry, setEntry] = useState<SupportEntry | null>(null);
   const [openCase, setOpenCase] = useState<{ caseId: string; seq: number; customerId: string } | null>(null);
   const openFromNotification = (caseId: string) => {
     setOpenCase((current) => ({ caseId, seq: (current?.seq ?? 0) + 1, customerId: customer.id }));
-    setPanelOpen(true);
+    showPanel();
   };
   // Stable per customer: a new object on every render made the bell re-subscribe its stream each time (FND-0034).
   const identity = useMemo(() => ({ customerId: customer.id }), [customer.id]);
@@ -164,11 +178,11 @@ function SignedInShell({ customer, selectCustomer, panelOpen, setPanelOpen, reco
 
   const askAbout = (record: OrbitRecordListItem) => {
     setEntry((current) => ({ record, seq: (current?.seq ?? 0) + 1, customerId: customer.id }));
-    setPanelOpen(true);
+    showPanel();
   };
 
   return (
-    <div className={styles.shell} data-panel-open={panelOpen ? "true" : "false"}>
+    <div className={styles.shell} data-panel-open={panelOpen ? "true" : "false"} data-desktop-hidden={desktopHidden ? "true" : "false"}>
       <header className={styles.topbar}>
         <div className={styles.brand}>
           <span className={styles.brandMark} aria-hidden="true" />
@@ -205,13 +219,14 @@ function SignedInShell({ customer, selectCustomer, panelOpen, setPanelOpen, reco
           </button>
           <NotificationsBell key={customer.id} identity={identity} onOpenCase={openFromNotification} refreshToken={openCase?.seq ?? 0} />
           <button
+            ref={supportButtonRef}
             type="button"
             className={styles.supportButton}
-            onClick={() => setPanelOpen((open) => !open)}
-            aria-expanded={panelOpen}
+            onClick={() => (panelShown ? closePanel() : showPanel())}
+            aria-expanded={panelShown}
             aria-controls="support-panel"
           >
-            {panelOpen ? t.shell.closeSupport : t.shell.openSupport}
+            {panelShown ? t.shell.closeSupport : t.shell.openSupport}
           </button>
         </div>
       </header>
@@ -263,7 +278,7 @@ function SignedInShell({ customer, selectCustomer, panelOpen, setPanelOpen, reco
 
         <aside id="support-panel" className={styles.panel} aria-label={t.support.title}>
           {/* Keyed by customer: changing who the browser acts as never leaves another customer's conversation on screen (FND-0011). */}
-          <SupportPanel key={customer.id} customer={customer} visible={desktop || panelOpen} entry={entry} openCase={openCase} onClose={() => setPanelOpen(false)} />
+          <SupportPanel key={customer.id} customer={customer} visible={panelShown} entry={entry} openCase={openCase} onClose={closePanel} />
         </aside>
       </div>
     </div>

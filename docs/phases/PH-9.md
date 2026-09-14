@@ -27,7 +27,7 @@ Scenarios are listed per subphase.
 |---|---|---|
 | PH-9.1 | Case-domain debt: BL-022, BL-029, BL-013 (API), BL-018 — `PH-9.1.md`, approved 2026-09-14 | APPROVED |
 | PH-9.2 | Staff workspace: BL-014, BL-013 (web), BL-024 carried items — `PH-9.2.md`, approved 2026-09-14 | APPROVED |
-| PH-9.3 | Customer panel: BL-010, BL-015 | PLANNED |
+| PH-9.3 | Customer panel: BL-010, BL-015 — `PH-9.3.md`, approved 2026-09-14 | APPROVED |
 | PH-9.4 | Operations and process: BL-009, BL-026, BL-023, BL-030; phase closure | PLANNED |
 
 ## Verification and operational readiness

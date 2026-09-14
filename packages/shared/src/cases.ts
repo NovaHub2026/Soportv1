@@ -323,7 +323,8 @@ export type AttachmentStatus = (typeof ATTACHMENT_STATUSES)[number];
 
 export const caseAttachmentSchema = z.object({
   id: z.string(),
-  caseId: z.string(),
+  /** Null while a customer's upload waits for the case it will open (PH-9.3, BL-010). */
+  caseId: z.string().nullable(),
   messageId: z.string().nullable(),
   uploaderType: z.enum(MESSAGE_AUTHOR_TYPES),
   uploaderId: z.string(),
@@ -357,6 +358,8 @@ export const createCaseSchema = z.object({
   record: caseRecordRefSchema.optional(),
   /** Client-generated id so a retried submission does not create a second case (RULE-SUP-03). */
   clientMessageId: clientMessageIdSchema.optional(),
+  /** Files uploaded beforehand through `POST /api/support/attachments`, linked to the first message (PH-9.3, BL-010). */
+  attachmentIds: attachmentIdsSchema.optional(),
 });
 export type CreateCaseInput = z.infer<typeof createCaseSchema>;
 

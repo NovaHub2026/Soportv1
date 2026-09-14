@@ -144,6 +144,11 @@ export const customerApi = {
     upload: (file) => uploadFile(`/support/cases/${caseId}/attachments`, customerHeaders(identity), file),
     fetchBlob: (attachmentId, signal) => fetchBlob(`/support/cases/${caseId}/attachments/${attachmentId}`, customerHeaders(identity), signal),
   }),
+  /** Files for a case that does not exist yet (PH-9.3, BL-010): linked when the case is created, never downloadable before. */
+  stagedAttachments: (identity: CustomerIdentity): AttachmentClient => ({
+    upload: (file) => uploadFile("/support/attachments", customerHeaders(identity), file),
+    fetchBlob: () => Promise.reject(new ApiError(404, null)),
+  }),
 };
 
 /** Stable per-attempt id so a retried send is stored once (RULE-SUP-03). */

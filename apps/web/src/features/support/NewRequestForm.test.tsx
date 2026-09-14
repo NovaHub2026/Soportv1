@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { NewRequestForm } from "./NewRequestForm";
-import { identity, message, mockFetch, summary } from "./test-utils";
+import { identity, message, mockFetch, summary, attachment } from "./test-utils";
 
 const withdrawal = {
   kind: "withdrawal" as const,
@@ -104,4 +104,20 @@ describe("NewRequestForm", () => {
     });
   });
 
+  test("PH-9.3: files attached before the case exists are uploaded on their own and linked by the creation (BL-010)", async () => {
+    const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    const created = { ...summary(), messages: [message({ attachments: [attachment()] })] };
+    const { requests } = mockFetch((request) => (request.url === "/api/support/attachments" ? { status: 201, body: attachment({ caseId: null, messageId: null }) } : { status: 201, body: created }));
+    const onCreated = vi.fn();
+    render(<NewRequestForm identity={identity} onCreated={onCreated} />);
+    fireEvent.click(screen.getByLabelText("Outro assunto"));
+    fireEvent.change(screen.getByLabelText("Conte o que está acontecendo"), { target: { value: "Segue o comprovante" } });
+    fireEvent.change(screen.getByLabelText("Anexar arquivo"), { target: { files: [new File([PNG_BYTES], "comprovante.png", { type: "image/png" })] } });
+    await waitFor(() => expect(screen.getByText("comprovante.png").closest("li")?.getAttribute("data-state")).toBe("ready"));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(created));
+    expect(requests[0]).toMatchObject({ url: "/api/support/attachments", method: "POST" });
+    expect(requests[0].headers["x-simulated-customer-id"]).toBe("cust-test");
+    expect(requests[1].body).toMatchObject({ category: "other", message: "Segue o comprovante", attachmentIds: [attachment().id] });
+  });
 });

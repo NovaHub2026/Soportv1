@@ -314,3 +314,10 @@
   gap: 14px;
   align-items: flex-start;
 }
+
+/* Desktop: the side panel is shown unless the customer closed it (BL-015); the trading area then takes the width. */
+@media (min-width: 900px) {
+  .shell[data-desktop-hidden="true"] .panel {
+    display: none;
+  }
+}

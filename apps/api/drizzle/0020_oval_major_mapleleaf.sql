@@ -1,0 +1,1 @@
+ALTER TABLE "case_attachments" ALTER COLUMN "case_id" DROP NOT NULL;

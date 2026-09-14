@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { message, mockFetch, summary } from "@/features/support/test-utils";
@@ -96,9 +96,31 @@ describe("OrbitShell", () => {
     const opened = streams.opened;
     expect(opened).toBeGreaterThan(0);
     const toggle = () => document.querySelector<HTMLButtonElement>('button[aria-controls="support-panel"]')!;
-    for (let i = 0; i < 3; i += 1) fireEvent.click(toggle());
+    // jsdom has no matchMedia, so the shell is on its desktop layout: the panel starts shown and an even number of toggles shows it again (BL-015).
+    for (let i = 0; i < 4; i += 1) fireEvent.click(toggle());
     await waitFor(() => expect(toggle().getAttribute("aria-expanded")).toBe("true"));
     expect(streams.opened).toBe(opened);
+  });
+
+  test("PH-9.3: on desktop 'Fechar suporte' and '×' really hide the side panel, focus returns to 'Suporte', which brings it back (BL-015)", async () => {
+    mockFetch((request) => (request.url === "/api/support/notifications" ? { body: { notifications: [], unread: 0 } } : { body: [] }));
+    const { container } = render(<OrbitShell />);
+    await screen.findByText("Você ainda não falou com o suporte.");
+    const shell = () => container.querySelector<HTMLElement>("[data-desktop-hidden]")!;
+    const toggle = () => document.querySelector<HTMLButtonElement>('button[aria-controls="support-panel"]')!;
+    expect(shell().dataset.desktopHidden).toBe("false");
+    expect(toggle().textContent).toBe("Fechar suporte");
+    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(within(screen.getByTestId("support-panel")).getByRole("button", { name: "Fechar suporte" }));
+    await waitFor(() => expect(shell().dataset.desktopHidden).toBe("true"));
+    expect(toggle().textContent).toBe("Suporte");
+    expect(toggle().getAttribute("aria-expanded")).toBe("false");
+    await waitFor(() => expect(document.activeElement).toBe(toggle()));
+    fireEvent.click(toggle());
+    await waitFor(() => expect(shell().dataset.desktopHidden).toBe("false"));
+    expect(toggle().textContent).toBe("Fechar suporte");
+    fireEvent.click(toggle()); // the topbar control closes it too
+    await waitFor(() => expect(shell().dataset.desktopHidden).toBe("true"));
   });
 
   test("FND-0035: switching the simulated customer never shows the previous customer's notifications, even when the new list fails", async () => {

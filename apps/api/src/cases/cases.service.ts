@@ -104,7 +104,7 @@ export class CasesService {
     // case — as an investigation, with the reason on the card (RULE-SUP-07, §14 item 7).
     const record = input.record ? await this.captureRecord(customer, input.record) : null;
     try {
-      const { row, message } = await this.db.transaction(async (tx) => {
+      const { row, message, linked } = await this.db.transaction(async (tx) => {
         const now = new Date();
         const [created] = await tx
           .insert(supportCases)
@@ -139,6 +139,8 @@ export class CasesService {
             createdAt: now,
           })
           .returning();
+        // Files attached before the case existed join its first message (PH-9.3, BL-010).
+        const linkedRows = await this.attachments.linkStaged(tx, customer, created.id, first.id, input.attachmentIds ?? []);
         await tx.insert(caseEvents).values({
           caseId: created.id,
           type: 'case_created',
@@ -151,10 +153,10 @@ export class CasesService {
           },
           createdAt: now,
         });
-        return { row: created, message: first };
+        return { row: created, message: first, linked: linkedRows };
       });
       this.publishCaseUpdated(row);
-      this.publishMessage(row, toMessage(message));
+      this.publishMessage(row, toMessage(message, linked.map(toAttachment)));
       await this.noticeOutsideHours(row.id);
       return this.customerDetail(row);
     } catch (error) {

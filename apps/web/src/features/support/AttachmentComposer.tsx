@@ -1,7 +1,7 @@
 "use client";
 
 import { ATTACHMENT_LIMITS, type CaseAttachment } from "@orbit-support/shared";
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { dictionary as t, formatBytes } from "@/i18n";
 import { type AttachmentClient, ApiError } from "@/lib/api";
 import styles from "./support.module.css";
@@ -53,7 +53,8 @@ export function AttachmentComposer({ client, onReadyChange, clearToken, disabled
     }
   }, [clearToken]);
 
-  useEffect(() => {
+  // Reported in the same commit that shows a chip as ready: a send right after an upload must carry its id (PH-9.3).
+  useLayoutEffect(() => {
     const ready = items.filter((i) => i.state === "ready" && i.attachment).map((i) => i.attachment!);
     onReadyChange(
       ready.map((a) => a.id),

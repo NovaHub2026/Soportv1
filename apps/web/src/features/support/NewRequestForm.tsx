@@ -1,9 +1,10 @@
 "use client";
 
 import { CASE_CATEGORIES, type CaseCategory, type CustomerCaseDetail, createCaseSchema, type OrbitRecordKind, type OrbitRecordListItem } from "@orbit-support/shared";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { dictionary as t, fill } from "@/i18n";
 import { type CustomerIdentity, customerApi, newClientMessageId } from "@/lib/api";
+import { AttachmentComposer } from "./AttachmentComposer";
 import { RecordCard } from "./RecordCard";
 import styles from "./support.module.css";
 
@@ -34,6 +35,10 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
   const [differentIssue, setDifferentIssue] = useState(false);
   // One id per submission attempt series: a retry after a network failure must not create a second case.
   const [clientMessageId, setClientMessageId] = useState(() => newClientMessageId());
+  // Files for the first message (BL-010): uploaded before the case exists and linked by its creation.
+  const attachmentClient = useMemo(() => customerApi.stagedAttachments(identity), [identity]);
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
+  const [attachClearToken, setAttachClearToken] = useState(0);
 
   // The active-case flag may be stale (the list was read when the shell loaded): re-read it for this record.
   useEffect(() => {
@@ -51,7 +56,7 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
   }, [identity, initialRecord]);
 
   const recordRef = record ? { kind: record.kind, reference: record.reference } : undefined;
-  const parsed = createCaseSchema.safeParse({ category, message, clientMessageId, ...(recordRef ? { record: recordRef } : {}) });
+  const parsed = createCaseSchema.safeParse({ category, message, clientMessageId, ...(recordRef ? { record: recordRef } : {}), ...(attachmentIds.length > 0 ? { attachmentIds } : {}) });
   const canSubmit = parsed.success && submit.status !== "sending";
   const activeCase = record && record.activeCaseId && !differentIssue ? record : null;
 
@@ -65,6 +70,8 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
     try {
       const created = await customerApi.createCase(identity, parsed.data);
       setClientMessageId(newClientMessageId());
+      setAttachmentIds([]);
+      setAttachClearToken((n) => n + 1);
       onCreated(created);
     } catch (error) {
       console.warn("support: could not create case", error);
@@ -142,6 +149,7 @@ export function NewRequestForm({ identity, onCreated, record: initialRecord = nu
       <p id="new-request-hint" className={styles.hint}>
         {t.support.newRequest.messageHint}
       </p>
+      <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} disabled={submit.status === "sending"} idPrefix="new-request-attach" />
 
       {submit.status === "error" && (
         <p className={styles.errorText} role="alert">
