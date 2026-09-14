@@ -18,7 +18,7 @@ Environment: Windows 11 Pro 10.0.26200 (native, Git Bash), Node v24.19.0, npm 11
 | 8 | Integrated behaviour in Chromium on the remediated build: every PH-1..PH-8 journey | OBSERVED | `SUPPORT_DB_DIR=<scratch> SUPPORT_UPLOADS_DIR=<scratch> node scripts/ui-smoke.mjs docs/evidence/screenshots/cycle-3` | 54 observations, exit 0, screenshots `screenshots/cycle-3/01`–`29` (release-candidate set, DEC-0034) |
 | 9 | Loopback demo post-release checks, incl. the identity-neutral server render | EXECUTED | `node scripts/demo-local.mjs --check` (fresh `apps/api/.data/demo`) | ok — see `RELEASE-2026-09-14b.md` |
 | 10 | Full gate at commit time | EXECUTED | `bash scripts/gate-commit.sh … --include …` (the new staging rule, FND-0064) | see "Final gate run" |
-| 11 | CI (both jobs) on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | recorded in the closure commit |
+| 11 | CI (both jobs) on the pushed commit | EXECUTED (post-integration) | `.github/workflows/ci.yml` | run 34840746414 on `e75b153`: `verify` + build **success**, `api suites on PostgreSQL 16` **success** |
 
 Not verified: the Docker images and the compose rehearsal (no engine on this host — PH-8.3 stays ACTIVE for that); the advisory migration lock under two concurrent PostgreSQL starts (reasoned; CI runs one instance at a time); the idle timer's cross-tab sharing (by code; the in-panel scroll is tested).
 
@@ -26,4 +26,4 @@ Not verified: the Docker images and the compose rehearsal (no engine on this hos
 `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` with the new staging rule (check-context OK — ledger cycle 3 at 1/3 with the out-of-band record; lint/typecheck exit 0; Vitest shared 23/23, api 66/66, web 78/78, api e2e 34/34).
 
 ## CI
-Pending push (recorded in the closure commit). Previous commit `dcc76e4` (tag `v0.1.0-demo`): run 34837013994 **success**, both jobs.
+Commit `e75b153`: run 34840746414 — **success**, both jobs. Previous commit `dcc76e4` (tag `v0.1.0-demo`): run 34837013994 **success**, both jobs.

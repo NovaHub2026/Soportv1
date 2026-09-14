@@ -1,11 +1,11 @@
 # Out-of-band audit — cycle 3 ("Cycle Audit 3")
 Type: CYCLE AUDIT
-Status: OPEN
+Status: CLOSED
 Cycle / phase membership: cycle 3 — PH-7 (approved 2026-09-14); PH-8 was approved 2026-09-14 and its approval is WITHDRAWN by this audit (FND-0062). Out of band on the Owner's request («Ejecuta todo en orden», 2026-09-14, step 3 of the options offered), `GOVERNANCE.md` §8.5. It does not reset the ledger: the audit due at cycle 3's third first-time approval is still due.
 Audited revision: `dcc76e4` (tag `v0.1.0-demo`, the internal demo release; CI run 34837013994 success, both jobs)
-Remediation revision: the commit that carries this record (child of `dcc76e4`); gate, builds, smoke, demo checks and CI in `../evidence/CYCLE-3-verification.md`
+Remediation revision: `e75b153` (child of `dcc76e4`); gate, builds, smoke, demo checks and CI (run 34840746414, both jobs success) in `../evidence/CYCLE-3-verification.md`
 Method: INDEPENDENT — five reviewer agents in this runtime that did not author the audited changes, each with the product context, read access to the tree and an isolated runtime (own API port 3041–3044, scratch database and upload directories, probe scripts outside the repository); the lead consolidated, challenged, remediated and re-verified. No area was reviewed only by the lead.
-Opened: 2026-09-14. Closure: see "Closure".
+Opened: 2026-09-14. Closed: 2026-09-14.
 
 ## Scope, methods and limits
 Scope: `70630c4..dcc76e4` — the Cycle Audit 2 remediation `e3d843a` (until now reviewed only by its author), PH-7 (access recovery, role model, sign-out), PH-8 (hardening, PostgreSQL path, deployment files, runbooks), the demo release record and `scripts/demo-local.mjs`.
@@ -94,4 +94,4 @@ A fresh reviewer answered objective, mode, debt, next action, FEAT-ACCESS contex
 - Cost: five reviewer agents (≈ 1.05 M tokens), one remediation wave per surface, one re-verification and a corrective demo release.
 
 ## Closure
-Not closed yet: the remediation commit carrying this record awaits CI corroboration (§9.2). Closure conditions under §8.4 are otherwise met — every required area was examined independently with limits documented; the MATERIAL findings FND-0058..FND-0065 are fixed (FND-0062 by withdrawing the PH-8 approval); MINOR findings are fixed, documented or carried with backlog items, containment and a revisit event (BL-026..BL-030); no critical or potentially critical inconclusive claim remains. The closure entry (CI run, Status CLOSED, the tag of the corrected demo) is written in the following commit.
+Closed 2026-09-14 under §8.4: every required area was examined independently with limits documented; the MATERIAL findings FND-0058..FND-0065 are fixed (FND-0062 by withdrawing the PH-8 approval — PH-8.3 stays ACTIVE until the container rehearsal runs); MINOR findings are fixed, documented or carried with backlog items, containment and a revisit event (BL-026..BL-030); no critical or potentially critical inconclusive claim remains (FND-0081 is outside the repository). Verified candidate: `e75b153` — gate through the new staging rule, builds, smoke 54/54, loopback demo checks, CI run 34840746414 **success** on both jobs. The corrected internal demo is tagged `v0.1.1-demo` on `e75b153` (`../evidence/RELEASE-2026-09-14b.md`). The ledger is unchanged by this out-of-band audit: cycle 3 at 1/3.
