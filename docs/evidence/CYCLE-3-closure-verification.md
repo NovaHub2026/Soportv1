@@ -29,3 +29,6 @@ Environment: Windows 11 native, Git Bash, Node v24.19.0, npm 11.17.0, Playwright
 
 ## CI of the remediation commit
 `7d6404f`: run 34861942932 failed before any job started — the new "came through the gate" step had an unquoted `: ` in its `run:` value, which YAML reads as a mapping, so GitHub rejected the workflow file (no suite ran). The next commit writes the command as a block scalar and was parsed locally before the push; its run is recorded at closure.
+
+## CI
+Commit `8c175fa`: run 34862165475 — **success** on both jobs (`verify` with the full-history checkout and the "came through the gate" step, and the api suites on PostgreSQL 16). Claim 10's CI part is verified by it.

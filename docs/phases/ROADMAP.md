@@ -21,7 +21,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: none active — PH-1..PH-9 `APPROVED` (PH-9 approved 2026-09-14, `PH-9.md`, evidence `../evidence/PH-9-phase-approval.md`). Cycle 3 reached 3/3 with PH-9: Cycle Audit 3 is OPEN (`../audits/CYCLE-3.md`) and ordinary feature work is paused until it closes (§6.4). Internal demos: `v0.1.0-demo` (superseded), `v0.1.1-demo` (`../evidence/RELEASE-2026-09-14b.md`). A production release still needs the Owner (§1.1), Orbit's adapters (BL-001) and the operating policies (BL-002). The ledger table below is the only owner of the audit count.
+Phase: none active — PH-1..PH-9 `APPROVED` (PH-9 approved 2026-09-14, `PH-9.md`, evidence `../evidence/PH-9-phase-approval.md`). Cycle 3 reached 3/3 with PH-9 and Cycle Audit 3 is CLOSED (`../audits/CYCLE-3.md`, FND-0082..FND-0100, all MINOR); cycle 4 is at 0/3. No phase is planned after PH-9. Internal demos: `v0.1.0-demo` (superseded), `v0.1.1-demo` (`../evidence/RELEASE-2026-09-14b.md`). A production release still needs the Owner (§1.1), Orbit's adapters (BL-001) and the operating policies (BL-002). The ledger table below is the only owner of the audit count.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.
@@ -30,4 +30,4 @@ Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt:
 |---|---|---|---|---|
 | 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit CLOSED 2026-09-14 |
 | 2 | PH-4, PH-5, PH-6 | 2026-09-14 | `../audits/CYCLE-2.md` | 3/3, audit CLOSED 2026-09-14 (remediation `../evidence/CYCLE-2-verification.md`) |
-| 3 | PH-7, PH-8, PH-9 | 2026-09-14 | `../audits/CYCLE-3.md` (the out-of-band `../audits/CYCLE-3-OOB.md` did not reset the cycle) | 3/3, audit OPEN |
+| 3 | PH-7, PH-8, PH-9 | 2026-09-14 | `../audits/CYCLE-3.md` (the out-of-band `../audits/CYCLE-3-OOB.md` did not reset the cycle) | 3/3, audit CLOSED 2026-09-14 (remediation `../evidence/CYCLE-3-closure-verification.md`) |

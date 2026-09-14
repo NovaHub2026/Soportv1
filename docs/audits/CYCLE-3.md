@@ -1,11 +1,12 @@
 # Cycle Audit 3
 Type: CYCLE AUDIT
-Status: OPEN
+Status: CLOSED
 Cycle / phase membership: cycle 3 — PH-7 (approved 2026-09-14), PH-8 (approved 2026-09-14; withdrawn and re-approved the same day), PH-9 (approved 2026-09-14); see `../phases/ROADMAP.md` ledger
 Audited revision: `c9618c8` on `main` (the PH-9 approval commit; CI run 34858502090 success on both jobs)
+Remediation revision: `7d6404f` (remediation) and `8c175fa` (its CI workflow fix — `7d6404f`'s run was rejected as a workflow file); gate, smoke, PostgreSQL suites and CI (run 34862165475, success on both jobs, including the new "came through the gate" step) in `../evidence/CYCLE-3-closure-verification.md`
 Earlier in this cycle: the out-of-band audit `CYCLE-3-OOB.md` (CLOSED) examined PH-7 and PH-8 and recorded FND-0058..FND-0081; it did not reset the count (§6.4).
 Method: INDEPENDENT — five reviewer agents in this runtime that did not author PH-9, each with the product context, read access to the tree and an isolated runtime (own API port 3041–3044, scratch database and upload directories, probe code outside the repository); the lead consolidated, deduplicated, challenged, remediated and re-verified. No area was reviewed only by the lead.
-Opened: 2026-09-14 at ledger 3/3 (§6.4), in the commit that approved PH-9. Ordinary feature work paused until closure.
+Opened: 2026-09-14 at ledger 3/3 (§6.4), in the commit that approved PH-9. Closed: 2026-09-14.
 
 ## Scope, methods and limits
 | Area | Reviewer | Method | Runtime effects |
@@ -46,4 +47,4 @@ Not examined / limits on confidence: PostgreSQL concurrency was reasoned by the 
 Rechecked and holding: the out-of-band security corrections (FND-0059 test-database guard, FND-0068/0069 limiter, FND-0070 contact normalization, FND-0071 control and bidi characters, FND-0072 bind address); FND-0081 (the entrypoint still warns that an injected copy may be stale; today's copy matched the disk). "An out-of-band audit does not reset the count" and "audit due pauses feature work" are stated and enforced (COLD, negative tests in its clone).
 
 ## Closure
-Pending: the remediation verified on a candidate (gate, smoke, PostgreSQL suites) with CI, then this record closed and the ledger reset.
+Closed on 2026-09-14 (§8.4): every required area was examined by an independent reviewer with its limits recorded; no finding was CRITICAL or MATERIAL; seventeen findings are fixed with tests or corrected records, FND-0097 is documented (history is not rewritten), FND-0098 holds from `8c175fa` on, and FND-0099's process cost is accepted and measured again at the next audit. The remediation candidate `8c175fa` passed the gate (with its `Gate-Verified` trailer), the browser smoke (56 observations), the api suites on PostgreSQL 16 and CI run 34862165475 on both jobs. The ledger resets through this record: cycle 3 CLOSED, cycle 4 opens at 0/3.
