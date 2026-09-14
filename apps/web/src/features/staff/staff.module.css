@@ -126,6 +126,27 @@
   gap: 8px;
 }
 
+.caseItemBadges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.caseItem[data-unread="true"] {
+  border-color: var(--color-accent);
+}
+
+.readState {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
 .caseReference {
   font-size: 12px;
   font-weight: 700;

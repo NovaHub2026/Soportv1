@@ -1,9 +1,21 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import type { StreamHandlers } from "@/lib/sse";
 import { SupportHome } from "./SupportHome";
 import { identity, mockFetch, summary } from "./test-utils";
 
-afterEach(() => vi.restoreAllMocks());
+const streams: Array<{ path: string; handlers: StreamHandlers }> = [];
+vi.mock("@/lib/sse", () => ({
+  subscribeStream: (path: string, _headers: Record<string, string>, handlers: StreamHandlers) => {
+    streams.push({ path, handlers });
+    return () => {};
+  },
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  streams.length = 0;
+});
 
 describe("SupportHome", () => {
   test("keeps the prominent talk-to-support action and groups active and previous conversations", async () => {
@@ -30,6 +42,27 @@ describe("SupportHome", () => {
     mockFetch(() => ({ body: [] }));
     render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
     expect(await screen.findByText("Você ainda não falou com o suporte.")).toBeDefined();
+  });
+
+  test("shows unread counts and refreshes the lists when the customer stream announces a change", async () => {
+    let unread = 2;
+    const { requests } = mockFetch(() => ({ body: [summary({ unreadCount: unread })] }));
+    render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
+    expect(await screen.findByLabelText("2 novas mensagens")).toHaveProperty("textContent", "2");
+    expect(streams.map((s) => s.path)).toEqual(["/support/cases/stream"]);
+
+    unread = 0;
+    act(() => {
+      streams[0].handlers.onEvent("case.updated", {
+        type: "case.updated",
+        caseId: summary().id,
+        customerId: identity.customerId,
+        summary: summary(),
+        at: new Date().toISOString(),
+      });
+    });
+    await waitFor(() => expect(requests.filter((r) => r.url === "/api/support/cases")).toHaveLength(2));
+    await waitFor(() => expect(screen.queryByLabelText("2 novas mensagens")).toBeNull());
   });
 
   test("offers a retry when the list cannot be loaded", async () => {

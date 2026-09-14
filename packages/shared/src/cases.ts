@@ -122,6 +122,12 @@ export const caseSummarySchema = z.object({
   lastMessageAt: z.string(),
   lastCustomerMessageAt: z.string().nullable(),
   lastStaffMessageAt: z.string().nullable(),
+  /** When the customer last opened the conversation; lets staff see whether a reply was read (§4.3). */
+  customerLastReadAt: z.string().nullable(),
+  /** When staff last opened the conversation. */
+  staffLastReadAt: z.string().nullable(),
+  /** Messages the *viewer* has not read yet — viewer-dependent, recomputed per request; 0 inside stream events. */
+  unreadCount: z.number().int().nonnegative(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 

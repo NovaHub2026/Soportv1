@@ -36,6 +36,15 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   // Monotonic request counter: a poll that started before an action must not overwrite the action's result.
   const requestSeq = useRef(0);
 
+  /** Staff have the case open: customer messages received so far are read (unread counts drop in the queue). */
+  const markRead = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    staffApi.markRead(identity, caseId).then(
+      () => setLoad((current) => (current.status === "ready" ? { status: "ready", detail: { ...current.detail, unreadCount: 0 } } : current)),
+      (error: unknown) => console.warn("staff: could not mark read", error),
+    );
+  }, [identity, caseId]);
+
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
       const id = ++requestSeq.current;
@@ -43,13 +52,14 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         const detail = await staffApi.getCase(identity, caseId, signal);
         if (id !== requestSeq.current) return; // superseded by a newer request
         setLoad({ status: "ready", detail });
+        if (detail.unreadCount > 0) markRead();
       } catch (error: unknown) {
         if (signal?.aborted || id !== requestSeq.current) return;
         console.warn("staff: could not load case", error);
         setLoad((current) => (current.status === "ready" ? current : { status: "error" }));
       }
     },
-    [identity, caseId],
+    [identity, caseId, markRead],
   );
 
   useEffect(() => {
@@ -126,6 +136,11 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const mine = detail.assignedAgentId === identity.staffId;
   const canTake = detail.assignedAgentId === null && detail.status !== "resolved" && detail.status !== "closed";
   const canReply = detail.status !== "closed";
+  // Whether the customer has seen the latest staff reply (§4.3): read marker at or after the last staff message.
+  const customerReadLatest =
+    detail.lastStaffMessageAt !== null &&
+    detail.customerLastReadAt !== null &&
+    new Date(detail.customerLastReadAt).getTime() >= new Date(detail.lastStaffMessageAt).getTime();
 
   return (
     <>
@@ -151,6 +166,12 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
           {take.status === "error" && (
             <p className={styles.errorText} role="alert">
               {take.message}
+            </p>
+          )}
+          {detail.lastStaffMessageAt && (
+            <p className={styles.readState} data-read={customerReadLatest ? "true" : "false"}>
+              {customerReadLatest ? t.staff.customerRead : t.staff.customerUnread}
+              {customerReadLatest && detail.customerLastReadAt ? ` · ${formatMessageTime(detail.customerLastReadAt)}` : ""}
             </p>
           )}
         </header>

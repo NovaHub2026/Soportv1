@@ -64,4 +64,22 @@ describe("subscribeStream", () => {
     stop();
     await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
   });
+
+  test("drops a connection that goes silent for longer than the stale budget and reconnects", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // Never sends anything; a real network drop looks exactly like this.
+          init?.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")));
+        },
+      });
+      return new Response(body, { status: 200 });
+    });
+    const statuses: string[] = [];
+    const stop = subscribeStream("/staff/cases/stream", {}, { onEvent: () => {}, onStatus: (s) => statuses.push(s) }, { staleAfterMs: 200 });
+    await vi.waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 4000 });
+    expect(statuses).toContain("reconnecting");
+    stop();
+    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
+  });
 });

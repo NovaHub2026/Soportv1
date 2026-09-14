@@ -9,6 +9,16 @@ export interface StreamHandlers {
   onStatus?: (status: StreamStatus) => void;
 }
 
+export interface StreamOptions {
+  /**
+   * Treat the connection as lost when nothing (not even a heartbeat) arrives for this long, then reconnect.
+   * A silently dead TCP connection otherwise looks "connected" forever. Server heartbeat is 15 s.
+   */
+  staleAfterMs?: number;
+}
+
+const DEFAULT_STALE_AFTER_MS = 40_000;
+
 /** Incremental parser for the `text/event-stream` format: feed text, get `(type, data)` per dispatched event. */
 export function createSseParser(onEvent: (type: string, data: unknown) => void) {
   let buffer = "";
@@ -73,19 +83,34 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
  * exponential backoff and reports status changes. Consumers resync on every `connected`.
  * Returns a function that closes the stream for good.
  */
-export function subscribeStream(path: string, headers: Record<string, string>, handlers: StreamHandlers): () => void {
+export function subscribeStream(
+  path: string,
+  headers: Record<string, string>,
+  handlers: StreamHandlers,
+  options: StreamOptions = {},
+): () => void {
   const controller = new AbortController();
   const { signal } = controller;
+  const staleAfterMs = options.staleAfterMs ?? DEFAULT_STALE_AFTER_MS;
   let attempt = 0;
 
   const run = async () => {
     while (!signal.aborted) {
       handlers.onStatus?.(attempt === 0 ? "connecting" : "reconnecting");
+      // One controller per connection so a stale-connection watchdog can drop it without ending the subscription.
+      const connection = new AbortController();
+      const abortConnection = () => connection.abort();
+      signal.addEventListener("abort", abortConnection, { once: true });
+      let watchdog: ReturnType<typeof setTimeout> | undefined;
+      const armWatchdog = () => {
+        clearTimeout(watchdog);
+        watchdog = setTimeout(() => connection.abort(), staleAfterMs);
+      };
       try {
         const response = await fetch(`/api${path}`, {
           headers: { accept: "text/event-stream", ...headers },
           cache: "no-store",
-          signal,
+          signal: connection.signal,
         });
         if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
         attempt = 0;
@@ -94,20 +119,26 @@ export function subscribeStream(path: string, headers: Record<string, string>, h
         const reader = response.body.getReader();
         // Closing must also release a body that is not tied to the abort signal.
         const cancel = () => void reader.cancel().catch(() => {});
-        signal.addEventListener("abort", cancel, { once: true });
+        connection.signal.addEventListener("abort", cancel, { once: true });
         const decoder = new TextDecoder();
+        armWatchdog();
         try {
           for (;;) {
             const { value, done } = await reader.read();
             if (done) break;
+            armWatchdog();
             parser.feed(decoder.decode(value, { stream: true }));
           }
         } finally {
-          signal.removeEventListener("abort", cancel);
+          clearTimeout(watchdog);
+          connection.signal.removeEventListener("abort", cancel);
         }
       } catch (error) {
+        clearTimeout(watchdog);
         if (signal.aborted) break;
         console.warn("stream: connection lost", error);
+      } finally {
+        signal.removeEventListener("abort", abortConnection);
       }
       if (signal.aborted) break;
       attempt += 1;

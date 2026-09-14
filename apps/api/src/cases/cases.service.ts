@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm';
 import {
   type CaseEvent,
   type CaseMessage,
@@ -102,11 +102,23 @@ export class CasesService {
       .from(supportCases)
       .where(eq(supportCases.customerId, customer.id))
       .orderBy(desc(supportCases.lastMessageAt));
-    return rows.map(toSummary);
+    return this.withUnread(rows, 'customer');
   }
 
   async getCustomerCase(customer: CustomerActor, caseId: string): Promise<CustomerCaseDetail> {
     return this.customerDetail(await this.requireCustomerCase(customer, caseId));
+  }
+
+  /** The customer opened the conversation: everything received so far counts as read (§4.3 unread state). */
+  async markCustomerRead(customer: CustomerActor, caseId: string): Promise<CaseSummary> {
+    const row = await this.requireCustomerCase(customer, caseId);
+    const [updated] = await this.db
+      .update(supportCases)
+      .set({ customerLastReadAt: new Date() })
+      .where(eq(supportCases.id, row.id))
+      .returning();
+    this.publishCaseUpdated(updated);
+    return toSummary(updated, 0);
   }
 
   async postCustomerMessage(customer: CustomerActor, caseId: string, input: PostMessageInput): Promise<CaseMessage> {
@@ -169,13 +181,29 @@ export class CasesService {
         : view === 'mine'
           ? await query.where(and(open, eq(supportCases.assignedAgentId, staff.id))).orderBy(desc(supportCases.lastMessageAt))
           : await query.where(open).orderBy(desc(supportCases.lastMessageAt));
-    return rows.map(toSummary);
+    return this.withUnread(rows, 'staff');
   }
 
   async getStaffCase(caseId: string): Promise<StaffCaseDetail> {
     const row = await this.requireCase(caseId);
-    const [messages, events] = await Promise.all([this.loadMessages(row.id, false), this.loadEvents(row.id)]);
-    return { ...toSummary(row), messages, events };
+    const [messages, events, unread] = await Promise.all([
+      this.loadMessages(row.id, false),
+      this.loadEvents(row.id),
+      this.unreadCounts([row.id], 'staff'),
+    ]);
+    return { ...toSummary(row, unread.get(row.id) ?? 0), messages, events };
+  }
+
+  /** Staff opened the conversation: customer messages received so far count as read. */
+  async markStaffRead(caseId: string): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    const [updated] = await this.db
+      .update(supportCases)
+      .set({ staffLastReadAt: new Date() })
+      .where(eq(supportCases.id, row.id))
+      .returning();
+    this.publishCaseUpdated(updated);
+    return toSummary(updated, 0);
   }
 
   async takeCase(staff: StaffActor, caseId: string): Promise<CaseSummary> {
@@ -290,7 +318,33 @@ export class CasesService {
   }
 
   private async customerDetail(row: SupportCaseRow): Promise<CustomerCaseDetail> {
-    return { ...toSummary(row), messages: await this.loadMessages(row.id, true) };
+    const [messages, unread] = await Promise.all([this.loadMessages(row.id, true), this.unreadCounts([row.id], 'customer')]);
+    return { ...toSummary(row, unread.get(row.id) ?? 0), messages };
+  }
+
+  private async withUnread(rows: SupportCaseRow[], viewer: 'customer' | 'staff'): Promise<CaseSummary[]> {
+    const unread = await this.unreadCounts(rows.map((r) => r.id), viewer);
+    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0));
+  }
+
+  /**
+   * Unread = messages from the other side newer than the viewer's read marker. Customers only ever count
+   * public messages (internal notes do not exist for them — RULE-SUP-04).
+   */
+  private async unreadCounts(caseIds: string[], viewer: 'customer' | 'staff'): Promise<Map<string, number>> {
+    if (caseIds.length === 0) return new Map();
+    const readMarker = viewer === 'customer' ? supportCases.customerLastReadAt : supportCases.staffLastReadAt;
+    const fromOtherSide =
+      viewer === 'customer'
+        ? and(ne(caseMessages.authorType, 'customer'), eq(caseMessages.visibility, 'public'))
+        : eq(caseMessages.authorType, 'customer');
+    const rows = await this.db
+      .select({ caseId: caseMessages.caseId, unread: count() })
+      .from(caseMessages)
+      .innerJoin(supportCases, eq(supportCases.id, caseMessages.caseId))
+      .where(and(inArray(caseMessages.caseId, caseIds), fromOtherSide, or(isNull(readMarker), gt(caseMessages.createdAt, readMarker))))
+      .groupBy(caseMessages.caseId);
+    return new Map(rows.map((r) => [r.caseId, Number(r.unread)]));
   }
 
   private async loadMessages(caseId: string, publicOnly: boolean): Promise<CaseMessage[]> {
@@ -339,7 +393,7 @@ function statusChange(
 
 const iso = (value: Date | null): string | null => (value ? value.toISOString() : null);
 
-function toSummary(row: SupportCaseRow): CaseSummary {
+function toSummary(row: SupportCaseRow, unreadCount = 0): CaseSummary {
   return {
     id: row.id,
     reference: formatCaseReference(row.referenceNumber),
@@ -354,6 +408,9 @@ function toSummary(row: SupportCaseRow): CaseSummary {
     lastMessageAt: row.lastMessageAt.toISOString(),
     lastCustomerMessageAt: iso(row.lastCustomerMessageAt),
     lastStaffMessageAt: iso(row.lastStaffMessageAt),
+    customerLastReadAt: iso(row.customerLastReadAt),
+    staffLastReadAt: iso(row.staffLastReadAt),
+    unreadCount,
   };
 }
 

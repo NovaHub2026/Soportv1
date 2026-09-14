@@ -5,6 +5,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { type CustomerIdentity, customerApi, customerIdentityHeaders, newClientMessageId } from "@/lib/api";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
+import { ConnectionIndicator } from "./ConnectionIndicator";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./support.module.css";
 
@@ -12,6 +13,8 @@ import styles from "./support.module.css";
 export const REFRESH_INTERVAL_MS = 5000;
 /** Safety-net refresh while the live stream is connected. */
 export const CONNECTED_REFRESH_INTERVAL_MS = 60_000;
+/** Failed messages are retried on reconnect, on the browser's `online` event and, as a fallback, on this cadence. */
+export const FAILED_RETRY_INTERVAL_MS = 15_000;
 
 interface CaseConversationProps {
   identity: CustomerIdentity;
@@ -28,6 +31,8 @@ export interface PendingMessage {
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; detail: CustomerCaseDetail };
 
+const pageVisible = () => typeof document === "undefined" || document.visibilityState === "visible";
+
 export function CaseConversation({ identity, caseId }: CaseConversationProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [pending, setPending] = useState<PendingMessage[]>([]);
@@ -36,6 +41,20 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
   const logRef = useRef<HTMLOListElement>(null);
   // Monotonic request counter: a poll that started before a send must not overwrite the sent message.
   const requestSeq = useRef(0);
+  // Mirror of `pending` for callbacks that must not close over stale state (auto-retry on reconnect).
+  const pendingRef = useRef<PendingMessage[]>([]);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  /** Tell the server what was read; only while the page is actually visible to the customer (§4.3). */
+  const markRead = useCallback(() => {
+    if (!pageVisible()) return;
+    customerApi.markRead(identity, caseId).then(
+      () => setLoad((current) => (current.status === "ready" ? { status: "ready", detail: { ...current.detail, unreadCount: 0 } } : current)),
+      (error: unknown) => console.warn("support: could not mark read", error),
+    );
+  }, [identity, caseId]);
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
@@ -48,13 +67,14 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
         setPending((current) =>
           current.filter((p) => !detail.messages.some((m) => m.clientMessageId === p.clientMessageId)),
         );
+        if (detail.unreadCount > 0) markRead();
       } catch (error: unknown) {
         if (signal?.aborted || id !== requestSeq.current) return;
         console.warn("support: could not load case", error);
         setLoad((current) => (current.status === "ready" ? current : { status: "error" }));
       }
     },
-    [identity, caseId],
+    [identity, caseId, markRead],
   );
 
   const pollMs = streamStatus === "connected" ? CONNECTED_REFRESH_INTERVAL_MS : REFRESH_INTERVAL_MS;
@@ -69,7 +89,51 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
     };
   }, [refresh, pollMs]);
 
-  // Live updates (ADR-0004): apply new messages at once, re-read on other changes, resync on every (re)connect.
+  const send = useCallback(
+    async (message: PendingMessage) => {
+      setPending((current) => [...current.filter((p) => p.clientMessageId !== message.clientMessageId), { ...message, state: "sending" }]);
+      try {
+        const saved = await customerApi.postMessage(identity, caseId, {
+          body: message.body,
+          clientMessageId: message.clientMessageId,
+        });
+        setLoad((current) =>
+          current.status === "ready" && !current.detail.messages.some((m) => m.id === saved.id)
+            ? { status: "ready", detail: { ...current.detail, messages: [...current.detail.messages, saved] } }
+            : current,
+        );
+        setPending((current) => current.filter((p) => p.clientMessageId !== message.clientMessageId));
+        // Re-read so status changes made by the server (e.g. reopening) show up and stale polls are superseded.
+        await refresh();
+      } catch (error) {
+        console.warn("support: could not send message", error);
+        setPending((current) =>
+          current.map((p) => (p.clientMessageId === message.clientMessageId ? { ...p, state: "failed" } : p)),
+        );
+      }
+    },
+    [identity, caseId, refresh],
+  );
+
+  /** Resend everything that failed; the same clientMessageId keeps each message single (RULE-SUP-03). */
+  const retryFailed = useCallback(() => {
+    for (const failed of pendingRef.current.filter((p) => p.state === "failed")) void send(failed);
+  }, [send]);
+
+  // Connectivity can return without the stream noticing right away: also retry on `online` and periodically.
+  useEffect(() => {
+    window.addEventListener("online", retryFailed);
+    const timer = setInterval(() => {
+      if (typeof navigator === "undefined" || navigator.onLine) retryFailed();
+    }, FAILED_RETRY_INTERVAL_MS);
+    return () => {
+      window.removeEventListener("online", retryFailed);
+      clearInterval(timer);
+    };
+  }, [retryFailed]);
+
+  // Live updates (ADR-0004): apply new messages at once, re-read on other changes, resync on every (re)connect
+  // and retry what failed while offline (RULE-SUP-03) — the same clientMessageId keeps it single.
   useEffect(() => {
     const stop = subscribeStream(`/support/cases/${caseId}/stream`, customerIdentityHeaders(identity), {
       onEvent: (_type, data) => {
@@ -83,45 +147,26 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
               : current,
           );
           setPending((current) => current.filter((p) => p.clientMessageId !== incoming.clientMessageId));
+          if (incoming.authorType !== "customer") markRead();
         } else if (data.type === "case.updated") {
           void refresh();
         }
       },
       onStatus: (status) => {
         setStreamStatus(status);
-        if (status === "connected") void refresh();
+        if (status === "connected") {
+          void refresh();
+          retryFailed();
+        }
       },
     });
     return stop;
-  }, [identity, caseId, refresh]);
+  }, [identity, caseId, refresh, retryFailed, markRead]);
 
   useEffect(() => {
     // Keep the newest entry in view; jsdom has no scrollIntoView, hence the optional call.
     logRef.current?.lastElementChild?.scrollIntoView?.({ block: "end" });
   }, [load, pending]);
-
-  async function send(message: PendingMessage) {
-    setPending((current) => [...current.filter((p) => p.clientMessageId !== message.clientMessageId), { ...message, state: "sending" }]);
-    try {
-      const saved = await customerApi.postMessage(identity, caseId, {
-        body: message.body,
-        clientMessageId: message.clientMessageId,
-      });
-      setLoad((current) =>
-        current.status === "ready" && !current.detail.messages.some((m) => m.id === saved.id)
-          ? { status: "ready", detail: { ...current.detail, messages: [...current.detail.messages, saved] } }
-          : current,
-      );
-      setPending((current) => current.filter((p) => p.clientMessageId !== message.clientMessageId));
-      // Re-read so status changes made by the server (e.g. reopening) show up and stale polls are superseded.
-      await refresh();
-    } catch (error) {
-      console.warn("support: could not send message", error);
-      setPending((current) =>
-        current.map((p) => (p.clientMessageId === message.clientMessageId ? { ...p, state: "failed" } : p)),
-      );
-    }
-  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -162,7 +207,10 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
           </span>
           <StatusBadge status={detail.status} />
         </div>
-        <p className={styles.caseHeaderSubject}>{detail.subject}</p>
+        <div className={styles.caseHeaderBottom}>
+          <p className={styles.caseHeaderSubject}>{detail.subject}</p>
+          <ConnectionIndicator status={streamStatus} labels={t.support.connection} />
+        </div>
       </div>
 
       <ol ref={logRef} className={styles.messageLog} aria-live="polite" aria-relevant="additions">

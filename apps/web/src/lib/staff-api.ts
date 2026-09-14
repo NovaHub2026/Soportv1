@@ -32,4 +32,6 @@ export const staffApi = {
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/take`, staffHeaders(identity), { method: "POST" }),
   postMessage: (identity: StaffIdentity, caseId: string, input: PostMessageInput) =>
     apiRequest<CaseMessage>(`/staff/cases/${caseId}/messages`, staffHeaders(identity), { method: "POST", body: input }),
+  markRead: (identity: StaffIdentity, caseId: string) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}/read`, staffHeaders(identity), { method: "POST" }),
 };

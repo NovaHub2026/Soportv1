@@ -29,6 +29,16 @@ export class CaseStreamService {
     return merge(events, this.heartbeat());
   }
 
+  /** All of one customer's cases (home lists, unread badges); public messages only. */
+  customerStream(customerId: string): Observable<MessageEvent> {
+    const events = this.bus.events$.pipe(
+      filter((event) => event.customerId === customerId),
+      filter((event) => event.type !== 'message.created' || event.message.visibility === 'public'),
+      map(toMessageEvent),
+    );
+    return merge(events, this.heartbeat());
+  }
+
   /** Staff see every case change, including internal notes. */
   staffStream(): Observable<MessageEvent> {
     return merge(this.bus.events$.pipe(map(toMessageEvent)), this.heartbeat());

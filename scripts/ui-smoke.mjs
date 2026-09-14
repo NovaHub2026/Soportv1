@@ -99,6 +99,16 @@ try {
   await waitForHttp(WEB);
 
   const browser = await chromium.launch();
+  // On failure, capture every open page so the evidence shows what the UI looked like at that moment.
+  const captureFailure = async () => {
+    let n = 0;
+    for (const context of browser.contexts()) {
+      for (const page of context.pages()) {
+        n += 1;
+        await page.screenshot({ path: `${OUT}/failure-${n}.png` }).catch(() => {});
+      }
+    }
+  };
   try {
     // ---- Desktop: panel as side panel, home → new request → conversation → staff reply appears ----
     const desktop = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale: 'pt-BR' });
@@ -132,10 +142,15 @@ try {
     await staffPage.getByRole('tab', { name: 'Não atribuídos' }).waitFor();
     const queueItem = staffPage.getByRole('button', { name: new RegExp(reference) });
     await queueItem.waitFor({ timeout: 15_000 });
-    note('staff-queue', `the unassigned queue lists ${reference} for the simulated agent Ana Ribeiro`);
+    await staffPage.getByLabel('1 nova do cliente').waitFor();
+    await staffPage.getByText('Ao vivo').waitFor();
+    note('staff-queue', `the unassigned queue lists ${reference} with an unread badge ("1 nova do cliente"); connection shows "Ao vivo"`);
     await shot(staffPage, '08-staff-queue');
 
     await queueItem.click();
+    // Opening the case marks the customer's message read; the queue badge disappears live.
+    await staffPage.getByLabel('1 nova do cliente').waitFor({ state: 'detached', timeout: 5000 });
+    note('staff-read', 'opening the case clears its unread badge in the queue');
     await staffPage.getByRole('button', { name: 'Assumir caso' }).click();
     await staffPage.getByText('staff-ana').first().waitFor();
     await staffPage.getByText('Em atendimento').first().waitFor();
@@ -153,8 +168,13 @@ try {
     const liveMs = Date.now() - sentAt;
     if (liveMs > LIVE_DELIVERY_BUDGET_MS) throw new Error(`Staff reply took ${liveMs} ms to reach the customer (budget ${LIVE_DELIVERY_BUDGET_MS} ms)`);
     await desktop.getByText('Em atendimento').waitFor();
-    note('reply-live', `staff reply attributed to "Ana Ribeiro" reached the open customer panel in ${liveMs} ms via the live stream; status "Em atendimento"`);
+    await desktop.getByText('Ao vivo').waitFor();
+    note('reply-live', `staff reply attributed to "Ana Ribeiro" reached the open customer panel in ${liveMs} ms via the live stream; status "Em atendimento"; connection "Ao vivo"`);
     await shot(desktop, '04-conversation-reply');
+
+    // The customer has the conversation open, so the reply counts as read — staff see that, live.
+    await staffPage.getByText(/Última resposta lida pelo cliente/).waitFor({ timeout: 5000 });
+    note('read-receipt', 'staff see "Última resposta lida pelo cliente" once the open customer panel received the reply');
 
     await staffPage.getByText(/integração com o Orbit ainda não foi construída/).waitFor();
     // A poll that raced the reply must not make the message vanish (regression found in PH-1.4).
@@ -177,11 +197,46 @@ try {
     if (!(await desktop.getByText(followUp).isVisible())) throw new Error('Customer message disappeared after a refresh');
     note('follow-up-live', `customer follow-up shown as own message, still there after a refresh, and visible in the staff case view in ${followUpMs} ms`);
 
+    // Offline: a message typed without connectivity is marked "Não enviada", then delivered exactly once on reconnect.
+    const offlineText = 'Mandei isto sem internet.';
+    await desktop.context().setOffline(true);
+    await desktop.getByLabel('Sua mensagem').fill(offlineText);
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    await desktop.getByText('Não enviada').waitFor({ timeout: 10_000 });
+    note('offline-failed', 'with the network off, the message is kept visible as "Não enviada" with a manual "Reenviar" option');
+    await shot(desktop, '10-offline-failed');
+    await desktop.context().setOffline(false);
+    // Recovery must not depend on the stream noticing the outage: the browser's `online` event and the
+    // periodic retry also resend. Budget covers the 15 s fallback cadence.
+    await desktop.getByText('Não enviada').waitFor({ state: 'detached', timeout: 30_000 });
+    await desktop.getByText('Ao vivo').waitFor({ timeout: 60_000 });
+    await staffPage.getByText(offlineText).waitFor({ timeout: 10_000 });
+    if ((await staffPage.getByText(offlineText).count()) !== 1) throw new Error('Offline message was duplicated on the staff side');
+    if ((await desktop.getByText(offlineText).count()) !== 1) throw new Error('Offline message was duplicated on the customer side');
+    note('offline-recovered', 'after reconnecting, the pending message was resent automatically and appears exactly once on both sides');
+
     await staffPage.getByRole('tab', { name: 'Meus casos' }).click();
     await staffPage.getByRole('button', { name: new RegExp(reference) }).waitFor();
     await staffPage.getByRole('tab', { name: 'Não atribuídos' }).click();
     await staffPage.getByText('Nenhum caso aguardando atribuição.').waitFor();
     note('staff-queues', 'after taking, the case is under "Meus casos" and the unassigned queue is empty');
+
+    // Unread for the customer: back on the home screen, a second staff reply shows a badge live.
+    await desktop.getByRole('button', { name: /Voltar/ }).click();
+    await desktop.getByText('Conversas em andamento').waitFor();
+    await staffPage.getByRole('tab', { name: 'Meus casos' }).click();
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).click();
+    await staffPage.getByLabel('Resposta ao cliente').fill('Mais uma informação para você.');
+    await staffPage.getByRole('button', { name: 'Responder ao cliente' }).click();
+    await desktop.getByLabel('1 nova mensagem').waitFor({ timeout: 5000 });
+    note('home-unread-live', 'on the home screen the case shows "1 nova mensagem" within seconds of a new staff reply');
+    await shot(desktop, '11-home-unread');
+    await desktop.getByRole('button', { name: new RegExp(reference) }).click();
+    await desktop.getByText('Mais uma informação para você.').waitFor();
+    await staffPage.getByText(/Última resposta lida pelo cliente/).waitFor({ timeout: 5000 });
+    await desktop.getByRole('button', { name: /Voltar/ }).click();
+    await desktop.getByLabel('1 nova mensagem').waitFor({ state: 'detached', timeout: 5000 });
+    note('home-unread-cleared', 'opening the conversation clears the badge and staff see the reply as read');
     await staffPage.close();
 
     // Continuity: reload, history still there.
@@ -213,6 +268,9 @@ try {
     note('mobile', 'on a 390px viewport the panel is hidden until "Suporte" is tapped, then fills the screen');
     await shot(mobile, '07-mobile-panel');
     await mobile.close();
+  } catch (error) {
+    await captureFailure();
+    throw error;
   } finally {
     await browser.close();
   }

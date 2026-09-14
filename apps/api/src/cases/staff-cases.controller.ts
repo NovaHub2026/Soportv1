@@ -51,6 +51,13 @@ export class StaffCasesController {
     return this.cases.takeCase(actor, id);
   }
 
+  /** Staff have the conversation open: customer messages received so far count as read. */
+  @Post(':id/read')
+  @HttpCode(200)
+  markRead(@Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
+    return this.cases.markStaffRead(id);
+  }
+
   @Post(':id/messages')
   @HttpCode(201)
   postMessage(

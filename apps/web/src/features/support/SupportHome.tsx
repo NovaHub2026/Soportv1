@@ -1,11 +1,13 @@
 "use client";
 
-import { type CaseSummary, OPEN_CASE_STATUSES } from "@orbit-support/shared";
+import { type CaseSummary, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
 import { useCallback, useEffect, useState } from "react";
 import { dictionary as t, formatMessageTime } from "@/i18n";
-import { type CustomerIdentity, customerApi } from "@/lib/api";
+import { type CustomerIdentity, customerApi, customerIdentityHeaders } from "@/lib/api";
+import { subscribeStream } from "@/lib/sse";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./support.module.css";
+import { UnreadBadge } from "./UnreadBadge";
 
 interface SupportHomeProps {
   identity: CustomerIdentity;
@@ -31,10 +33,20 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         console.warn("support: could not load cases", error);
-        setState({ status: "error" });
+        setState((current) => (current.status === "ready" ? current : { status: "error" }));
       });
     return () => controller.abort();
   }, [identity, attempt]);
+
+  // Any change on any of this customer's cases (a reply, a status) refreshes the lists and unread counts.
+  useEffect(() => {
+    const stop = subscribeStream("/support/cases/stream", customerIdentityHeaders(identity), {
+      onEvent: (_type, data) => {
+        if (isStreamEvent(data) && data.type !== "heartbeat") retry();
+      },
+    });
+    return stop;
+  }, [identity, retry]);
 
   const active = state.status === "ready" ? state.cases.filter((c) => OPEN_CASE_STATUSES.includes(c.status)) : [];
   const previous = state.status === "ready" ? state.cases.filter((c) => !OPEN_CASE_STATUSES.includes(c.status)) : [];
@@ -74,10 +86,13 @@ function CaseList({ title, cases, onOpenCase }: { title: string; cases: CaseSumm
       <ul className={styles.caseList}>
         {cases.map((c) => (
           <li key={c.id}>
-            <button type="button" className={styles.caseItem} onClick={() => onOpenCase(c.id)}>
+            <button type="button" className={styles.caseItem} onClick={() => onOpenCase(c.id)} data-unread={c.unreadCount > 0 ? "true" : "false"}>
               <span className={styles.caseItemTop}>
                 <span className={styles.caseSubject}>{c.subject}</span>
-                <StatusBadge status={c.status} />
+                <span className={styles.caseItemBadges}>
+                  <UnreadBadge count={c.unreadCount} one={t.support.conversation.unreadOne} many={t.support.conversation.unreadMany} />
+                  <StatusBadge status={c.status} />
+                </span>
               </span>
               <span className={styles.caseItemMeta}>
                 {c.reference} · {t.category[c.category]} · {formatMessageTime(c.lastMessageAt)}

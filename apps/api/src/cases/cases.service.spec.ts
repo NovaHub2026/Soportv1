@@ -40,6 +40,41 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     published = [];
   });
 
+  describe('read markers and unread counts (PH-2.2)', () => {
+    it('counts staff replies as unread for the customer until they mark the case read, and vice versa', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      expect(created.unreadCount).toBe(0);
+      expect((await service.listStaffCases(ana, 'unassigned'))[0].unreadCount).toBe(1); // the customer's first message
+
+      await service.markStaffRead(created.id);
+      expect((await service.listStaffCases(ana, 'unassigned'))[0].unreadCount).toBe(0);
+
+      await service.postStaffMessage(ana, created.id, { body: 'Olá' });
+      await service.postStaffMessage(ana, created.id, { body: 'Estou verificando' });
+      const forCustomer = await service.listCustomerCases(alice);
+      expect(forCustomer[0].unreadCount).toBe(2);
+      expect((await service.getCustomerCase(alice, created.id)).unreadCount).toBe(2);
+
+      const afterRead = await service.markCustomerRead(alice, created.id);
+      expect(afterRead.customerLastReadAt).not.toBeNull();
+      expect((await service.listCustomerCases(alice))[0].unreadCount).toBe(0);
+      // Staff can see that the reply was read.
+      const staffView = await service.getStaffCase(created.id);
+      expect(new Date(staffView.customerLastReadAt!).getTime()).toBeGreaterThanOrEqual(new Date(staffView.lastStaffMessageAt!).getTime());
+    });
+
+    it('never counts internal notes as unread for the customer (RULE-SUP-04)', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await db.insert(caseMessages).values({ caseId: created.id, authorType: 'staff', authorId: ana.id, visibility: 'internal', body: 'nota' });
+      expect((await service.listCustomerCases(alice))[0].unreadCount).toBe(0);
+    });
+
+    it('another customer cannot mark the case read', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await expect(service.markCustomerRead(bob, created.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('live events (ADR-0004)', () => {
     it('publishes case.updated and message.created after each committed write, with the summary and message', async () => {
       const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });

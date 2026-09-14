@@ -46,6 +46,9 @@ export const supportCases = pgTable(
     lastMessageAt: tz('last_message_at').notNull().defaultNow(),
     lastCustomerMessageAt: tz('last_customer_message_at'),
     lastStaffMessageAt: tz('last_staff_message_at'),
+    /** Read markers (PH-2.2): unread = messages from the other side created after these. */
+    customerLastReadAt: tz('customer_last_read_at'),
+    staffLastReadAt: tz('staff_last_read_at'),
     resolvedAt: tz('resolved_at'),
     closedAt: tz('closed_at'),
   },

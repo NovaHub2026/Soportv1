@@ -3,6 +3,7 @@
 import { type CaseSummary, STAFF_QUEUE_VIEWS, type StaffQueueView } from "@orbit-support/shared";
 import { useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/features/support/StatusBadge";
+import { UnreadBadge } from "@/features/support/UnreadBadge";
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import styles from "./staff.module.css";
@@ -94,11 +95,15 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                 type="button"
                 className={styles.caseItem}
                 data-selected={c.id === selectedCaseId ? "true" : "false"}
+                data-unread={c.unreadCount > 0 ? "true" : "false"}
                 onClick={() => onSelectCase(c.id)}
               >
                 <span className={styles.caseItemTop}>
                   <span className={styles.caseReference}>{c.reference}</span>
-                  <StatusBadge status={c.status} labels={t.staff.status} />
+                  <span className={styles.caseItemBadges}>
+                    <UnreadBadge count={c.unreadCount} one={t.staff.unreadOne} many={t.staff.unreadMany} />
+                    <StatusBadge status={c.status} labels={t.staff.status} />
+                  </span>
                 </span>
                 <span className={styles.caseSubject}>{c.subject}</span>
                 <span className={styles.caseMeta}>

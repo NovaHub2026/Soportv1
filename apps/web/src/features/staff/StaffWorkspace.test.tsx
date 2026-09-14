@@ -52,6 +52,12 @@ describe("StaffQueue", () => {
     expect(onViewChange).toHaveBeenCalledWith("mine");
   });
 
+  test("shows how many customer messages are unread on each case", async () => {
+    mockFetch(() => ({ body: [summary({ unreadCount: 3 })] }));
+    render(<StaffQueue identity={ana} view="active" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    expect(await screen.findByLabelText("3 novas do cliente")).toHaveProperty("textContent", "3");
+  });
+
   test("explains an empty queue per view", async () => {
     mockFetch(() => ({ body: [] }));
     render(<StaffQueue identity={ana} view="mine" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
@@ -70,6 +76,19 @@ describe("StaffCaseView", () => {
     expect(screen.getByText("Verificar com Finance antes de responder.")).toBeDefined();
     expect(screen.getByText(/integração com o Orbit ainda não foi construída/)).toBeDefined();
     expect(screen.getByText("Caso aberto pelo cliente")).toBeDefined();
+  });
+
+  test("marks customer messages read on open and tells whether the customer read the latest reply", async () => {
+    const staffReplyAt = new Date(Date.now() - 60_000).toISOString();
+    const { requests } = mockFetch((request) =>
+      request.url.endsWith("/read")
+        ? { body: summary() }
+        : { body: { ...detail, unreadCount: 1, lastStaffMessageAt: staffReplyAt, customerLastReadAt: new Date().toISOString() } },
+    );
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    await waitFor(() => expect(requests.some((r) => r.method === "POST" && r.url === `/api/staff/cases/${detail.id}/read`)).toBe(true));
+    expect(screen.getByText(/Última resposta lida pelo cliente/)).toBeDefined();
   });
 
   test("take assigns the case to the current agent and notifies the workspace", async () => {

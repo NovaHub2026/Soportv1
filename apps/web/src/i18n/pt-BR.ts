@@ -57,6 +57,15 @@ export const ptBR = {
       error: "Não foi possível carregar a conversa.",
       closedNotice: "Esta conversa foi encerrada. Para continuar, abra um novo pedido.",
       waitingNotice: "Recebemos sua mensagem. Uma pessoa da equipe vai responder por aqui.",
+      unreadOne: "1 nova mensagem",
+      unreadMany: "{n} novas mensagens",
+    },
+    connection: {
+      connecting: "Conectando…",
+      connected: "Ao vivo",
+      reconnecting: "Reconectando…",
+      closed: "Sem conexão",
+      retryingPending: "Reenviando mensagens pendentes…",
     },
   },
   staff: {
@@ -92,6 +101,16 @@ export const ptBR = {
     internalNoteHint: "visível só para a equipe",
     customer: "Cliente",
     system: "Sistema",
+    unreadOne: "1 nova do cliente",
+    unreadMany: "{n} novas do cliente",
+    customerRead: "Última resposta lida pelo cliente",
+    customerUnread: "Última resposta ainda não lida pelo cliente",
+    connection: {
+      connecting: "Conectando…",
+      connected: "Ao vivo",
+      reconnecting: "Reconectando…",
+      closed: "Sem conexão",
+    },
     context: {
       title: "Contexto",
       customer: "Cliente",

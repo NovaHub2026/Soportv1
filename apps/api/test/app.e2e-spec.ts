@@ -96,5 +96,13 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
 
     const list = await request(server).get('/api/support/cases').set(asCustomer('cust-alice')).expect(200);
     expect(list.body.map((c: { id: string }) => c.id)).toEqual([caseId]);
+    expect(list.body[0].unreadCount).toBe(1); // the staff reply, not yet read
+
+    const read = await request(server).post(`/api/support/cases/${caseId}/read`).set(asCustomer('cust-alice')).expect(200);
+    expect(read.body.customerLastReadAt).not.toBeNull();
+    const after = await request(server).get('/api/support/cases').set(asCustomer('cust-alice')).expect(200);
+    expect(after.body[0].unreadCount).toBe(0);
+    await request(server).post(`/api/support/cases/${caseId}/read`).set(asCustomer('cust-bob')).expect(404);
+    await request(server).post(`/api/staff/cases/${caseId}/read`).set(asStaff('staff-ana', 'Ana')).expect(200);
   });
 });

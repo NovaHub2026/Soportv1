@@ -2,6 +2,7 @@
 
 import { isStreamEvent, type StaffQueueView } from "@orbit-support/shared";
 import { useEffect, useMemo, useState } from "react";
+import { ConnectionIndicator } from "@/features/support/ConnectionIndicator";
 import { dictionary as t } from "@/i18n";
 import { SIMULATED_STAFF, useSimulatedStaff } from "@/lib/simulated-session";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
@@ -57,22 +58,25 @@ export function StaffWorkspace() {
           <span className={styles.brandMark} aria-hidden="true" />
           {t.shell.brand} · {t.staff.workspace}
         </div>
-        <label className={styles.agentPicker}>
-          <span className={styles.simBadge}>{t.app.simulationBadge}</span>
-          <span className="visually-hidden">{t.staff.agentPicker}</span>
-          <select
-            className={styles.agentSelect}
-            value={staff.id}
-            onChange={(event) => selectStaff(event.target.value)}
-            aria-label={t.staff.agentPicker}
-          >
-            {SIMULATED_STAFF.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} · {s.role}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className={styles.topbarRight}>
+          <ConnectionIndicator status={streamStatus} labels={t.staff.connection} />
+          <label className={styles.agentPicker}>
+            <span className={styles.simBadge}>{t.app.simulationBadge}</span>
+            <span className="visually-hidden">{t.staff.agentPicker}</span>
+            <select
+              className={styles.agentSelect}
+              value={staff.id}
+              onChange={(event) => selectStaff(event.target.value)}
+              aria-label={t.staff.agentPicker}
+            >
+              {SIMULATED_STAFF.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} · {s.role}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </header>
 
       <div className={styles.columns}>

@@ -61,6 +61,8 @@ export const customerApi = {
     apiRequest<CustomerCaseDetail>("/support/cases", customerHeaders(identity), { method: "POST", body: input }),
   postMessage: (identity: CustomerIdentity, caseId: string, input: PostMessageInput) =>
     apiRequest<CaseMessage>(`/support/cases/${caseId}/messages`, customerHeaders(identity), { method: "POST", body: input }),
+  markRead: (identity: CustomerIdentity, caseId: string) =>
+    apiRequest<CaseSummary>(`/support/cases/${caseId}/read`, customerHeaders(identity), { method: "POST" }),
 };
 
 /** Stable per-attempt id so a retried send is stored once (RULE-SUP-03). */

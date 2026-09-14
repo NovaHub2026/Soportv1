@@ -146,6 +146,37 @@ describe('Live streams (SSE, e2e)', () => {
     await request(app.getHttpServer()).get('/api/staff/cases/stream').set(asCustomer('cust-alice')).expect(403);
   });
 
+  it('the customer-wide stream carries changes on any own case (public only) and nothing from other customers', async () => {
+    const response = await open('/api/support/cases/stream', asCustomer('cust-dora'));
+    expect(response.status).toBe(200);
+    const stream = collect(response);
+
+    const mine = await request(app.getHttpServer())
+      .post('/api/support/cases')
+      .set(asCustomer('cust-dora'))
+      .send({ category: 'other', message: 'Meu caso' })
+      .expect(201);
+    await stream.waitFor((e) => e.type === 'case.updated' && e.data.type === 'case.updated' && e.data.caseId === mine.body.id);
+
+    await request(app.getHttpServer())
+      .post(`/api/staff/cases/${mine.body.id}/messages`)
+      .set(asStaff('staff-ana', 'Ana'))
+      .send({ body: 'Resposta' })
+      .expect(201);
+    await stream.waitFor((e) => e.type === 'message.created' && e.data.type === 'message.created' && e.data.message.body === 'Resposta');
+
+    const before = stream.events.length;
+    const theirs = await request(app.getHttpServer())
+      .post('/api/support/cases')
+      .set(asCustomer('cust-eve'))
+      .send({ category: 'other', message: 'Caso de outra pessoa' })
+      .expect(201);
+    // Publish a marker for Dora after Eve's events to know they had the chance to arrive.
+    moduleRef.get(CaseEventBus).publish({ type: 'case.updated', caseId: mine.body.id, customerId: 'cust-dora', summary: mine.body, at: new Date().toISOString() });
+    await stream.waitFor((e, index = stream.events.indexOf(e)) => index >= before && e.type === 'case.updated' && e.data.type === 'case.updated' && e.data.caseId === mine.body.id);
+    expect(stream.events.some((e) => e.data.type !== 'heartbeat' && e.data.caseId === theirs.body.id)).toBe(false);
+  });
+
   it('the staff stream carries every case change, including internal notes', async () => {
     const response = await open('/api/staff/cases/stream', asStaff('staff-ana', 'Ana'));
     expect(response.status).toBe(200);

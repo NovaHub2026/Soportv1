@@ -24,11 +24,24 @@ export class CustomerCasesController {
     private readonly streams: CaseStreamService,
   ) {}
 
+  /** `GET /api/support/cases/stream` — live events for all own cases (home lists, unread badges). Declared before `:id`. */
+  @Sse('stream')
+  streamAll(@CurrentActor() actor: CustomerActor): Observable<MessageEvent> {
+    return this.streams.customerStream(actor.id);
+  }
+
   /** Live events for one own case (ADR-0004). Ownership is checked before any byte is streamed. */
   @Sse(':id/stream')
   async stream(@CurrentActor() actor: CustomerActor, @Param('id', ParseUUIDPipe) id: string): Promise<Observable<MessageEvent>> {
     await this.cases.getCustomerCase(actor, id);
     return this.streams.customerCaseStream(actor.id, id);
+  }
+
+  /** The customer has the conversation in front of them: mark everything received as read. */
+  @Post(':id/read')
+  @HttpCode(200)
+  markRead(@CurrentActor() actor: CustomerActor, @Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
+    return this.cases.markCustomerRead(actor, id);
   }
 
   /** Sending the first request creates the case (context §4.1); opening the panel never does. */

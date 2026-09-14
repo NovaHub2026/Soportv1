@@ -89,6 +89,51 @@ describe("CaseConversation", () => {
     expect(screen.getByText("Chegou ao vivo")).toBeDefined();
   });
 
+  test("marks the case read after loading unread replies and shows the live connection state", async () => {
+    const { requests } = mockFetch((request) =>
+      request.url.endsWith("/read") ? { body: summary({ customerLastReadAt: new Date().toISOString() }) } : { body: { ...detail, unreadCount: 1 } },
+    );
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    await screen.findByText(/SUP-000001/);
+    await waitFor(() => expect(requests.some((r) => r.method === "POST" && r.url === `/api/support/cases/${detail.id}/read`)).toBe(true));
+
+    expect(screen.getByRole("status", { name: "" }).textContent).toContain("Conectando…");
+    act(() => streams[0].handlers.onStatus?.("connected"));
+    expect(screen.getByText("Ao vivo")).toBeDefined();
+    act(() => streams[0].handlers.onStatus?.("reconnecting"));
+    expect(screen.getByText("Reconectando…")).toBeDefined();
+  });
+
+  test("a message that failed while offline is resent automatically, once, when the stream reconnects", async () => {
+    let posts = 0;
+    let stored: ReturnType<typeof message> | null = null;
+    const { requests } = mockFetch((request) => {
+      if (request.method === "GET") return { body: stored ? { ...detail, messages: [...detail.messages, stored] } : detail };
+      if (request.url.endsWith("/read")) return { body: summary() };
+      posts += 1;
+      if (posts === 1) return { status: 503, body: { error: "offline" } };
+      const body = request.body as { body: string; clientMessageId: string };
+      stored = message({ id: "m7", body: body.body, clientMessageId: body.clientMessageId });
+      return { status: 201, body: stored };
+    });
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    await screen.findByText(/SUP-000001/);
+
+    fireEvent.change(screen.getByLabelText("Sua mensagem"), { target: { value: "Ainda estou aqui" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    await screen.findByText("Não enviada");
+
+    // The browser regains connectivity: the `online` event alone must trigger the retry (the stream may lag).
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(screen.queryByText("Não enviada")).toBeNull());
+    const messagePosts = requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages"));
+    expect(messagePosts).toHaveLength(2);
+    expect((messagePosts[0].body as { clientMessageId: string }).clientMessageId).toBe((messagePosts[1].body as { clientMessageId: string }).clientMessageId);
+    expect(screen.getAllByText("Ainda estou aqui")).toHaveLength(1);
+  });
+
   test("a closed case shows the closure notice instead of the composer", async () => {
     mockFetch(() => ({ body: { ...detail, status: "closed" } }));
     render(<CaseConversation identity={identity} caseId={detail.id} />);

@@ -52,6 +52,9 @@ export function summary(overrides: Partial<import("@orbit-support/shared").CaseS
     lastMessageAt: now,
     lastCustomerMessageAt: now,
     lastStaffMessageAt: null,
+    customerLastReadAt: null,
+    staffLastReadAt: null,
+    unreadCount: 0,
     ...overrides,
   };
 }
