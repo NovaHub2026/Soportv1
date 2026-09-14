@@ -50,6 +50,12 @@ function decodePart<T>(part: string): T | null {
   }
 }
 
+/** The payload without any verification — only meaningful after the broker itself accepted the token (DEC-0046 a). */
+export function decodeJwtPayload(token: string): JwtPayload | null {
+  const parts = token.split('.');
+  return parts.length === 3 ? decodePart<JwtPayload>(parts[1]) : null;
+}
+
 /** Only for tests and local tooling: an HS256 token with the given payload. */
 export function signHs256(payload: JwtPayload, secret: string): string {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));

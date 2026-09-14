@@ -282,14 +282,15 @@ export function toEnvironment(wallets: OptaqodeWallet[] | undefined): OrbitCusto
 // ---- staff ----
 
 /**
- * The broker's back-office roles onto Orbit Support's three (DEC-0029). Provisional (DEC-0045 c): the Owner
- * decides who supervises support; until then administrators supervise and the rest work as agents.
+ * The broker's back-office roles onto Orbit Support's three (DEC-0029). Owner, 2026-09-14 (DEC-0046 c): support is
+ * supervised by admins and super admins — `super_admin` is our admin (supervision plus exports), `admin` our
+ * supervisor, everyone else works as an agent.
  */
 export const STAFF_ROLE_MAP: Record<string, StaffRole> = {
   super_admin: 'admin',
-  admin: 'admin',
-  regional_admin: 'supervisor',
-  finance_manager: 'supervisor',
+  admin: 'supervisor',
+  regional_admin: 'agent',
+  finance_manager: 'agent',
   product_manager: 'agent',
   auditor: 'agent',
 };

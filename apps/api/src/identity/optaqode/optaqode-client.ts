@@ -9,7 +9,7 @@ export interface OptaqodeErrorBody {
   statusCode?: number;
 }
 
-export type FetchLike = (input: string, init: { method: string; headers: Record<string, string>; signal: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown>; text(): Promise<string> }>;
+export type FetchLike = (input: string, init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown>; text(): Promise<string> }>;
 
 export class OptaqodeHttpError extends Error {
   constructor(
@@ -40,7 +40,8 @@ export function readErrorBody(body: unknown): { code: string | null; message: st
 
 /**
  * A minimal JSON client for the broker's API: bearer token per call, the locale headers its frontend sends,
- * one timeout, the error shape parsed once. GET only — Orbit Support never writes to the broker (RULE-SUP-05).
+ * one timeout, the error shape parsed once. Reads are GET; the only POSTs are the service account's own
+ * login and refresh — Orbit Support never writes business data to the broker (RULE-SUP-05).
  */
 export class OptaqodeClient {
   constructor(
@@ -48,20 +49,31 @@ export class OptaqodeClient {
     private readonly fetchImpl: FetchLike = (input, init) => fetch(input, init),
   ) {}
 
-  async get<T>(path: string, options: { token: string; language?: string }): Promise<T> {
+  get<T>(path: string, options: { token: string; language?: string }): Promise<T> {
+    return this.call<T>('GET', path, options);
+  }
+
+  /** Auth calls only (`/admin/auth/login`, `/auth/refresh`). */
+  post<T>(path: string, body: unknown, options: { token?: string; language?: string } = {}): Promise<T> {
+    return this.call<T>('POST', path, { ...options, body });
+  }
+
+  private async call<T>(method: 'GET' | 'POST', path: string, options: { token?: string; language?: string; body?: unknown }): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.config.httpTimeoutMs);
     const language = options.language ?? 'pt-BR';
     try {
       const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, {
-        method: 'GET',
+        method,
         headers: {
           Accept: 'application/json',
-          Authorization: `Bearer ${options.token}`,
+          ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
+          ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
           'x-language-code': language,
           'Accept-Language': language,
           'User-Agent': 'orbit-support/1.0',
         },
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
         signal: controller.signal,
       });
       if (response.status >= 200 && response.status < 300) return (await response.json()) as T;

@@ -18,9 +18,21 @@ import {
   SIMULATED_IDENTITY_HEADERS,
 } from "@orbit-support/shared";
 
-/** Who the browser is acting as. Simulated until Orbit sessions exist (DEC-0003, ADR-0002). */
+/**
+ * Who the browser is acting as: a simulated customer (headers, DEC-0003) or — inside the broker's app — the
+ * customer's own Orbit access token forwarded as a bearer, which the API verifies with the broker (PH-13.2, DEC-0046).
+ */
 export interface CustomerIdentity {
   customerId: string;
+  /** The broker's access token; when present it is the identity and the simulated header is not sent. */
+  bearer?: string;
+}
+
+/** `GET /api/identity/me` — who the API sees for the given headers. */
+export interface WhoAmI {
+  kind: "customer" | "staff";
+  id: string;
+  source: "simulated" | "orbit";
 }
 
 export class ApiError extends Error {
@@ -85,10 +97,12 @@ export async function apiRequest<T>(path: string, identityHeaders: Record<string
   return data as T;
 }
 
-export const customerIdentityHeaders = (identity: CustomerIdentity): Record<string, string> => ({
-  [SIMULATED_IDENTITY_HEADERS.customerId]: identity.customerId,
-});
+export const customerIdentityHeaders = (identity: CustomerIdentity): Record<string, string> =>
+  identity.bearer ? { authorization: `Bearer ${identity.bearer}` } : { [SIMULATED_IDENTITY_HEADERS.customerId]: identity.customerId };
 const customerHeaders = customerIdentityHeaders;
+
+/** Who the API resolves for a bearer (the embedded panel learns the customer id this way — PH-13.2). */
+export const whoAmI = (bearer: string, signal?: AbortSignal) => apiRequest<WhoAmI>("/identity/me", { authorization: `Bearer ${bearer}` }, { signal });
 
 /** Multipart upload of one file; the server decides the real type from the bytes. */
 export async function uploadFile(path: string, identityHeaders: Record<string, string>, file: File): Promise<CaseAttachment> {

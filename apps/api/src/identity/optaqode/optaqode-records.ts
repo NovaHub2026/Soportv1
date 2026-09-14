@@ -4,23 +4,22 @@ import type { OrbitRecordsPort } from '../orbit-records.js';
 import { OptaqodeClient, OptaqodeHttpError, OptaqodeTimeoutError } from './optaqode-client.js';
 import { type OptaqodeConfig, requireServiceConfig } from './optaqode-config.js';
 import { type OptaqodeRastreio, toContactEmail, toCustomerSummary, toEnvironment, toRecords } from './optaqode-mappers.js';
+import { createTokenSource, type TokenSource } from './optaqode-service-session.js';
 
 /**
  * Real records (PH-13, DEC-0045 b): the customer 360 the broker's own support console reads
- * (`GET /admin/rastreio/{userId}` — person, wallets, deposits, withdrawals, operations), read with Orbit
- * Support's service credential and mapped to the boundary's shapes. Read-only; every failure is an honest
+ * (`GET /admin/rastreio/{userId}` — person, wallets, deposits, withdrawals, operations), read with the support
+ * service account's session and mapped to the boundary's shapes. Read-only; every failure is an honest
  * `unavailable` with its reason (RULE-SUP-07), never a guess.
  */
 export class OptaqodeRecords implements OrbitRecordsPort {
   private readonly logger = new Logger(OptaqodeRecords.name);
-  private readonly token: string;
 
   constructor(
     config: OptaqodeConfig,
     private readonly client: OptaqodeClient = new OptaqodeClient(config),
-  ) {
-    this.token = requireServiceConfig(config, 'records').serviceToken;
-  }
+    private readonly session: TokenSource = createTokenSource(requireServiceConfig(config, 'records'), client),
+  ) {}
 
   async customerSummary(userId: string): Promise<OrbitLookup<OrbitCustomerSummary>> {
     return this.lookup(userId, (r) => toCustomerSummary(r.person, toEnvironment(r.wallets)));
@@ -43,11 +42,23 @@ export class OptaqodeRecords implements OrbitRecordsPort {
 
   private async lookup<T>(userId: string, map: (rastreio: OptaqodeRastreio) => T): Promise<OrbitLookup<T>> {
     try {
-      const rastreio = await this.client.get<OptaqodeRastreio>(`/admin/rastreio/${encodeURIComponent(userId)}`, { token: this.token });
+      const rastreio = await this.read(userId);
       if (!rastreio || typeof rastreio !== 'object' || !rastreio.person?.id) return { ...meta(), state: 'unavailable', reason: 'unavailable' };
       return { ...meta(), state: 'available', data: map(rastreio) };
     } catch (error) {
       return { ...meta(), state: 'unavailable', reason: this.reasonOf(error, userId) };
+    }
+  }
+
+  /** One read with the service session; a 401 means the session token aged out — obtain a fresh one and retry once. */
+  private async read(userId: string): Promise<OptaqodeRastreio> {
+    const path = `/admin/rastreio/${encodeURIComponent(userId)}`;
+    try {
+      return await this.client.get<OptaqodeRastreio>(path, { token: await this.session.token() });
+    } catch (error) {
+      if (!(error instanceof OptaqodeHttpError && error.status === 401)) throw error;
+      this.session.invalidate();
+      return this.client.get<OptaqodeRastreio>(path, { token: await this.session.token() });
     }
   }
 

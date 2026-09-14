@@ -71,6 +71,11 @@ export const ptBR = {
       enter: "Entrar",
     },
   },
+  embed: {
+    waiting: "Conectando ao suporte…",
+    tokenRequired: "Sua sessão precisa ser renovada. Aguarde um instante ou entre de novo no Orbit.",
+    refused: "O suporte não pode ser aberto a partir desta página.",
+  },
   support: {
     title: "Suporte",
     back: "Voltar",

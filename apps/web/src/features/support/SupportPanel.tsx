@@ -4,7 +4,6 @@ import type { OrbitRecordListItem } from "@orbit-support/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { dictionary as t } from "@/i18n";
 import type { CustomerIdentity } from "@/lib/api";
-import type { SimulatedCustomer } from "@/lib/simulated-session";
 import { CaseConversation } from "./CaseConversation";
 import { NewRequestForm } from "./NewRequestForm";
 import { SupportHome } from "./SupportHome";
@@ -20,8 +19,16 @@ export interface SupportEntry {
   customerId: string;
 }
 
+/** The person the panel serves: a simulated pick (labeled) or the broker's real customer (bearer, no label). */
+export interface PanelCustomer {
+  id: string;
+  name: string;
+  /** The broker's access token when the panel runs inside the broker's app (PH-13.2); absent = simulated headers. */
+  bearer?: string;
+}
+
 interface SupportPanelProps {
-  customer: SimulatedCustomer;
+  customer: PanelCustomer;
   onClose?: () => void;
   /** Whether the panel is actually on screen (the mobile layout hides it while mounted). Drives read receipts (FND-0021). */
   visible?: boolean;
@@ -43,7 +50,7 @@ export function SupportPanel({ customer, onClose, visible = true, entry = null, 
     setView({ name: "home" });
     requestAnimationFrame(() => titleRef.current?.focus());
   };
-  const identity = useMemo<CustomerIdentity>(() => ({ customerId: customer.id }), [customer.id]);
+  const identity = useMemo<CustomerIdentity>(() => (customer.bearer ? { customerId: customer.id, bearer: customer.bearer } : { customerId: customer.id }), [customer.id, customer.bearer]);
 
   // "Preciso de ajuda" on a record opens the new-request form about it.
   useEffect(() => {
@@ -75,9 +82,12 @@ export function SupportPanel({ customer, onClose, visible = true, entry = null, 
         )}
       </header>
 
-      <div className={styles.simulationStrip} role="note">
-        <span className={styles.simBadge}>{t.app.simulationBadge}</span> {customer.name}
-      </div>
+      {/* The simulation label exists only for simulated identities (DEC-0003); a real session shows none. */}
+      {!customer.bearer && (
+        <div className={styles.simulationStrip} role="note">
+          <span className={styles.simBadge}>{t.app.simulationBadge}</span> {customer.name}
+        </div>
+      )}
 
       {view.name === "home" && (
         <SupportHome

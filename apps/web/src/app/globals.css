@@ -26,6 +26,27 @@
   --font-sans: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
+/* Inside the broker's app (PH-13.2): its own dark tokens (globals.css of optaqode-frontend2.0 — background #000, cards #0D0D0D, primary #0f5efc, text #f4f7ff / #838a97). */
+[data-embed="orbit"] {
+  --color-bg: #000000;
+  --color-surface: #0d0d0d;
+  --color-surface-2: #191919;
+  --color-border: #202020;
+  --color-text: #f4f7ff;
+  --color-text-muted: #838a97;
+  --color-primary: #0f5efc;
+  --color-primary-hover: #0048ff;
+  --color-accent: #ff7900;
+  --color-success: #19b473;
+  --color-danger: #f23c54;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
 *,
 *::before,
 *::after {
