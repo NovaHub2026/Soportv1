@@ -1,11 +1,15 @@
 "use client";
 
-import { type CaseSummary, STAFF_LIST_LIMITS, STAFF_QUEUE_VIEWS, type StaffQueueView } from "@orbit-support/shared";
+import { CASE_CATEGORIES, CASE_PRIORITIES, type CaseSummary, STAFF_LIST_LIMITS, STAFF_QUEUE_VIEWS, type StaffQueueView } from "@orbit-support/shared";
 import { useEffect, useRef, useState } from "react";
+import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { UnreadBadge } from "@/features/support/UnreadBadge";
 import { dictionary as t, fill, formatDuration, formatMessageTime } from "@/i18n";
-import { type StaffIdentity, staffApi } from "@/lib/staff-api";
+import { type QueueFilters, type StaffIdentity, staffApi } from "@/lib/staff-api";
+
+/** Typing pauses before a search request goes out. */
+export const SEARCH_DEBOUNCE_MS = 300;
 import styles from "./staff.module.css";
 
 /** Safety-net refresh while the staff stream is down (ADR-0004). */
@@ -34,6 +38,15 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
   const [attempt, setAttempt] = useState(0);
   // How many pages the user asked for on this view; a refresh re-reads all of them so nothing vanishes. Another view starts at one page.
   const [paging, setPaging] = useState<{ view: StaffQueueView; pages: number }>({ view, pages: 1 });
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<QueueFilters>({});
+  // The debounced search term is what actually reaches the API.
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setQ(search.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const active = { ...filters, q };
   const pages = paging.view === view ? paging.pages : 1;
   const loadMore = () => setPaging({ view, pages: pages + 1 });
   // Monotonic request counter: a poll that started before an action must not overwrite the refreshed list.
@@ -44,7 +57,7 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
     const load = async () => {
       const id = ++requestSeq.current;
       try {
-        const cases = await staffApi.listCases(identity, view, controller.signal, { limit: PAGE * pages, offset: 0 });
+        const cases = await staffApi.listCases(identity, view, controller.signal, { limit: PAGE * pages, offset: 0 }, active);
         if (id !== requestSeq.current) return;
         setState({ status: "ready", cases, more: cases.length >= PAGE * pages });
       } catch (error: unknown) {
@@ -59,10 +72,58 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
       controller.abort();
       clearInterval(timer);
     };
-  }, [identity, view, refreshToken, attempt, live, pages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `active` is derived from q and filters below
+  }, [identity, view, refreshToken, attempt, live, pages, q, filters]);
 
   return (
     <section className={styles.queue} aria-label={t.staff.queues[view]}>
+      <form className={styles.filters} role="search" aria-label={t.staff.search.label} onSubmit={(event) => event.preventDefault()}>
+        <input
+          type="search"
+          className={styles.searchInput}
+          placeholder={t.staff.search.placeholder}
+          aria-label={t.staff.search.label}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <select className={styles.filterSelect} aria-label={t.staff.search.category} value={filters.category ?? ""} onChange={(event) => setFilters({ ...filters, category: event.target.value })}>
+          <option value="">{t.staff.search.anyCategory}</option>
+          {CASE_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {t.category[category]}
+            </option>
+          ))}
+        </select>
+        <select className={styles.filterSelect} aria-label={t.staff.search.priority} value={filters.priority ?? ""} onChange={(event) => setFilters({ ...filters, priority: event.target.value })}>
+          <option value="">{t.staff.search.anyPriority}</option>
+          {CASE_PRIORITIES.map((priority) => (
+            <option key={priority} value={priority}>
+              {t.staff.priority[priority]}
+            </option>
+          ))}
+        </select>
+        <select className={styles.filterSelect} aria-label={t.staff.search.agent} value={filters.agentId ?? ""} onChange={(event) => setFilters({ ...filters, agentId: event.target.value })}>
+          <option value="">{t.staff.search.anyAgent}</option>
+          <option value="unassigned">{t.staff.unassigned}</option>
+          {SIMULATED_STAFF.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        {(search || filters.category || filters.priority || filters.agentId) && (
+          <button
+            type="button"
+            className={styles.linkButton}
+            onClick={() => {
+              setSearch("");
+              setFilters({});
+            }}
+          >
+            {t.staff.search.clear}
+          </button>
+        )}
+      </form>
       <div className={styles.tabs} role="tablist">
         {STAFF_QUEUE_VIEWS.map((v) => (
           <button

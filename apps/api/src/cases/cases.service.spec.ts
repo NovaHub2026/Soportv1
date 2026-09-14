@@ -654,4 +654,27 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     });
   });
 
+
+  describe('search and filters (PH-5.2, §5.2)', () => {
+    it('finds a case by reference (with or without the prefix), customer id, subject words or record reference, and narrows by filters', async () => {
+      const saque = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Saque atrasado', record: { kind: 'withdrawal', reference: 'WD-48213' } });
+      const outro = await service.createCase(bob, { category: 'other', message: 'Pergunta geral' });
+      await service.updateAttributes(ana, outro.id, { priority: 'high' });
+      await service.takeCase(ana, outro.id);
+      const ids = async (q?: string, extra: Record<string, string> = {}) =>
+        (await service.listStaffCases(ana, 'active', { limit: 50, offset: 0 }, { q, ...extra })).map((c) => c.id);
+      expect(await ids(saque.reference)).toEqual([saque.id]);
+      expect(await ids(String(Number(saque.reference.slice(4))))).toEqual([saque.id]);
+      expect(await ids('cust-bob')).toEqual([outro.id]);
+      expect(await ids('SAQUE')).toEqual([saque.id]);
+      expect(await ids('wd-482')).toEqual([saque.id]);
+      expect(await ids('%')).toEqual([]);
+      expect(await ids(undefined, { priority: 'high' })).toEqual([outro.id]);
+      expect(await ids(undefined, { category: 'deposits_withdrawals' })).toEqual([saque.id]);
+      expect(await ids(undefined, { agentId: 'unassigned' })).toEqual([saque.id]);
+      expect(await ids(undefined, { agentId: ana.id })).toEqual([outro.id]);
+      expect(await ids('cust', { priority: 'normal' })).toEqual([saque.id]);
+    });
+  });
+
 });

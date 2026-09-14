@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import {
   type AnswerConsultationInput,
   type AssignCaseInput,
@@ -324,6 +324,7 @@ export class CasesService {
     staff: StaffActor,
     view: StaffQueueView,
     page: Pick<StaffListQuery, 'limit' | 'offset'> = { limit: STAFF_LIST_LIMITS.default, offset: 0 },
+    filters: Pick<StaffListQuery, 'q' | 'category' | 'priority' | 'agentId'> = {},
   ): Promise<CaseSummary[]> {
     const open = inArray(supportCases.status, OPEN);
     // NULLS LAST: cases with an unanswered customer message come first, oldest first; the rest by latest activity.
@@ -348,7 +349,13 @@ export class CasesService {
               : view === 'resolved'
                 ? [desc(supportCases.resolvedAt)]
                 : [desc(supportCases.closedAt)];
-    const rows = await this.db.select().from(supportCases).where(where).orderBy(...order).limit(page.limit).offset(page.offset);
+    const rows = await this.db
+      .select()
+      .from(supportCases)
+      .where(and(where, ...searchClauses(filters)))
+      .orderBy(...order)
+      .limit(page.limit)
+      .offset(page.offset);
     return this.withUnread(rows, 'staff');
   }
 
@@ -1250,6 +1257,28 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     recordReference: row.recordReference,
     awaitingReplySince: iso(awaitingReplySince(row)),
   };
+}
+
+/** Search and filter clauses (PH-5.2): a reference-looking term matches the number exactly; anything else matches text. */
+function searchClauses(filters: Pick<StaffListQuery, 'q' | 'category' | 'priority' | 'agentId'>) {
+  const clauses = [];
+  if (filters.q) {
+    const term = filters.q.trim();
+    const asReference = term.match(/^(?:SUP-)?0*(\d{1,9})$/i);
+    const like = `%${term.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    clauses.push(
+      or(
+        ...(asReference ? [eq(supportCases.referenceNumber, Number(asReference[1]))] : []),
+        ilike(supportCases.customerId, like),
+        ilike(supportCases.subject, like),
+        ilike(supportCases.recordReference, like),
+      ),
+    );
+  }
+  if (filters.category) clauses.push(eq(supportCases.category, filters.category));
+  if (filters.priority) clauses.push(eq(supportCases.priority, filters.priority));
+  if (filters.agentId) clauses.push(filters.agentId === 'unassigned' ? isNull(supportCases.assignedAgentId) : eq(supportCases.assignedAgentId, filters.agentId));
+  return clauses;
 }
 
 /** The customer's latest message when nobody from staff replied after it, on a case where a reply is due. */

@@ -28,8 +28,8 @@ Scenarios (§14 item 9): (a) an agent switches to "Aguardando cliente" and "Agua
 | ID | Block | Status |
 |---|---|---|
 | PH-5.1 | Views for every state, attention signals (unanswered since), pagination, history indexes — `PH-5.1.md`, approved 2026-09-14 | APPROVED |
-| PH-5.2 | Filters and search (reference, user id, subject, record reference, category, priority, agent) | PLANNED |
-| PH-5.3 | Saved replies: table, endpoints, composer picker, attributable edits | PLANNED |
+| PH-5.2 | Filters and search (reference, user id, subject, record reference, category, priority, agent) — `PH-5.2.md`, approved 2026-09-14 | APPROVED |
+| PH-5.3 | Saved replies: table, endpoints, composer picker, attributable edits — `PH-5.3.md`, approved 2026-09-14 | APPROVED |
 | PH-5.4 | Schedule/configuration with customer availability copy, supervision overview with reassignment, service metrics; phase closure | PLANNED |
 
 ## Verification and operational readiness

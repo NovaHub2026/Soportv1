@@ -208,8 +208,36 @@ export const staffListQuerySchema = z.object({
   view: staffQueueViewSchema.default("unassigned"),
   limit: z.coerce.number().int().min(1).max(STAFF_LIST_LIMITS.max).default(STAFF_LIST_LIMITS.default),
   offset: z.coerce.number().int().min(0).default(0),
+  /** Search (PH-5.2, §5.2): a case reference (with or without `SUP-`), a customer id, subject words or a record reference. */
+  q: text(z.string().trim().min(1).max(100)).optional(),
+  category: z.enum(CASE_CATEGORIES).optional(),
+  priority: z.enum(CASE_PRIORITIES).optional(),
+  /** A staff id, or `unassigned`. */
+  agentId: text(z.string().trim().min(1).max(64)).optional(),
 });
 export type StaffListQuery = z.infer<typeof staffListQuerySchema>;
+
+// ---- Saved replies (PH-5.3, context §5.2 / §5.4) ----
+
+export const savedReplyInputSchema = z.object({
+  title: text(z.string().trim().min(1, "title_required").max(120, "title_too_long")),
+  body: text(z.string().trim().min(1, "body_required").max(5000, "body_too_long")),
+  category: z.enum(CASE_CATEGORIES).optional(),
+});
+export type SavedReplyInput = z.infer<typeof savedReplyInputSchema>;
+
+export interface SavedReply {
+  id: string;
+  title: string;
+  body: string;
+  category: CaseCategory | null;
+  createdById: string;
+  createdByName: string | null;
+  updatedById: string;
+  updatedByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ---- Case reference (PROJECT_CONTEXT.md §6.1: identifies a matter, is not a credential) ----
 

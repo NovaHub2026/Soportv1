@@ -71,6 +71,13 @@
       "when": 1789368129690,
       "tag": "0009_motionless_scourge",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789368563058,
+      "tag": "0010_far_falcon",
+      "breakpoints": true
     }
   ]
 }

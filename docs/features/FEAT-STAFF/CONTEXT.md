@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `9c64934` plus the PH-5.1 change (seven queue views, attention signal, pagination)
+Verified against: `3217c53` plus the PH-5.2/PH-5.3 change (search and filters, saved replies)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -12,6 +12,8 @@ Support staff have a workspace with three areas — queues, conversation, custom
 Rules: RULE-SUP-02 (managed queue / responsible person; transfers preserve follow-through), RULE-SUP-04 (internal notes never published), RULE-SUP-07 (verified vs pending vs unavailable information), RULE-SUP-09 (attributable actions).
 
 ## Current behavior and known gaps
+Search and filters (PH-5.2): a search box above the tabs (reference with or without `SUP-`, customer id, subject words, record reference) plus category, priority and responsible filters; "Limpar" resets; results respect the current view and pagination.
+Saved replies (PH-5.3, DEC-0022): "Inserir resposta salva" in the reply composer appends the template to the draft; "Respostas salvas" in the topbar opens the management panel (new, edit, remove; author and last editor shown; others' replies editable only by supervisor/admin).
 Queues (PH-5.1, DEC-0021): tabs "Não atribuídos", "Meus casos", "Todos ativos", "Aguardando cliente", "Aguardando equipe", "Resolvidos", "Encerrados"; items flag "Sem resposta há …" when the customer's latest message has no later staff reply, and "Aguardando o cliente há …" in the waiting view; "Carregar mais" pages of 50.
 Implemented (PH-1.4): route `/staff` with simulated-agent picker (**Simulação**); tabs "Não atribuídos" (oldest first), "Meus casos", "Todos ativos" with 10 s refresh and immediate refresh after actions; case view with header (reference, subject, staff status label, responsible), messages with customer / staff / system attribution and internal notes rendered with a dashed warning border and "Nota interna · visível só para a equipe"; "Assumir caso" only when unowned and open; "Responder ao cliente" composer (public reply); context column with customer id, identity source "Simulada", an explicit "Orbit data unavailable (PH-4)" note, case facts and the event timeline. Monotonic request counters prevent stale polls from hiding fresh actions (FND-0002). Live updates (PH-2.1): the workspace holds one `/api/staff/cases/stream` subscription; every case event refreshes the queue and, when it concerns the open case, the case view; polling drops to 60 s while connected. Measured delivery 129 ms customer → staff. Delivery states (PH-2.2): queue items show "N novas do cliente"; opening a case marks it read (`POST …/read`) and the badge clears live; the case header says whether the customer read the latest reply; the topbar shows the connection state. Attachments (PH-2.3): staff see customer files as thumbnails/chips in the conversation and can attach their own (same composer component, `/api/staff/cases/:id/attachments`).
 Case actions (PH-3.1): "Aguardar cliente", "Aguardar equipe interna", "Retomar atendimento" and "Resolver caso" (inline form: reason + customer-facing explanation) in the case header; the header shows "Resolvido · <motivo>" and the history shows "Resolvido: <motivo>" / "Reaberto pelo cliente".
@@ -41,4 +43,4 @@ Take conflicts (someone else took it) surface as an error line, never silently. 
 DEC-0007 (pt-BR staff copy by default; responsible shown by id until profiles exist). Assumption: agents work on desktop-class screens; a narrow layout keeps queue + conversation only.
 
 ## Verification and change checklist
-Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5.1-verification.md`, `docs/evidence/PH-4-phase-approval.md`.
+Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5.3-verification.md`, `docs/evidence/PH-5.2-verification.md`.

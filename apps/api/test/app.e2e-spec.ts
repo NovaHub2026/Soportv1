@@ -365,4 +365,40 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).get('/api/staff/cases?view=closed').set(asCustomer('cust-view')).expect(403);
   });
 
+
+  it('PH-5.2: staff search by reference, customer and record; over-long terms are refused', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-alice')).send({ category: 'deposits_withdrawals', message: 'Busca', record: { kind: 'withdrawal', reference: 'WD-48213' } }).expect(201);
+    for (const q of [created.body.reference, 'WD-48213', 'cust-alice', 'busca']) {
+      const found = await request(server).get(`/api/staff/cases?view=active&limit=200&q=${encodeURIComponent(q)}`).set(asStaff('staff-ana', 'Ana')).expect(200);
+      expect(found.body.map((c: { id: string }) => c.id)).toContain(created.body.id);
+    }
+    const none = await request(server).get('/api/staff/cases?view=active&q=nada-disso').set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(none.body).toEqual([]);
+    await request(server).get(`/api/staff/cases?view=active&q=${'x'.repeat(101)}`).set(asStaff('staff-ana', 'Ana')).expect(400);
+    await request(server).get('/api/staff/cases?view=active&q=SUP').set(asCustomer('cust-alice')).expect(403);
+  });
+
+
+  it('PH-5.3: saved replies are team templates — any staff creates, only the author or a supervisor edits or removes, customers never see them', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/staff/saved-replies').set(asCustomer('cust-alice')).expect(403);
+    await request(server).post('/api/staff/saved-replies').set(asStaff('staff-ana', 'Ana')).send({ title: '', body: 'x' }).expect(400);
+    const created = await request(server)
+      .post('/api/staff/saved-replies')
+      .set(asStaff('staff-ana', 'Ana'))
+      .send({ title: 'Saque em análise', body: 'Seu saque está em análise pelo time financeiro. Retornamos em breve.', category: 'deposits_withdrawals' })
+      .expect(201);
+    expect(created.body).toMatchObject({ createdById: 'staff-ana', updatedByName: 'Ana', category: 'deposits_withdrawals' });
+    const list = await request(server).get('/api/staff/saved-replies').set(asStaff('staff-bruno', 'Bruno')).expect(200);
+    expect(list.body.map((r: { id: string }) => r.id)).toContain(created.body.id);
+    await request(server).patch(`/api/staff/saved-replies/${created.body.id}`).set(asStaff('staff-bruno', 'Bruno')).send({ title: 'x', body: 'y' }).expect(403);
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const edited = await request(server).patch(`/api/staff/saved-replies/${created.body.id}`).set(supervisor).send({ title: 'Saque em análise (v2)', body: 'Texto novo' }).expect(200);
+    expect(edited.body).toMatchObject({ title: 'Saque em análise (v2)', updatedById: 'staff-carla', category: null });
+    await request(server).delete(`/api/staff/saved-replies/${created.body.id}`).set(asStaff('staff-bruno', 'Bruno')).expect(403);
+    await request(server).delete(`/api/staff/saved-replies/${created.body.id}`).set(asStaff('staff-ana', 'Ana')).expect(204);
+    await request(server).delete(`/api/staff/saved-replies/${created.body.id}`).set(asStaff('staff-ana', 'Ana')).expect(404);
+  });
+
 });

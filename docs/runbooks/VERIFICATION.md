@@ -14,6 +14,7 @@ Verified on: 2026-09-14 (Cycle Audit 1 remediation, `docs/evidence/CYCLE-1-verif
 - Closure job (DEC-0013): the API closes resolved cases after `SUPPORT_FOLLOW_UP_WINDOW_DAYS` (default 7) every `SUPPORT_CLOSURE_INTERVAL_MS` (default 60 000); `SUPPORT_CLOSURE_JOB=off` disables it (tests). Run one API instance. Numeric env values that are not positive numbers fall back to the default with a warning (FND-0014).
 - Dependency overrides: `multer` is pinned to 2.3.0 through root `overrides` (FND-0020); `npm audit --omit=dev` must stay at 0 before a release.
 - Identity (DEC-0008): `SUPPORT_IDENTITY_PROVIDER=simulated` is the only provider; with `NODE_ENV=production` the API refuses to start unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` is set deliberately for an isolated demo. `GET /api/identity/me` shows who the API thinks you are.
+- Saved replies (PH-5.3): `GET/POST /api/staff/saved-replies`, `PATCH/DELETE /api/staff/saved-replies/<id>` (staff; edits of others' replies need `x-simulated-staff-role: supervisor` or `admin`).
 - Orbit records (DEC-0019, PH-4): `SUPPORT_ORBIT_RECORDS=simulated` is the only adapter; `SUPPORT_SIMULATED_ORBIT=unavailable` makes every lookup answer "unavailable" to exercise that experience. `GET /api/staff/cases/<id>/orbit` returns the customer's masked summary and the linked record's current state, or the unavailable state; `GET /api/support/records` lists the customer's own simulated records for contextual entry (PH-4.2); `/api/health` reports `orbitRecords`.
 
 ## Profiles (`GOVERNANCE.md` §7.2–7.3)

@@ -20,7 +20,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-5 `ACTIVE` since 2026-09-14 (`PH-5.md`) — PH-5.1 `APPROVED` 2026-09-14 (`PH-5.1.md`, evidence `../evidence/PH-5.1-verification.md`); next PH-5.2 (filters and search). PH-1..PH-4 `APPROVED` (PH-4 evidence `../evidence/PH-4-phase-approval.md`). Cycle 2 ledger: 1/3. PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`, `../evidence/PH-3-phase-approval.md`). Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`).
+Phase: PH-5 `ACTIVE` since 2026-09-14 (`PH-5.md`) — PH-5.1, PH-5.2 and PH-5.3 `APPROVED` 2026-09-14 (`PH-5.1.md`, `PH-5.2.md`, `PH-5.3.md`; evidence `../evidence/PH-5.1-verification.md`, `../evidence/PH-5.2-verification.md`, `../evidence/PH-5.3-verification.md`); next PH-5.4 (schedule/configuration, supervision overview, metrics, phase closure). PH-1..PH-4 `APPROVED` (PH-4 evidence `../evidence/PH-4-phase-approval.md`). Cycle 2 ledger: 1/3. PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`, `../evidence/PH-3-phase-approval.md`). Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`).
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.

@@ -2,7 +2,7 @@
 Type: VERIFICATION EVIDENCE
 Work item: PH-5.2 — Filters and search
 Recorded on: 2026-09-14
-Revision: base: the PH-5.1 commit plus the PH-5.2 working tree, committed as the next commit on `main` (this record travels with it — §3.4).
+Revision: base `3217c53` plus the PH-5.2 and PH-5.3 working tree, committed together as the next commit on `main` (this record travels with it — §3.4; the shared gate, smoke and CI are recorded in `PH-5.3-verification.md`).
 Environment: as in `PH-4.1-verification.md`. Sequential runs.
 
 ## Claims
@@ -16,10 +16,10 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 | 6 | CI executes the gate on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
 
 ## Smoke
-SMOKE_PLACEHOLDER
+See `PH-5.3-verification.md` "Smoke": observation `search` — searching "WD-48213" under "Todos ativos" listed only SUP-000003; "nada-disso" showed the empty state; "Limpar" restored the list.
 
 ## Final gate run
-GATE_PLACEHOLDER
+See `PH-5.3-verification.md` (same tree): api unit 52/52 (1 new search test), e2e 26/26, web 56/56.
 
 ## CI
-Pending push.
+See `PH-5.3-verification.md`.

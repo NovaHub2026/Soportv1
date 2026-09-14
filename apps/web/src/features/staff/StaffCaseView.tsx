@@ -12,6 +12,7 @@ import {
   type ConsultationTeam,
   RESOLUTION_REASONS,
   type ResolutionReason,
+  type SavedReply,
   type StaffCaseDetail,
   type StaffStatusTarget,
   type UpdateCaseInput,
@@ -67,6 +68,16 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const [consultQuestion, setConsultQuestion] = useState("");
   const [transferring, setTransferring] = useState(false);
   const [transferTarget, setTransferTarget] = useState<string>("");
+  const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
+  // Saved replies are read once per case view; inserting one only edits the draft (PH-5.3).
+  useEffect(() => {
+    const controller = new AbortController();
+    staffApi
+      .listSavedReplies(identity, controller.signal)
+      .then(setSavedReplies)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [identity]);
   const logRef = useRef<HTMLOListElement>(null);
   const attachmentClient = useMemo(() => staffApi.attachments(identity, caseId), [identity, caseId]);
   // Monotonic request counter: a poll that started before an action must not overwrite the action's result.
@@ -516,6 +527,24 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
             <label htmlFor="staff-reply" className={styles.composerLabel}>
               {composerMode === "note" ? t.staff.notes.noteLabel : t.staff.replyLabel}
             </label>
+            {composerMode === "reply" && savedReplies.length > 0 && (
+              <select
+                className={styles.select}
+                aria-label={t.staff.savedReplies.picker}
+                value=""
+                onChange={(event) => {
+                  const chosen = savedReplies.find((r) => r.id === event.target.value);
+                  if (chosen) setDraft((current) => (current.trim() ? `${current}\n${chosen.body}` : chosen.body));
+                }}
+              >
+                <option value="">{t.staff.savedReplies.pickerNone}</option>
+                {savedReplies.map((reply) => (
+                  <option key={reply.id} value={reply.id}>
+                    {reply.title}
+                  </option>
+                ))}
+              </select>
+            )}
             <textarea
               id="staff-reply"
               className={styles.composerInput}

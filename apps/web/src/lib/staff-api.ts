@@ -13,6 +13,8 @@ import {
   type PostNoteInput,
   type RequestConsultationInput,
   type ResolveCaseInput,
+  type SavedReply,
+  type SavedReplyInput,
   SIMULATED_IDENTITY_HEADERS,
   type StaffCaseDetail,
   type StaffQueueView,
@@ -36,10 +38,26 @@ export const staffIdentityHeaders = (identity: StaffIdentity): Record<string, st
 });
 const staffHeaders = staffIdentityHeaders;
 
+/** Search and filters of the queue (PH-5.2); empty values are omitted from the request. */
+export interface QueueFilters {
+  q?: string;
+  category?: string;
+  priority?: string;
+  agentId?: string;
+}
+
+export function queueFilterQuery(filters?: QueueFilters): string {
+  if (!filters) return "";
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) if (value && value.trim()) params.set(key, value.trim());
+  const encoded = params.toString();
+  return encoded ? `&${encoded}` : "";
+}
+
 export const staffApi = {
-  listCases: (identity: StaffIdentity, view: StaffQueueView, signal?: AbortSignal, page?: { limit: number; offset: number }) =>
+  listCases: (identity: StaffIdentity, view: StaffQueueView, signal?: AbortSignal, page?: { limit: number; offset: number }, filters?: QueueFilters) =>
     apiRequest<CaseSummary[]>(
-      `/staff/cases?view=${view}${page ? `&limit=${page.limit}&offset=${page.offset}` : ""}`,
+      `/staff/cases?view=${view}${page ? `&limit=${page.limit}&offset=${page.offset}` : ""}${queueFilterQuery(filters)}`,
       staffHeaders(identity),
       { signal },
     ),
@@ -83,6 +101,11 @@ export const staffApi = {
       method: "POST",
       body: input,
     }),
+  listSavedReplies: (identity: StaffIdentity, signal?: AbortSignal) => apiRequest<SavedReply[]>("/staff/saved-replies", staffHeaders(identity), { signal }),
+  createSavedReply: (identity: StaffIdentity, input: SavedReplyInput) => apiRequest<SavedReply>("/staff/saved-replies", staffHeaders(identity), { method: "POST", body: input }),
+  updateSavedReply: (identity: StaffIdentity, id: string, input: SavedReplyInput) =>
+    apiRequest<SavedReply>(`/staff/saved-replies/${id}`, staffHeaders(identity), { method: "PATCH", body: input }),
+  deleteSavedReply: (identity: StaffIdentity, id: string) => apiRequest<null>(`/staff/saved-replies/${id}`, staffHeaders(identity), { method: "DELETE" }),
   attachments: (identity: StaffIdentity, caseId: string): AttachmentClient => ({
     upload: (file) => uploadFile(`/staff/cases/${caseId}/attachments`, staffHeaders(identity), file),
     fetchBlob: (attachmentId, signal) => fetchBlob(`/staff/cases/${caseId}/attachments/${attachmentId}`, staffHeaders(identity), signal),

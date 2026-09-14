@@ -194,6 +194,21 @@ export const incidents = pgTable('incidents', {
   resolvedById: text('resolved_by_id'),
 });
 
+/** Team-maintained reply templates (PH-5.3). Every change is attributed (RULE-SUP-09). */
+export const savedReplies = pgTable('saved_replies', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  category: caseCategoryEnum('category'),
+  createdById: text('created_by_id').notNull(),
+  createdByName: text('created_by_name'),
+  updatedById: text('updated_by_id').notNull(),
+  updatedByName: text('updated_by_name'),
+  createdAt: tz('created_at').notNull().defaultNow(),
+  updatedAt: tz('updated_at').notNull().defaultNow(),
+});
+
+export type SavedReplyRow = typeof savedReplies.$inferSelect;
 export type SupportCaseRow = typeof supportCases.$inferSelect;
 export type CaseAttachmentRow = typeof caseAttachments.$inferSelect;
 export type CaseConsultationRow = typeof caseConsultations.$inferSelect;

@@ -94,6 +94,18 @@ describe("StaffQueue", () => {
     expect(requests[0].url).toBe("/api/staff/cases?view=active&limit=50&offset=0");
   });
 
+  test("PH-5.2: typing a search term and picking filters sends them with the list request", async () => {
+    const { requests } = mockFetch(() => ({ body: [] }));
+    render(<StaffQueue identity={ana} view="active" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    await screen.findByText("Nenhum caso ativo no momento.");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Buscar casos" }), { target: { value: "WD-48213" } });
+    fireEvent.change(screen.getByLabelText("Filtrar por prioridade"), { target: { value: "high" } });
+    await waitFor(() => expect(requests.at(-1)?.url).toContain("q=WD-48213"));
+    expect(requests.at(-1)?.url).toContain("priority=high");
+    fireEvent.click(screen.getByRole("button", { name: "Limpar" }));
+    await waitFor(() => expect(requests.at(-1)?.url).toBe("/api/staff/cases?view=active&limit=50&offset=0"));
+  });
+
   test("explains an empty queue per view", async () => {
     mockFetch(() => ({ body: [] }));
     render(<StaffQueue identity={ana} view="mine" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
@@ -392,6 +404,21 @@ describe("StaffCaseView", () => {
     expect(card.textContent).toContain("TX7f…9k2Q");
     const current = await screen.findByTestId("orbit-record-current");
     expect(current.textContent).toContain("Concluído");
+  });
+
+
+  test("PH-5.3: a saved reply can be inserted into the reply draft without sending", async () => {
+    const reply = { id: "r1", title: "Saque em análise", body: "Seu saque está em análise.", category: null, createdById: "staff-ana", createdByName: "Ana", updatedById: "staff-ana", updatedByName: "Ana", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const { requests } = mockFetch((request) => {
+      if (request.url.endsWith("/saved-replies")) return { body: [reply] };
+      if (request.url.endsWith("/orbit")) return { body: orbitAvailable };
+      return { body: { ...detail, assignedAgentId: "staff-ana", status: "in_progress" } };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    const picker = await screen.findByLabelText("Inserir resposta salva");
+    fireEvent.change(picker, { target: { value: "r1" } });
+    expect((screen.getByLabelText("Resposta ao cliente") as HTMLTextAreaElement).value).toBe("Seu saque está em análise.");
+    expect(requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages"))).toHaveLength(0);
   });
 
 });

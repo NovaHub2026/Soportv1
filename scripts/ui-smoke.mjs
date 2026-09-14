@@ -166,6 +166,14 @@ try {
     note('created', `case created from the panel with reference ${reference}, status "Recebido"`);
     await shot(desktop, '03-conversation-new');
 
+    // PH-5.3: a saved reply exists before the staff member opens the case (created through the API, as the panel would).
+    const savedReply = await fetch(`${API}/api/staff/saved-replies`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-simulated-staff-id': 'staff-carla', 'x-simulated-staff-role': 'supervisor', 'x-simulated-staff-name': 'Carla Nunes' },
+      body: JSON.stringify({ title: 'Saque em análise', body: 'Seu saque está em análise pelo time financeiro.', category: 'deposits_withdrawals' }),
+    });
+    if (savedReply.status !== 201) throw new Error(`Saved reply not created: ${savedReply.status}`);
+
     // Staff side in the real workspace (PH-1.4): queue → open → take → reply.
     const staffPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
     await staffPage.goto(`${WEB}/staff`);
@@ -185,6 +193,10 @@ try {
     await staffPage.getByText('staff-ana').first().waitFor();
     await staffPage.getByText('Em atendimento').first().waitFor();
     note('staff-take', 'taking the case shows Ana as responsible and moves the status to "Em atendimento"');
+    await staffPage.getByLabel('Inserir resposta salva').selectOption({ label: 'Saque em análise' });
+    if ((await staffPage.getByLabel('Resposta ao cliente').inputValue()) !== 'Seu saque está em análise pelo time financeiro.') throw new Error('Saved reply was not inserted');
+    await staffPage.getByLabel('Resposta ao cliente').fill('');
+    note('saved-reply', 'choosing "Saque em análise" in the composer inserted the saved text into the draft without sending; the agent can edit it (PH-5.3)');
 
     const replyText = 'Olá! Aqui é a Ana, do suporte. Já estou verificando o seu saque.';
     await staffPage.getByLabel('Resposta ao cliente').fill(replyText);
@@ -346,7 +358,7 @@ try {
     await staffPage.getByRole('button', { name: 'Confirmar transferência' }).click();
     await staffPage.getByText('staff-bruno').first().waitFor({ timeout: 5000 });
     await staffPage.getByText('Transferido para staff-bruno por Ana Ribeiro').waitFor({ timeout: 5000 });
-    await staffPage.getByLabel('Prioridade').selectOption('high');
+    await staffPage.getByLabel('Prioridade', { exact: true }).selectOption('high');
     await staffPage.getByText('Prioridade: Normal → Alta').waitFor({ timeout: 5000 });
     note('transfer-priority', 'Ana transferred the case to Bruno (history: "Transferido para staff-bruno por Ana Ribeiro") and raised the priority to Alta with history');
     await shot(staffPage, '15-staff-transferred');
@@ -437,6 +449,16 @@ try {
     await staffPage2.getByTestId('staff-case-record').getByText('TX7f…9k2Q').waitFor({ timeout: 5000 });
     await staffPage2.getByTestId('orbit-record-current').getByText('Em processamento').waitFor({ timeout: 5000 });
     note('record-staff', 'staff see the withdrawal card with the masked destination captured at opening and the record\'s current state from the simulated Orbit');
+    // PH-5.2: search finds the case by record reference and by customer id.
+    await staffPage2.getByRole('tab', { name: 'Todos ativos' }).click();
+    await staffPage2.getByRole('searchbox', { name: 'Buscar casos' }).fill('WD-48213');
+    // The search is debounced: wait until the other active case has left the list.
+    await staffPage2.getByRole('button', { name: /SUP-000002/ }).waitFor({ state: 'detached', timeout: 5000 });
+    await staffPage2.getByRole('button', { name: /SUP-000003/ }).waitFor({ timeout: 5000 });
+    await staffPage2.getByRole('searchbox', { name: 'Buscar casos' }).fill('nada-disso');
+    await staffPage2.getByText('Nenhum caso ativo no momento.').waitFor({ timeout: 5000 });
+    await staffPage2.getByRole('button', { name: 'Limpar' }).click();
+    note('search', 'searching "WD-48213" under "Todos ativos" lists only SUP-000003; an unknown term shows the honest empty state; "Limpar" restores the list (PH-5.2)');
     await shot(staffPage2, '19-staff-record-case');
     await staffPage2.close();
     // Asking again about the same record suggests continuing SUP-000003 instead of opening a duplicate.

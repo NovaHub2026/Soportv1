@@ -109,7 +109,8 @@ export class StaffCasesController {
 
   @Get()
   list(@CurrentActor() actor: StaffActor, @Query(new ZodValidationPipe(staffListQuerySchema)) query: StaffListQuery): Promise<CaseSummary[]> {
-    return this.cases.listStaffCases(actor, query.view, { limit: query.limit, offset: query.offset });
+    const { view, limit, offset, ...filters } = query;
+    return this.cases.listStaffCases(actor, view, { limit, offset }, filters);
   }
 
   @Get(':id')

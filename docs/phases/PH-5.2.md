@@ -1,6 +1,6 @@
 # PH-5.2 — Filters and search
 Type: SUBPHASE TECHNICAL PLAN
-Status: PLANNED
+Status: APPROVED
 Parent: `PH-5.md`
 Feature context: `../features/FEAT-STAFF/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`
 
@@ -18,8 +18,11 @@ Staff find a specific case in any view by typing what they have — a case refer
 Acceptance evidence: `../evidence/PH-5.2-verification.md`.
 
 ## Work performed and important decisions
-Filled at approval.
+- `staffListQuerySchema` += `q`, `category`, `priority`, `agentId`; `searchClauses()` in the service (reference-looking terms match the number exactly; `ILIKE` with escaped wildcards on customer id, subject and record reference; `agentId=unassigned`).
+- Web: search box (300 ms debounce), three selects and "Limpar" above the tabs; filters travel with every list request and refresh.
+- Decision: search stays on case columns (no message bodies) so it never reveals more than the list already shows (§10.2).
 
 ## Verification, limitations and context updates
 Evidence: `../evidence/PH-5.2-verification.md`. Limitations: `ILIKE` over three columns without a trigram index (fine at this scale; revisit with PH-8 sizing).
-Context updated at approval: `PH-5.md`, `ROADMAP.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-STAFF/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`.
+Context updated: `PH-5.md`, `ROADMAP.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-STAFF/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`.
+Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review).
