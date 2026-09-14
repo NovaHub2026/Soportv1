@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SupportPanel } from "@/features/support/SupportPanel";
 import { dictionary as t } from "@/i18n";
 import { ApiError, whoAmI } from "@/lib/api";
-import { allowedHostOrigins, isHostMessage, type PanelToHostMessage } from "./embed-protocol";
+import { isHostMessage, type PanelToHostMessage } from "./embed-protocol";
 import styles from "./embed.module.css";
 
 type State =
@@ -20,7 +20,7 @@ type State =
  * from an allowed origin; the token lives in memory only; the API verifies it with the broker on every fresh
  * token, and a refusal asks the host for a refreshed one instead of showing anyone's data.
  */
-export function EmbeddedSupport({ hostOrigins = allowedHostOrigins(process.env.NEXT_PUBLIC_EMBED_HOST_ORIGINS) }: { hostOrigins?: string[] }) {
+export function EmbeddedSupport({ hostOrigins }: { hostOrigins: string[] }) {
   const [state, setState] = useState<State>(hostOrigins.length === 0 ? { name: "refused" } : { name: "waiting" });
   const [openCase, setOpenCase] = useState<{ caseId: string; seq: number; customerId: string } | null>(null);
   const hostOrigin = useMemo(() => hostOrigins, [hostOrigins]);

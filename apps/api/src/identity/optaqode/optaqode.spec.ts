@@ -89,6 +89,26 @@ describe('optaqode configuration (PH-13, DEC-0045, DEC-0046)', () => {
     expect(resolveOrbitRecordsName(real)).toBe('optaqode');
     expect(resolveStaffDirectoryName(real)).toBe('optaqode'); // follows the records adapter
     expect(resolveStaffDirectoryName({ ...real, SUPPORT_STAFF_DIRECTORY: 'simulated' })).toBe('simulated');
+    // The demo composition (DEC-0047): simulated staff beside the real customer path, named in health, refused in production without the switch.
+    const demo = { SUPPORT_IDENTITY_PROVIDER: 'optaqode', SUPPORT_SIMULATED_STAFF: 'true', ...BASE };
+    expect(describeAdapters(demo).identity).toBe('optaqode+simulated-staff');
+    expect(() => resolveIdentityProviderName({ ...demo, NODE_ENV: 'production' })).toThrow(/simulated staff picker/);
+    expect(resolveIdentityProviderName({ ...demo, NODE_ENV: 'production', SUPPORT_ALLOW_SIMULATED_IDENTITY: 'true' })).toBe('optaqode');
+    expect(readOptaqodeConfig({ [OPTAQODE_ENV.apiBaseUrl]: 'http://127.0.0.1:3005/api/v1' }).apiBaseUrl).toBe('http://127.0.0.1:3005/api/v1');
+  });
+});
+
+describe('composite identity (demo, DEC-0047)', () => {
+  it('routes a bearer to the real provider, honours simulated staff headers only, and refuses a simulated customer header', async () => {
+    const { CompositeIdentity } = await import('../composite-identity.js');
+    const { SimulatedOrbitIdentity } = await import('../simulated-orbit-identity.js');
+    const real = { resolve: async (h: { authorization?: string }) => (h.authorization === 'Bearer ok' ? ({ kind: 'customer', id: 'PRF_1', source: 'orbit' } as const) : null) };
+    const composite = new CompositeIdentity(real, new SimulatedOrbitIdentity());
+    await expect(composite.resolve({ authorization: 'Bearer ok' })).resolves.toMatchObject({ kind: 'customer', id: 'PRF_1' });
+    await expect(composite.resolve({ 'x-simulated-staff-id': 'staff-carla' })).resolves.toMatchObject({ kind: 'staff', id: 'staff-carla', role: 'supervisor' });
+    await expect(composite.resolve({ 'x-simulated-customer-id': 'cust-alice' })).resolves.toBeNull();
+    await expect(composite.resolve({ authorization: 'Bearer ok', 'x-simulated-staff-id': 'staff-carla' })).resolves.toMatchObject({ kind: 'customer' }); // the bearer wins
+    await expect(composite.resolve({})).resolves.toBeNull();
   });
 });
 

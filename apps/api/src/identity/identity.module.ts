@@ -1,4 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { CompositeIdentity } from './composite-identity.js';
 import { IdentityController } from './identity.controller.js';
 import { ORBIT_IDENTITY, type OrbitIdentityPort } from './identity.types.js';
 import { SimulatedOrbitIdentity } from './simulated-orbit-identity.js';
@@ -46,30 +47,45 @@ export function resolveStaffDirectoryName(env: NodeJS.ProcessEnv): AdapterName {
   return name;
 }
 
+/** Simulated staff beside the real customer path (PH-13.3 demo, DEC-0047): `SUPPORT_SIMULATED_STAFF=true`. */
+export function simulatedStaffRequested(env: NodeJS.ProcessEnv): boolean {
+  return env.SUPPORT_SIMULATED_STAFF?.trim().toLowerCase() === 'true';
+}
+
+function refuseSimulationInProduction(env: NodeJS.ProcessEnv, what: string): void {
+  // Case-insensitive: "Production" must not slip past the guard (Cycle Audit 1, FND-0018).
+  if (env.NODE_ENV?.trim().toLowerCase() === 'production' && env.SUPPORT_ALLOW_SIMULATED_IDENTITY !== 'true') {
+    throw new Error(
+      `Refusing to start: ${what} trusts request headers and must not run in production. ` +
+        'Set SUPPORT_ALLOW_SIMULATED_IDENTITY=true only for a deliberately isolated demo.',
+    );
+  }
+}
+
 /**
  * Chooses the identity provider from the environment and refuses unsafe combinations. The simulated
  * provider trusts plain headers, so it may only run in production with an explicit, deliberate opt-in
- * (an isolated demo). The `optaqode` provider verifies the broker's tokens itself and needs its material.
+ * (an isolated demo). The `optaqode` provider proves the broker's tokens and needs its configuration.
  */
 export function resolveIdentityProviderName(env: NodeJS.ProcessEnv): IdentityProviderName {
   const name = adapterName(env, 'SUPPORT_IDENTITY_PROVIDER', 'identity provider');
   if (name === 'optaqode') {
     requireIdentityConfig(readOptaqodeConfig(env));
+    if (simulatedStaffRequested(env)) refuseSimulationInProduction(env, 'the simulated staff picker (SUPPORT_SIMULATED_STAFF)');
     return name;
   }
-  // Case-insensitive: "Production" must not slip past the guard (Cycle Audit 1, FND-0018).
-  if (env.NODE_ENV?.trim().toLowerCase() === 'production' && env.SUPPORT_ALLOW_SIMULATED_IDENTITY !== 'true') {
-    throw new Error(
-      'Refusing to start: the simulated identity provider trusts request headers and must not run in production. ' +
-        'Set SUPPORT_ALLOW_SIMULATED_IDENTITY=true only for a deliberately isolated demo.',
-    );
-  }
+  refuseSimulationInProduction(env, 'the simulated identity provider');
   return name;
 }
 
-/** What `/api/health` reports: simulation is never hidden (DEC-0003). */
-export function describeAdapters(env: NodeJS.ProcessEnv = process.env): { identity: AdapterName; orbitRecords: AdapterName; staffDirectory: AdapterName } {
-  return { identity: resolveIdentityProviderName(env), orbitRecords: resolveOrbitRecordsName(env), staffDirectory: resolveStaffDirectoryName(env) };
+/** What `/api/health` reports: simulation is never hidden (DEC-0003) — a demo composition says so by name. */
+export function describeAdapters(env: NodeJS.ProcessEnv = process.env): { identity: string; orbitRecords: AdapterName; staffDirectory: AdapterName } {
+  const identity = resolveIdentityProviderName(env);
+  return {
+    identity: identity === 'optaqode' && simulatedStaffRequested(env) ? 'optaqode+simulated-staff' : identity,
+    orbitRecords: resolveOrbitRecordsName(env),
+    staffDirectory: resolveStaffDirectoryName(env),
+  };
 }
 
 @Module({})
@@ -99,7 +115,11 @@ export class IdentityModule {
         {
           provide: ORBIT_IDENTITY,
           // Evaluated at bootstrap so the environment check runs where the API actually starts.
-          useFactory: (staff: StaffDirectory, shared: OptaqodeShared | null): OrbitIdentityPort => (resolveIdentityProviderName(env) === 'optaqode' && shared ? new OptaqodeIdentity(shared.config, staff, shared.client) : new SimulatedOrbitIdentity()),
+          useFactory: (staff: StaffDirectory, shared: OptaqodeShared | null): OrbitIdentityPort => {
+            if (resolveIdentityProviderName(env) !== 'optaqode' || !shared) return new SimulatedOrbitIdentity();
+            const real = new OptaqodeIdentity(shared.config, staff, shared.client);
+            return simulatedStaffRequested(env) ? new CompositeIdentity(real, new SimulatedOrbitIdentity()) : real;
+          },
           inject: [STAFF_DIRECTORY, OPTAQODE_SHARED],
         },
         {

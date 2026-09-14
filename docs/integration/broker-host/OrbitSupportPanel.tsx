@@ -8,7 +8,7 @@
  * header's right cluster (`Header.tsx`, next to `NotificationsButton`) toggles `open`; add "/suporte" to
  * `PLATFORM_CONFIG.app.routePaths` if a full page is wanted; set `NEXT_PUBLIC_ORBIT_SUPPORT_URL` to the panel's
  * origin (e.g. https://support.orbitmarket.pro). The panel's own build lists this host in
- * `NEXT_PUBLIC_EMBED_HOST_ORIGINS`. The anti-inspection guard must ignore the iframe's size changes.
+ * `SUPPORT_EMBED_HOST_ORIGINS`. The anti-inspection guard must ignore the iframe's size changes.
  *
  * The token is read from the same cookie the broker's own browser client uses (`optaqode.app.token`,
  * httpOnly: false — `src/lib/auth/session.ts`); the broker's refresh keeps working because the host re-posts the

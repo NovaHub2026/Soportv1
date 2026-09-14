@@ -71,7 +71,8 @@ export function readOptaqodeConfig(env: NodeJS.ProcessEnv): OptaqodeConfig {
   } catch {
     throw new Error(`${OPTAQODE_ENV.apiBaseUrl}="${apiBaseUrl}" is not a URL`);
   }
-  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && !parsed.hostname.endsWith('.localhost') && !parsed.hostname.startsWith('local-')) {
+  const loopback = parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]' || parsed.hostname.endsWith('.localhost') || parsed.hostname.startsWith('local-');
+  if (parsed.protocol !== 'https:' && !loopback) {
     throw new Error(`${OPTAQODE_ENV.apiBaseUrl} must use https (customer tokens travel on it); plain http is allowed for localhost only`);
   }
   return {

@@ -30,7 +30,7 @@ export function isHostMessage(data: unknown): data is HostToPanelMessage {
   return type === "orbit-support:session" || type === "orbit-support:signout" || type === "orbit-support:open-case";
 }
 
-/** The origins allowed to host the panel: `NEXT_PUBLIC_EMBED_HOST_ORIGINS` (comma-separated), resolved at build time. */
+/** The origins allowed to host the panel: `SUPPORT_EMBED_HOST_ORIGINS` (comma-separated), read by the `/embed` page at request time. */
 export function allowedHostOrigins(raw: string | undefined): string[] {
   return (raw ?? "")
     .split(",")
