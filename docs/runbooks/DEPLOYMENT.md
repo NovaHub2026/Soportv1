@@ -15,7 +15,7 @@ The browser only ever talks to the web origin. TLS termination, the public domai
 ## First start
 1. `cp .env.example .env`; set `POSTGRES_PASSWORD` (required — compose refuses an empty value) and `WEB_ORIGIN`. `SUPPORT_ALLOW_SIMULATED_IDENTITY` defaults to `false`, so the API refuses to start in production mode: set it to `true` only for a demo on this machine — it makes the API trust `x-simulated-*` headers (DEC-0008, BL-001). The web is published on 127.0.0.1 only and the API is not published (DEC-0034 a). A real deployment needs a real identity provider first — none exists today, so a production release is not possible yet (see `RELEASE.md`).
 2. `docker compose -f docker/compose.yml up -d --build` — the API applies the committed migrations on start (`apps/api/drizzle/`), so an upgrade is "pull, build, up".
-3. Check: `curl -s http://localhost:3000/api/health` → `{"status":"ok","database":"postgres (server)","identity":"simulated","orbitRecords":"simulated",…}`. `database` must say `postgres (server)`; `identity: simulated` is the honest label of the demo switch.
+3. Check: `curl -s http://localhost:3000/api/health` → `{"status":"ok","database":"postgres (server)","identity":"simulated","orbitRecords":"simulated","staffDirectory":"simulated",…}`. `database` must say `postgres (server)`; `identity: simulated` is the honest label of the demo switch.
 4. Open `http://localhost:3000` (customer host, labeled Simulação) and `http://localhost:3000/staff`.
 
 ## Configuration reference
@@ -52,3 +52,6 @@ When no Docker engine is available, `npm run build` then `node scripts/demo-loca
 - One API instance (event bus, limits and jobs are in-process). Scaling out needs a shared channel and a shared limit store — a later decision.
 - No mail provider: the e-mail channel writes the labeled outbox only (DEC-0025); choosing a provider is a paid-service decision of the Owner.
 - The simulated identity/records adapters are development stand-ins (DEC-0003); a public deployment with them would let anyone claim any identity — hence the refusal in production mode without the explicit switch.
+
+## Orbit adapters (PH-13, DEC-0045)
+The API talks to the broker only when an adapter is set to `optaqode` (`SUPPORT_IDENTITY_PROVIDER`, `SUPPORT_ORBIT_RECORDS`, `SUPPORT_STAFF_DIRECTORY` — the directory follows the records adapter by default); `simulated` remains the default and the demo's setting. With `optaqode` the API refuses to start unless `ORBIT_API_BASE_URL` (https) is set, plus `ORBIT_SERVICE_TOKEN` for records/directory and exactly one of `ORBIT_JWT_SECRET` / `ORBIT_JWT_JWKS_URL` for identity (`.env.example`). `GET /api/health` names the three adapters; a deployment that reports `simulated` anywhere is a demo (DEC-0003). Nothing is written to the broker; a broker outage shows as "indisponível" in the workspace, never as a wrong answer (RULE-SUP-07). The live connection is PH-13.3 (`../integration/ORBIT-INTEGRATION.md` §7 lists what the backend must provide).

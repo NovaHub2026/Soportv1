@@ -20,3 +20,5 @@ Enables progress now and keeps Orbit's financial/identity authority outside supp
 
 ## Verification, recovery and revisit conditions
 Every demonstration states whether it uses simulation or real Orbit (context §14, item 10). Revisit when Orbit access is granted (BL-001) or if the Owner decides support must live inside Orbit's codebase.
+
+Revisited 2026-09-14 (DEC-0045, PH-13): the broker's frontend became available read-only. The decision holds — the dedicated project and the boundary stay; the boundary gained real adapters (`optaqode`) behind the same ports, and the customer panel is planned to ship inside the broker's app as a component that talks to this API (map §6), which alternative (a) foresaw as "revisit if the Owner grants access".

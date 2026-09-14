@@ -94,12 +94,23 @@ export function maskEmail(email: string): string {
   return `${local[0]}***@${host[0] ?? ""}***${tld}`;
 }
 
-/** Keeps the country code and the last four digits: `+55 11 99999-1234` → `+55 ••• ••• 1234`. */
+/** Three-digit calling codes (E.164 has no separator to tell `+55 11…` from `+351 9…`): 2xx except 20/27, 35x/37x/38x, 42x, 50x, 59x, 67x–69x, 85x, 88x, 96x/97x/99x. */
+const THREE_DIGIT_CALLING_CODE = /^(2[1-689]|35|37|38|42|50|59|67|68|69|85|88|96|97|99)/;
+
+/**
+ * Keeps the country code and the last four digits: `+55 11 99999-1234` → `+55 ••• ••• 1234`. A normalized E.164
+ * number (`+5511999991234`, what the broker stores) is split by the calling-code table above (PH-13 fixture).
+ */
 export function maskPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 4) return "•••";
   const last = digits.slice(-4);
-  const code = phone.trim().match(/^\+(\d{1,3})/);
-  const country = code ? `+${code[1]} ` : "";
-  return `${country}••• ••• ${last}`;
+  const trimmed = phone.trim();
+  const separated = trimmed.match(/^\+(\d{1,3})(?=[\s().-]|$)/);
+  let country = separated ? separated[1] : null;
+  if (!country && /^\+\d{5,}$/.test(trimmed)) {
+    const rest = trimmed.slice(1);
+    country = /^[17]/.test(rest) ? rest.slice(0, 1) : THREE_DIGIT_CALLING_CODE.test(rest) ? rest.slice(0, 3) : rest.slice(0, 2);
+  }
+  return `${country ? `+${country} ` : ""}••• ••• ${last}`;
 }
