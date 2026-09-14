@@ -1,4 +1,7 @@
 import {
+  type AccessRecoveryOutcomeInput,
+  type AccessRecoveryRequest,
+  type AccessRecoveryStatus,
   type AnswerConsultationInput,
   type AssignCaseInput,
   type CaseConsultation,
@@ -109,6 +112,11 @@ export const staffApi = {
   updateSettings: (identity: StaffIdentity, input: SupportSettingsInput) => apiRequest<SupportSettings>("/staff/settings", staffHeaders(identity), { method: "PUT", body: input }),
   overview: (identity: StaffIdentity, signal?: AbortSignal) => apiRequest<SupervisionOverview>("/staff/overview", staffHeaders(identity), { signal }),
   metrics: (identity: StaffIdentity, days: number, signal?: AbortSignal) => apiRequest<ServiceMetrics>(`/staff/metrics?days=${days}`, staffHeaders(identity), { signal }),
+  /** Access recovery requests (PH-7.1): unverified contacts, never joined to accounts. */
+  listAccessRecovery: (identity: StaffIdentity, status?: AccessRecoveryStatus, signal?: AbortSignal) =>
+    apiRequest<AccessRecoveryRequest[]>(`/staff/access-recovery${status ? `?status=${status}` : ""}`, staffHeaders(identity), { signal }),
+  handleAccessRecovery: (identity: StaffIdentity, id: string, input: AccessRecoveryOutcomeInput) =>
+    apiRequest<AccessRecoveryRequest>(`/staff/access-recovery/${id}/handle`, staffHeaders(identity), { method: "POST", body: input }),
   listSavedReplies: (identity: StaffIdentity, signal?: AbortSignal) => apiRequest<SavedReply[]>("/staff/saved-replies", staffHeaders(identity), { signal }),
   createSavedReply: (identity: StaffIdentity, input: SavedReplyInput) => apiRequest<SavedReply>("/staff/saved-replies", staffHeaders(identity), { method: "POST", body: input }),
   updateSavedReply: (identity: StaffIdentity, id: string, input: SavedReplyInput) =>

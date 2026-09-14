@@ -4,6 +4,7 @@ import { message, mockFetch, summary } from "@/features/support/test-utils";
 import type { StaffIdentity } from "@/lib/staff-api";
 import { StaffCaseView } from "./StaffCaseView";
 import { StaffQueue } from "./StaffQueue";
+import { AccessRecoveryPanel } from "./AccessRecoveryPanel";
 import { SupervisionPanel } from "./SupervisionPanel";
 
 afterEach(() => vi.restoreAllMocks());
@@ -473,4 +474,25 @@ describe("StaffCaseView", () => {
     expect(onOpenCase).toHaveBeenCalledWith("od");
   });
 
+  test("PH-7.1: the recovery page lists unverified contacts and records an attributable outcome", async () => {
+    const received = { id: "33333333-3333-4333-8333-333333333333", reference: "REC-000001", contact: "alice@example.com", description: "O código nunca chega.", status: "received", createdAt: new Date().toISOString(), handledById: null, handledByName: null, handledAt: null, note: null };
+    let handled = false;
+    const { requests } = mockFetch((request) => {
+      if (request.url.endsWith("/handle")) {
+        handled = true;
+        return { body: { ...received, status: "forwarded", handledById: "staff-ana", handledByName: "Ana Ribeiro", handledAt: new Date().toISOString(), note: request.body && typeof request.body === "object" ? (request.body as { note?: string }).note ?? null : null } };
+      }
+      return { body: handled ? [] : [received] };
+    });
+    render(<AccessRecoveryPanel identity={ana} onClose={() => {}} />);
+    expect((await screen.findByTestId("recovery-request")).textContent).toContain("REC-000001");
+    expect(screen.getByText(/alice@example.com/)).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Observação (opcional)"), { target: { value: "Retornei por e-mail." } });
+    fireEvent.click(screen.getByRole("button", { name: "Encaminhar ao processo de verificação" }));
+    expect((await screen.findByRole("status")).textContent).toContain("REC-000001 encaminhado");
+    const call = requests.find((r) => r.url.endsWith("/handle"))!;
+    expect(call.body).toEqual({ outcome: "forwarded", note: "Retornei por e-mail." });
+    await waitFor(() => expect(screen.queryByTestId("recovery-request")).toBeNull());
+    expect(screen.getByText("Nenhum pedido neste filtro.")).toBeDefined();
+  });
 });

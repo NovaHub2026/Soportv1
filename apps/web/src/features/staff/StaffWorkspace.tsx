@@ -7,6 +7,7 @@ import { dictionary as t } from "@/i18n";
 import { SIMULATED_STAFF, useSimulatedStaff } from "@/lib/simulated-session";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
 import { type StaffIdentity, staffIdentityHeaders } from "@/lib/staff-api";
+import { AccessRecoveryPanel } from "./AccessRecoveryPanel";
 import { SavedRepliesPanel } from "./SavedRepliesPanel";
 import { StaffCaseView } from "./StaffCaseView";
 import { SupervisionPanel } from "./SupervisionPanel";
@@ -30,7 +31,7 @@ export function StaffWorkspace() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [caseSignal, setCaseSignal] = useState<CaseSignal | null>(null);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
-  const [page, setPage] = useState<"cases" | "replies" | "supervision">("cases");
+  const [page, setPage] = useState<"cases" | "replies" | "supervision" | "recovery">("cases");
   const identity = useMemo<StaffIdentity>(
     () => ({ staffId: staff.id, displayName: staff.name, role: staff.role }),
     [staff.id, staff.name, staff.role],
@@ -66,6 +67,9 @@ export function StaffWorkspace() {
           <button type="button" className={styles.secondaryButton} onClick={() => setPage(page === "replies" ? "cases" : "replies")} aria-pressed={page === "replies"}>
             {t.staff.savedReplies.open}
           </button>
+          <button type="button" className={styles.secondaryButton} onClick={() => setPage(page === "recovery" ? "cases" : "recovery")} aria-pressed={page === "recovery"}>
+            {t.staff.accessRecovery.open}
+          </button>
           {identity.role !== "agent" && (
             <button type="button" className={styles.secondaryButton} onClick={() => setPage(page === "supervision" ? "cases" : "supervision")} aria-pressed={page === "supervision"}>
               {t.staff.supervision.open}
@@ -91,6 +95,7 @@ export function StaffWorkspace() {
       </header>
 
       {page === "replies" && <SavedRepliesPanel identity={identity} onClose={() => setPage("cases")} />}
+      {page === "recovery" && <AccessRecoveryPanel identity={identity} onClose={() => setPage("cases")} />}
       {page === "supervision" && (
         <SupervisionPanel
           identity={identity}

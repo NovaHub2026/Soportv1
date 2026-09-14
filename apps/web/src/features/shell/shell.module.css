@@ -290,3 +290,19 @@
   padding: 0;
   text-decoration: underline;
 }
+
+.recoveryLink {
+  background: none;
+  border: 0;
+  color: var(--color-text-muted, #a9b1c6);
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 4px;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.recoveryLink:hover,
+.recoveryLink[aria-pressed="true"] {
+  color: var(--color-text, #e8ecf5);
+}

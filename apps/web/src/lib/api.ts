@@ -1,4 +1,6 @@
 import {
+  type AccessRecoveryInput,
+  type AccessRecoveryReceipt,
   type CaseAttachment,
   type CaseMessage,
   type Availability,
@@ -150,3 +152,8 @@ export function newClientMessageId(): string {
   if (cryptoApi && "randomUUID" in cryptoApi) return cryptoApi.randomUUID();
   return `cm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+/** Routes that need no identity at all (PH-7.1, §4.5): nothing simulated travels, nothing is looked up. */
+export const publicApi = {
+  requestAccessRecovery: (input: AccessRecoveryInput, signal?: AbortSignal) => apiRequest<AccessRecoveryReceipt>("/public/access-recovery", {}, { method: "POST", body: input, signal }),
+};

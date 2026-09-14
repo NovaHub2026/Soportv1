@@ -12,6 +12,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import {
+  ACCESS_RECOVERY_STATUSES,
   ATTACHMENT_STATUSES,
   CASE_CATEGORIES,
   CONSULTATION_STATUSES,
@@ -35,6 +36,7 @@ export const attachmentStatusEnum = pgEnum('attachment_status', ATTACHMENT_STATU
 export const consultationTeamEnum = pgEnum('consultation_team', CONSULTATION_TEAMS);
 export const consultationStatusEnum = pgEnum('consultation_status', CONSULTATION_STATUSES);
 export const incidentStatusEnum = pgEnum('incident_status', INCIDENT_STATUSES);
+export const accessRecoveryStatusEnum = pgEnum('access_recovery_status', ACCESS_RECOVERY_STATUSES);
 
 const tz = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -285,3 +287,36 @@ export type CaseConsultationRow = typeof caseConsultations.$inferSelect;
 export type IncidentRow = typeof incidents.$inferSelect;
 export type CaseMessageRow = typeof caseMessages.$inferSelect;
 export type CaseEventRow = typeof caseEvents.$inferSelect;
+
+/**
+ * Access recovery requests (PH-7.1, context §4.5): unverified contact + description from someone who cannot sign
+ * in. Deliberately unrelated to `support_cases` and to any customer id — the support system never links a
+ * request to an account (RULE-SUP-01). `reference_number` feeds the visible `REC-000001`.
+ */
+export const accessRecoveryRequests = pgTable(
+  'access_recovery_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    referenceNumber: integer('reference_number').generatedAlwaysAsIdentity(),
+    contact: text('contact').notNull(),
+    /** sha256 of the normalized contact: abuse limit and idempotency key without indexing the raw value. */
+    contactHash: text('contact_hash').notNull(),
+    description: text('description').notNull(),
+    status: accessRecoveryStatusEnum('status').notNull().default('received'),
+    clientRequestId: text('client_request_id'),
+    handledById: text('handled_by_id'),
+    handledByName: text('handled_by_name'),
+    handledAt: tz('handled_at'),
+    note: text('note'),
+    createdAt: tz('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('access_recovery_reference_uq').on(t.referenceNumber),
+    uniqueIndex('access_recovery_client_request_uq')
+      .on(t.contactHash, t.clientRequestId)
+      .where(sql`${t.clientRequestId} is not null`),
+    index('access_recovery_status_idx').on(t.status, t.createdAt),
+    index('access_recovery_contact_idx').on(t.contactHash, t.createdAt),
+  ],
+);
+export type AccessRecoveryRow = typeof accessRecoveryRequests.$inferSelect;

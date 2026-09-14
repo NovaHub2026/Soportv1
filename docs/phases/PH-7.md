@@ -27,8 +27,8 @@ Scenarios: (a) a visitor with no session uses "Não consigo acessar minha conta"
 ## Planned subphases, adjusted as evidence arrives
 | ID | Block | Status |
 |---|---|---|
-| PH-7.1 | "Não consigo acessar minha conta": shared contracts, `access_recovery_requests` (migration `0016`), public endpoint with abuse limit, staff view and outcomes, host link and form — `PH-7.1.md` | ACTIVE |
-| PH-7.2 | Roles and permissions: permission table, API enforcement, directory-validated staff identity, workspace mirroring, BL-016 decision — `PH-7.2.md` (to be created) | PLANNED |
+| PH-7.1 | "Não consigo acessar minha conta": shared contracts, `access_recovery_requests` (migration `0016`), public endpoint with abuse limit, staff view and outcomes, host link and form — `PH-7.1.md`, approved 2026-09-14 | APPROVED |
+| PH-7.2 | Roles and permissions: permission table, API enforcement, directory-validated staff identity, workspace mirroring, BL-016 decision — `PH-7.2.md` | ACTIVE |
 | PH-7.3 | Shared-device sign-out (customer and staff), idle sign-out, privacy re-check of incidents/consultations/attachments; phase closure — `PH-7.3.md` (to be created) | PLANNED |
 
 ## Verification and operational readiness

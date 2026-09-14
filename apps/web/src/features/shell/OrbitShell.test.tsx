@@ -117,4 +117,18 @@ describe("OrbitShell", () => {
     expect(await screen.findByText("Não foi possível carregar as notificações.")).toBeDefined();
     expect(screen.queryByText(/SUP-000001/)).toBeNull();
   });
+  test("PH-7.1: 'Não consigo acessar minha conta' is reachable from the host and sends no simulated identity", async () => {
+    const { requests } = mockFetch((request) => (request.url === "/api/public/access-recovery" ? { status: 201, body: { reference: "REC-000007", receivedAt: new Date().toISOString(), nextStep: "orbit_verification", delivery: "simulated" } } : { body: [] }));
+    render(<OrbitShell />);
+    fireEvent.click(screen.getByRole("button", { name: "Não consigo acessar minha conta" }));
+    fireEvent.change(await screen.findByLabelText(/E-mail ou telefone/), { target: { value: "alice@example.com" } });
+    fireEvent.change(screen.getByLabelText(/O que está acontecendo/), { target: { value: "A conta parece bloqueada desde ontem." } });
+    await waitFor(() => expect((screen.getByRole("button", { name: "Enviar pedido" }) as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Enviar pedido" }));
+    expect((await screen.findByTestId("recovery-reference")).textContent).toBe("REC-000007");
+    const sent = requests.find((r) => r.url === "/api/public/access-recovery")!;
+    expect(Object.keys(sent.headers).some((h) => h.startsWith("x-simulated"))).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    expect(await screen.findByText("Área de negociação")).toBeDefined();
+  });
 });

@@ -7,6 +7,7 @@ import { dictionary as t, formatMessageTime } from "@/i18n";
 import { customerApi } from "@/lib/api";
 import { SIMULATED_CUSTOMERS, useSimulatedCustomer } from "@/lib/simulated-session";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { AccessRecoveryForm } from "@/features/access/AccessRecoveryForm";
 import { NotificationsBell } from "./NotificationsBell";
 
 /** Below this width the panel is a full-screen view toggled from the topbar (shell.module.css). */
@@ -17,6 +18,8 @@ import styles from "./shell.module.css";
 export function OrbitShell() {
   const [customer, selectCustomer] = useSimulatedCustomer();
   const [panelOpen, setPanelOpen] = useState(false);
+  // "Não consigo acessar minha conta" (PH-7.1): reachable without choosing or having any session.
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const [entry, setEntry] = useState<SupportEntry | null>(null);
   const [openCase, setOpenCase] = useState<{ caseId: string; seq: number; customerId: string } | null>(null);
@@ -81,6 +84,9 @@ export function OrbitShell() {
             </select>
           </label>
           {/* Keyed by customer: a new identity starts with an empty bell, never the previous customer's notifications (FND-0035). */}
+          <button type="button" className={styles.recoveryLink} onClick={() => setRecoveryOpen(true)} aria-pressed={recoveryOpen}>
+            {t.access.link}
+          </button>
           <NotificationsBell key={customer.id} identity={identity} onOpenCase={openFromNotification} refreshToken={openCase?.seq ?? 0} />
           <button
             type="button"
@@ -95,7 +101,10 @@ export function OrbitShell() {
       </header>
 
       <div className={styles.body}>
-        <main className={styles.trading} aria-label={t.shell.tradingPlaceholder}>
+        <main className={styles.trading} aria-label={recoveryOpen ? t.access.title : t.shell.tradingPlaceholder}>
+          {recoveryOpen && <AccessRecoveryForm onClose={() => setRecoveryOpen(false)} />}
+          {!recoveryOpen && (
+            <>
           <h1 className={styles.tradingTitle}>{t.shell.tradingPlaceholder}</h1>
           <p className={styles.tradingHint}>{t.shell.tradingPlaceholderHint}</p>
           <p className={styles.simNote}>{t.app.simulationNote}</p>
@@ -132,6 +141,8 @@ export function OrbitShell() {
               </ul>
             )}
           </section>
+            </>
+          )}
         </main>
 
         <aside id="support-panel" className={styles.panel} aria-label={t.support.title}>

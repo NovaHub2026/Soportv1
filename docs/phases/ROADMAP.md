@@ -20,7 +20,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-7 `ACTIVE` since 2026-09-14 (`PH-7.md`) — subphase PH-7.1 `ACTIVE` (`PH-7.1.md`); PH-1..PH-6 `APPROVED` (phase evidence `../evidence/PH-1-phase-approval.md` … `../evidence/PH-6-phase-approval.md`). Cycle Audit 1 and Cycle Audit 2 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, `../audits/CYCLE-2.md`). The ledger table below is the only owner of the audit count.
+Phase: PH-7 `ACTIVE` since 2026-09-14 (`PH-7.md`) — PH-7.1 `APPROVED` 2026-09-14 (`PH-7.1.md`, evidence `../evidence/PH-7.1-verification.md`), PH-7.2 `ACTIVE` (`PH-7.2.md`); PH-1..PH-6 `APPROVED` (phase evidence `../evidence/PH-1-phase-approval.md` … `../evidence/PH-6-phase-approval.md`). Cycle Audit 1 and Cycle Audit 2 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, `../audits/CYCLE-2.md`). The ledger table below is the only owner of the audit count.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.

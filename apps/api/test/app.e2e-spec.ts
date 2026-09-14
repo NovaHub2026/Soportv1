@@ -466,6 +466,39 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
   });
 
 
+  it('PH-7.1: the recovery route needs no identity, reveals nothing, retries safely, bounds abuse, and staff handle it attributably', async () => {
+    const server = app.getHttpServer();
+    const body = { contact: 'alice@example.com', description: 'Não consigo entrar: o código nunca chega.', clientRequestId: 'rec-e2e-1' };
+    const receipt = await request(server).post('/api/public/access-recovery').send(body).expect(201);
+    expect(receipt.body).toEqual({ reference: expect.stringMatching(/^REC-\d{6}$/), receivedAt: expect.any(String), nextStep: 'orbit_verification', delivery: 'simulated' });
+    // A retry with the same client id answers with the same reference; a known customer's e-mail and an unknown one get the same shape.
+    const again = await request(server).post('/api/public/access-recovery').send(body).expect(201);
+    expect(again.body.reference).toBe(receipt.body.reference);
+    const unknown = await request(server).post('/api/public/access-recovery').send({ contact: 'nobody@example.org', description: 'Também não consigo acessar minha conta.' }).expect(201);
+    expect(Object.keys(unknown.body).sort()).toEqual(Object.keys(receipt.body).sort());
+    // Identity headers are ignored, never required; invalid input is refused.
+    await request(server).post('/api/public/access-recovery').set(asStaff('staff-ana', 'Ana')).send({ contact: 'x@example.com', description: 'Mensagem de teste com identidade.' }).expect(201);
+    await request(server).post('/api/public/access-recovery').send({ contact: 'alice', description: 'Contato inválido nesta mensagem.' }).expect(400);
+    await request(server).post('/api/public/access-recovery').send({ contact: 'a@b.co', description: 'NUL aqui \u0000 na descrição.' }).expect(400);
+    // Abuse limit per contact per hour.
+    await request(server).post('/api/public/access-recovery').send({ contact: 'flood@example.com', description: 'Primeira tentativa de flood.' }).expect(201);
+    await request(server).post('/api/public/access-recovery').send({ contact: 'flood@example.com', description: 'Segunda tentativa de flood.' }).expect(201);
+    await request(server).post('/api/public/access-recovery').send({ contact: 'FLOOD@example.com', description: 'Terceira tentativa de flood.' }).expect(201);
+    const limited = await request(server).post('/api/public/access-recovery').send({ contact: 'flood@example.com', description: 'Quarta tentativa de flood.' }).expect(429);
+    expect(limited.body).toMatchObject({ error: 'too_many_requests', retryAfterSeconds: expect.any(Number) });
+    // Staff only for the list and the outcome; customers and anonymous callers are refused.
+    await request(server).get('/api/staff/access-recovery').expect(401);
+    await request(server).get('/api/staff/access-recovery').set(asCustomer('cust-alice')).expect(403);
+    const list = await request(server).get('/api/staff/access-recovery?status=received').set(asStaff('staff-ana', 'Ana')).expect(200);
+    const mine = list.body.find((r: { reference: string }) => r.reference === receipt.body.reference);
+    expect(mine).toMatchObject({ contact: 'alice@example.com', status: 'received' });
+    expect(JSON.stringify(list.body)).not.toContain('customerId');
+    const handled = await request(server).post(`/api/staff/access-recovery/${mine.id}/handle`).set(asStaff('staff-ana', 'Ana')).send({ outcome: 'forwarded', note: 'Encaminhado.' }).expect(200);
+    expect(handled.body).toMatchObject({ status: 'forwarded', handledById: 'staff-ana', handledByName: 'Ana' });
+    await request(server).post(`/api/staff/access-recovery/${mine.id}/handle`).set(asStaff('staff-ana', 'Ana')).send({ outcome: 'closed' }).expect(409);
+    await request(server).get('/api/staff/access-recovery?status=bogus').set(asStaff('staff-ana', 'Ana')).expect(400);
+  });
+
   it('PH-6.3: a message outside the configured hours gets an honest system notice; settings validate the reminder delay', async () => {
     const server = app.getHttpServer();
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };

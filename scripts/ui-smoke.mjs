@@ -553,6 +553,30 @@ try {
     await desktop.getByLabel('Conta simulada').selectOption('cust-alice');
     await desktop.getByText('Conversas em andamento').waitFor();
 
+    // PH-7.1: "Não consigo acessar minha conta" from the host, without any session; staff handle it in their own page.
+    await desktop.getByRole('button', { name: 'Não consigo acessar minha conta' }).click();
+    await desktop.getByLabel(/E-mail ou telefone/).fill('recupera@example.com');
+    await desktop.getByLabel(/O que está acontecendo/).fill('O código de verificação nunca chega no meu telefone.');
+    await desktop.getByRole('button', { name: 'Enviar pedido' }).click();
+    await desktop.getByTestId('recovery-reference').waitFor({ timeout: 10_000 });
+    const recoveryReference = (await desktop.getByTestId('recovery-reference').textContent()).trim();
+    if (!/^REC-\d{6}$/.test(recoveryReference)) throw new Error(`Unexpected recovery reference: ${recoveryReference}`);
+    note('access-recovery', `the host offers "Não consigo acessar minha conta" without any session; the form never asks for a password or code, and the receipt shows ${recoveryReference} with the next step (Orbit's verification process, labeled as simulated) and no account data (PH-7.1, §4.5)`);
+    await shot(desktop, '26-access-recovery-receipt');
+    await desktop.getByRole('button', { name: 'Voltar' }).click();
+    const recoveryStaff = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await recoveryStaff.goto(`${WEB}/staff`);
+    await recoveryStaff.getByRole('button', { name: 'Recuperação de acesso' }).click();
+    await recoveryStaff.getByText(new RegExp(recoveryReference)).first().waitFor({ timeout: 5000 });
+    await recoveryStaff.getByLabel('Observação (opcional)').fill('Retornei por e-mail.');
+    await recoveryStaff.getByRole('button', { name: 'Encaminhar ao processo de verificação' }).click();
+    await recoveryStaff.getByText(new RegExp(`${recoveryReference} encaminhado`)).waitFor({ timeout: 5000 });
+    await recoveryStaff.getByLabel('Mostrar').selectOption('forwarded'); // the status filter, not the agent picker
+    await recoveryStaff.getByText(/Tratado por Ana Ribeiro/).waitFor({ timeout: 5000 });
+    note('access-recovery-staff', `staff saw ${recoveryReference} under "Recuperação de acesso" with the unverified contact and the description, recorded "Encaminhar ao processo de verificação" (labeled simulation) with a note, and the outcome is attributed to Ana with its time (PH-7.1)`);
+    await shot(recoveryStaff, '27-staff-access-recovery');
+    await recoveryStaff.close();
+
     // Continuity: reload, history still there.
     await desktop.reload();
     await desktop.getByText('Conversas em andamento').waitFor();
