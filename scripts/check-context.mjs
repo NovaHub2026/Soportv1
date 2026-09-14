@@ -10,9 +10,12 @@
  *     matches the subphase row in its parent phase document.
  *  4. At most one phase and one subphase are ACTIVE/VERIFYING, and the subphase belongs to that phase.
  *  5. CURRENT_STATE.md names every active work item.
+ *  6. Audit ledger (ROADMAP "## Audit ledger"): every APPROVED phase is counted exactly once; the open cycle
+ *     shows "<count>/3" and CURRENT_STATE repeats it; three counted approvals without an audit record under
+ *     docs/audits/ is a failure (audit due — §6.4).
  *
- * Limitations: syntax and links only. It cannot judge prose freshness, semantic correctness, product
- * alignment or audit debt (not implemented yet — no approvals exist). Bare filenames without a directory
+ * Limitations: syntax and links only. It cannot judge prose freshness, semantic correctness or product
+ * alignment, nor whether an audit record is complete. Bare filenames without a directory
  * component are only checked when they are a known root document or resolve next to the referencing file.
  * Paths Git ignores (build outputs, node_modules, env files) are skipped when missing: they depend on the
  * environment, not on the repository, and the check must give the same verdict locally and in a clean CI
@@ -176,6 +179,48 @@ else {
   const text = readFileSync(currentState, 'utf8');
   for (const id of [...activePhases, ...activeSubs]) {
     if (!text.includes(id)) fail(currentState, `does not mention active work item ${id}`);
+  }
+}
+
+// ---------- 6. Audit ledger ----------
+const AUDIT_CADENCE = 3;
+if (existsSync(roadmap)) {
+  const lines = read(roadmap);
+  const start = lines.findIndex((l) => /^##\s+Audit ledger/.test(l));
+  if (start === -1) {
+    fail(roadmap, 'missing "## Audit ledger" section');
+  } else {
+    const counted = new Map(); // PH-N -> cycle
+    const cycles = new Map(); // cycle -> { count, statusCell, record }
+    for (const line of lines.slice(start + 1)) {
+      if (/^##\s/.test(line)) break;
+      const m = line.match(/^\|\s*(\d+)\s*\|/);
+      if (!m) continue;
+      const cells = line.split('|').slice(1, -1).map(strip);
+      const [cycle, phaseCell, , recordCell, statusCell] = cells;
+      const entry = cycles.get(cycle) ?? { count: 0, statusCell: '', record: '' };
+      for (const phase of phaseCell.match(/PH-\d+/g) ?? []) {
+        if (counted.has(phase)) fail(roadmap, `ledger counts ${phase} more than once`);
+        counted.set(phase, cycle);
+        entry.count++;
+      }
+      entry.statusCell = statusCell ?? '';
+      if (recordCell && recordCell !== '—') entry.record = recordCell;
+      cycles.set(cycle, entry);
+    }
+    for (const [id, status] of phases) {
+      if (status === 'APPROVED' && !counted.has(id)) fail(roadmap, `${id} is APPROVED but not counted in the audit ledger`);
+    }
+    const currentStateText = existsSync(currentState) ? readFileSync(currentState, 'utf8') : '';
+    for (const [cycle, entry] of cycles) {
+      const expected = `${entry.count}/${AUDIT_CADENCE}`;
+      if (!entry.statusCell.includes(expected)) fail(roadmap, `cycle ${cycle} status should show "${expected}", found "${entry.statusCell}"`);
+      if (!currentStateText.includes(expected)) fail(currentState, `should repeat the ledger count "${expected}" for cycle ${cycle}`);
+      const hasRecord = entry.record && (existsSync(join(ROOT, entry.record)) || existsSync(join(phasesDir, entry.record)));
+      if (entry.count >= AUDIT_CADENCE && !hasRecord) {
+        fail(roadmap, `cycle ${cycle}: ${entry.count} first-time approvals without an audit record — Cycle Audit is due (§6.4)`);
+      }
+    }
   }
 }
 

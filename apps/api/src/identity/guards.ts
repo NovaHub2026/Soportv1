@@ -20,6 +20,17 @@ async function resolveActor(context: ExecutionContext, identity: OrbitIdentityPo
   return actor;
 }
 
+/** Any resolved actor, customer or staff; used only where the surface itself is role-neutral (`/identity/me`). */
+@Injectable()
+export class AnyActorGuard implements CanActivate {
+  constructor(@Inject(ORBIT_IDENTITY) private readonly identity: OrbitIdentityPort) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    await resolveActor(context, this.identity);
+    return true;
+  }
+}
+
 /** Customer surfaces: `/support/*`. A staff identity is refused here so roles never blur (RULE-SUP-01). */
 @Injectable()
 export class CustomerGuard implements CanActivate {

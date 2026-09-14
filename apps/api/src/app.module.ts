@@ -5,7 +5,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 
 @Module({
-  imports: [DatabaseModule.forRoot(), IdentityModule, CasesModule],
+  imports: [DatabaseModule.forRoot(), IdentityModule.forRoot(), CasesModule],
   controllers: [AppController],
 })
 export class AppModule {}

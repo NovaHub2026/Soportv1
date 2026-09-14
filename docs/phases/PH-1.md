@@ -1,6 +1,6 @@
 # PH-1 — Foundation and end-to-end case skeleton
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-01, OBJ-SUP-03; FEAT-CASE, FEAT-CHAT, FEAT-STAFF (contexts created during this phase)
 Cycle: 1 (see `ROADMAP.md`)
 
@@ -32,10 +32,13 @@ Acceptance: context §14 situation 2, demonstrated in both UIs — API success a
 | PH-1.2 | Case domain and API: create case with first message, list own cases, read conversation, staff unassigned queue, take, reply; persistence — `PH-1.2.md`, approved 2026-09-13 | APPROVED |
 | PH-1.3 | Customer "Suporte" panel (Next.js, pt-BR): entry, new request, conversation, own cases — `PH-1.3.md`, approved 2026-09-13 | APPROVED |
 | PH-1.4 | Minimal staff workspace: unassigned queue, conversation view, take, reply — `PH-1.4.md`, approved 2026-09-13 | APPROVED |
-| PH-1.5 | Identity boundary: simulated Orbit identity/roles behind an interface; customer/staff access checks; feature contexts FEAT-CASE / FEAT-CHAT / FEAT-STAFF written | PLANNED |
+| PH-1.5 | Identity boundary: simulated Orbit identity/roles behind an interface; customer/staff access checks; feature contexts FEAT-CASE / FEAT-CHAT / FEAT-STAFF written — `PH-1.5.md`, approved 2026-09-13 | APPROVED |
 
 ## Verification and operational readiness
 Gate defined in PH-1.1 (`docs/runbooks/VERIFICATION.md`). Phase approval requires: the gate passing on the candidate; the end-to-end scenario OBSERVED in both UIs; a negative case EXECUTED for cross-customer case access (RULE-SUP-01).
 
 ## Completion evidence, findings and context updated
-Pending — no evidence exists.
+Approved 2026-09-13 — `../evidence/PH-1-phase-approval.md`: integrated journey OBSERVED in both UIs on the phase candidate (12 browser observations, screenshots `../evidence/screenshots/ph-1/`), cross-customer negative case EXECUTED at service, HTTP and UI levels, `npm run build` and `npm run verify` EXECUTED. Subphase evidence: `../evidence/PH-1.1-verification.md` … `../evidence/PH-1.5-verification.md`.
+Findings: FND-0001 (PH-1.1) and FND-0002 (PH-1.4), both fixed and re-verified; none open.
+Context updated: feature contexts `../features/FEAT-CASE/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../features/FEAT-STAFF/CONTEXT.md`, `../features/FEAT-ORBIT/CONTEXT.md`; `ROADMAP.md` ledger (cycle 1, 1/3); `../../CURRENT_STATE.md`; `../../CONTEXT_INDEX.md`.
+Everything in this phase runs on simulated identity and no Orbit records (DEC-0003); it demonstrates the support product, not a connected Orbit capability.

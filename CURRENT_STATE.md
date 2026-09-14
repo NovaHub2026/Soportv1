@@ -1,20 +1,20 @@
 # CURRENT STATE
 Type: CURRENT STATE
 Synchronized on: 2026-09-13
-Derived from: `docs/phases/ROADMAP.md`, `docs/phases/PH-1.md`; base checkpoint: PH-1.4 commit on `main` (child of `5053df4`)
+Derived from: `docs/phases/ROADMAP.md`, `docs/phases/PH-1.md`; base checkpoint: PH-1.5 commit on `main` (child of `b5d3890`)
 
 | Field | Value |
 |---|---|
-| Active objective / feature | PH-1 end-to-end case skeleton (OBJ-SUP-01, OBJ-SUP-03). API, persistence, customer panel and staff workspace exist and were observed working together. Feature contexts still missing (PH-1.5). |
-| Active phase / subphase | PH-1 `ACTIVE`. PH-1.1 to PH-1.4 `APPROVED` (2026-09-13). PH-1.5 `PLANNED`, next and last in PH-1. No subphase active. |
-| Audit | Cycle 1: 0/3 first-time phase approvals; not due; no inherited debt. PH-1 approval will be the first counted event. |
-| Blocking decisions / dependencies | None. |
-| Integration / CI / release | Candidate: PH-1.4 commit on `main`. Local: `npm run verify` exit 0; browser smoke exit 0 (`docs/evidence/PH-1.4-verification.md`). CI: PH-1.3 commit `5053df4` — see its evidence; PH-1.4 commit awaiting corroboration. Release: not applicable. |
-| Context route | `CONTEXT_INDEX.md` → `docs/phases/PH-1.md` → `docs/phases/PH-1.4.md`; web in `apps/web/src/features/`; API in `apps/api/src/`; commands in `docs/runbooks/VERIFICATION.md` |
+| Active objective / feature | PH-1 delivered: a customer request becomes a persistent case that staff see, take and answer, observed end to end in both UIs (simulated identity, no Orbit records). Next objective: OBJ-SUP-01/-04 reliability — PH-2. |
+| Active phase / subphase | None active. PH-1 `APPROVED` 2026-09-13 (PH-1.1–1.5 approved). PH-2 `PLANNED`, next. |
+| Audit | Cycle 1: 1/3 first-time phase approvals (PH-1, 2026-09-13); not due; no inherited debt. |
+| Blocking decisions / dependencies | None. Real-time transport choice (SSE vs WebSocket) is decided at the start of PH-2.1 (ADR: architecture/contract). |
+| Integration / CI / release | Candidate: PH-1.5 commit on `main`. Local: `npm run build` exit 0, `npm run verify` exit 0, browser smoke exit 0 (`docs/evidence/PH-1.5-verification.md`, `docs/evidence/PH-1-phase-approval.md`). CI: PH-1.4 `b5d3890` — see its evidence; PH-1.5 commit awaiting corroboration. Release: none, not authorized. |
+| Context route | `CONTEXT_INDEX.md` → feature contexts (FEAT-CASE, FEAT-CHAT, FEAT-STAFF, FEAT-ORBIT are `CURRENT`); phases in `docs/phases/`; commands in `docs/runbooks/VERIFICATION.md` |
 
 ## Next valid action
-Action: Start PH-1.5 — identity boundary hardening and feature contexts: make the simulated identity provider explicit in configuration (refuse to start with simulation in a production-like environment), add role-aware checks where PH-1 needs them, label simulation consistently, then write the feature contexts FEAT-CASE, FEAT-CHAT and FEAT-STAFF under the features directory (pending) and make their rows live in `CONTEXT_INDEX.md`. Finish with the PH-1 phase approval: integrated journey evidence (browser smoke), negative case for cross-customer access, `PH-1.md` completion section, first audit-ledger entry (1/3).
-Why now: PH-1's remaining commitment is the durable context (§3.1, §5.2) and the phase-level acceptance (§6.3); everything else in scope is approved.
-Preconditions: `npm run verify` passes on HEAD; tree clean or attributable; CI green on HEAD or its failure diagnosed first.
-Evidence/read first: `GOVERNANCE.md` §16.1 (feature context template), §6.3 and §6.4 (phase approval and ledger); `docs/phases/PH-1.md`; `apps/api/src/identity/`.
+Action: Start PH-2 — create the PH-2 phase document under `docs/phases/` (pending; outcome, rules RULE-SUP-03/-06, acceptance scenarios from context §4.3–4.4 and §14 item 6, planned subphases) and set it `ACTIVE`; then PH-2.1 = live updates (replace polling on conversation and queues with a server-pushed channel plus fallback), recorded as an ADR for the transport. Later subphases: send/unread/connection states with retry-on-reconnect; image/PDF attachments with protected access (context §13.1 limits); reliability evidence (disconnect/retry/transfer without loss).
+Why now: PH-1 is approved; the product's next most valuable gap is trustworthy delivery — customers must see replies without reloading and never lose messages (RULE-SUP-03).
+Preconditions: `npm run verify` passes on HEAD; tree clean or attributable; CI green on HEAD or its failure diagnosed first; audit ledger 1/3 (no audit due).
+Evidence/read first: `docs/features/FEAT-CHAT/CONTEXT.md`, `docs/features/FEAT-CASE/CONTEXT.md` (gaps sections); `PROJECT_CONTEXT.md` §4.3, §4.4, §7.4, §10.2 (attachments), §13.1; `docs/phases/ROADMAP.md` PH-2 row.
 If preconditions fail: CI red → diagnose and fix first. Unknown local changes → attribute and preserve (§4.3).

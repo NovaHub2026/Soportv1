@@ -30,6 +30,18 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(res.body).toMatchObject({ status: 'ok', identity: 'simulated' });
   });
 
+  it('GET /api/identity/me echoes the resolved actor with its source, and refuses missing or ambiguous identities', async () => {
+    const customer = await request(app.getHttpServer()).get('/api/identity/me').set(asCustomer('cust-1')).expect(200);
+    expect(customer.body).toEqual({ kind: 'customer', id: 'cust-1', source: 'simulated' });
+    const staff = await request(app.getHttpServer()).get('/api/identity/me').set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(staff.body).toMatchObject({ kind: 'staff', id: 'staff-ana', role: 'agent', displayName: 'Ana', source: 'simulated' });
+    await request(app.getHttpServer()).get('/api/identity/me').expect(401);
+    await request(app.getHttpServer())
+      .get('/api/identity/me')
+      .set({ ...asCustomer('cust-1'), ...asStaff('staff-ana') })
+      .expect(401);
+  });
+
   it('refuses customer endpoints without an identity (401) or with a staff identity (403)', async () => {
     await request(app.getHttpServer()).get('/api/support/cases').expect(401);
     await request(app.getHttpServer()).get('/api/support/cases').set(asStaff('staff-ana')).expect(403);
