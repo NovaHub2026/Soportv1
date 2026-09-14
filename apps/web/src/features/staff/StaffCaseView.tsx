@@ -8,19 +8,25 @@ import { newClientMessageId } from "@/lib/api";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import styles from "./staff.module.css";
 
+/** Safety-net refresh while the staff stream is down (ADR-0004). */
 export const CASE_REFRESH_INTERVAL_MS = 5000;
+/** Safety-net refresh while the staff stream is connected. */
+export const CASE_CONNECTED_REFRESH_INTERVAL_MS = 60_000;
 
 interface StaffCaseViewProps {
   identity: StaffIdentity;
   caseId: string;
   onChanged: () => void;
+  /** Latest change announced by the staff stream; a signal for this case triggers a re-read. */
+  signal?: { caseId: string; seq: number } | null;
+  live?: boolean;
 }
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; detail: StaffCaseDetail };
 type ActionState = { status: "idle" } | { status: "busy" } | { status: "error"; message: string };
 
 /** Conversation (public replies and internal notes, visibly distinct — RULE-SUP-04) plus case context. */
-export function StaffCaseView({ identity, caseId, onChanged }: StaffCaseViewProps) {
+export function StaffCaseView({ identity, caseId, onChanged, signal = null, live = false }: StaffCaseViewProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [take, setTake] = useState<ActionState>({ status: "idle" });
   const [reply, setReply] = useState<ActionState>({ status: "idle" });
@@ -50,12 +56,17 @@ export function StaffCaseView({ identity, caseId, onChanged }: StaffCaseViewProp
     const controller = new AbortController();
     // The effect only subscribes: the first read and every tick run as callbacks, never synchronously here.
     queueMicrotask(() => void refresh(controller.signal));
-    const timer = setInterval(() => void refresh(controller.signal), CASE_REFRESH_INTERVAL_MS);
+    const timer = setInterval(() => void refresh(controller.signal), live ? CASE_CONNECTED_REFRESH_INTERVAL_MS : CASE_REFRESH_INTERVAL_MS);
     return () => {
       controller.abort();
       clearInterval(timer);
     };
-  }, [refresh]);
+  }, [refresh, live]);
+
+  // Live updates: the workspace's stream announced a change on this case.
+  useEffect(() => {
+    if (signal?.caseId === caseId) queueMicrotask(() => void refresh());
+  }, [signal, caseId, refresh]);
 
   useEffect(() => {
     logRef.current?.lastElementChild?.scrollIntoView?.({ block: "end" });

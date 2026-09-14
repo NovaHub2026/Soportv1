@@ -2,8 +2,10 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../database/database.js';
+import type { CaseStreamEvent } from '@orbit-support/shared';
 import { DatabaseModule, DB } from '../database/database.module.js';
 import { caseMessages, supportCases } from '../database/schema.js';
+import { CaseEventBus } from '../events/case-event-bus.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { CasesService } from './cases.service.js';
 
@@ -16,15 +18,17 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
   let moduleRef: TestingModule;
   let service: CasesService;
   let db: Db;
+  let published: CaseStreamEvent[] = [];
 
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
       imports: [DatabaseModule.forRoot({ inMemory: true })],
-      providers: [CasesService],
+      providers: [CasesService, CaseEventBus],
     }).compile();
     await moduleRef.init();
     service = moduleRef.get(CasesService);
     db = moduleRef.get(DB);
+    moduleRef.get(CaseEventBus).events$.subscribe((event) => published.push(event));
   });
 
   afterAll(async () => {
@@ -33,6 +37,25 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
 
   beforeEach(async () => {
     await db.delete(supportCases);
+    published = [];
+  });
+
+  describe('live events (ADR-0004)', () => {
+    it('publishes case.updated and message.created after each committed write, with the summary and message', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      expect(published.map((e) => e.type)).toEqual(['case.updated', 'message.created']);
+      expect(published[0]).toMatchObject({ caseId: created.id, customerId: alice.id, summary: { reference: created.reference } });
+
+      published = [];
+      await service.postStaffMessage(ana, created.id, { body: 'Olá' });
+      expect(published.map((e) => e.type)).toEqual(['message.created', 'case.updated']);
+      const messageEvent = published[0];
+      if (messageEvent.type !== 'message.created') throw new Error('expected message.created');
+      expect(messageEvent.message).toMatchObject({ authorType: 'staff', authorName: 'Ana', body: 'Olá' });
+      const updated = published[1];
+      if (updated.type !== 'case.updated') throw new Error('expected case.updated');
+      expect(updated.summary).toMatchObject({ assignedAgentId: ana.id, status: 'in_progress' });
+    });
   });
 
   describe('customer creates a case', () => {

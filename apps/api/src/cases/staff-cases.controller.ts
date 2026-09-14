@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, type MessageEvent, Param, ParseUUIDPipe, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import type { Observable } from 'rxjs';
+import { CaseStreamService } from '../events/case-stream.service.js';
 import {
   type CaseMessage,
   type CaseSummary,
@@ -19,7 +21,16 @@ const viewSchema = staffQueueViewSchema.default('unassigned');
 @Controller('staff/cases')
 @UseGuards(StaffGuard)
 export class StaffCasesController {
-  constructor(private readonly cases: CasesService) {}
+  constructor(
+    private readonly cases: CasesService,
+    private readonly streams: CaseStreamService,
+  ) {}
+
+  /** `GET /api/staff/cases/stream` — every case change, including internal notes; staff only (ADR-0004). Declared before `:id`. */
+  @Sse('stream')
+  stream(): Observable<MessageEvent> {
+    return this.streams.staffStream();
+  }
 
   @Get()
   list(

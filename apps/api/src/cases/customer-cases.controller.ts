@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, type MessageEvent, Param, ParseUUIDPipe, Post, Sse, UseGuards } from '@nestjs/common';
+import type { Observable } from 'rxjs';
+import { CaseStreamService } from '../events/case-stream.service.js';
 import {
   type CaseMessage,
   type CaseSummary,
@@ -17,7 +19,17 @@ import { CasesService } from './cases.service.js';
 @Controller('support/cases')
 @UseGuards(CustomerGuard)
 export class CustomerCasesController {
-  constructor(private readonly cases: CasesService) {}
+  constructor(
+    private readonly cases: CasesService,
+    private readonly streams: CaseStreamService,
+  ) {}
+
+  /** Live events for one own case (ADR-0004). Ownership is checked before any byte is streamed. */
+  @Sse(':id/stream')
+  async stream(@CurrentActor() actor: CustomerActor, @Param('id', ParseUUIDPipe) id: string): Promise<Observable<MessageEvent>> {
+    await this.cases.getCustomerCase(actor, id);
+    return this.streams.customerCaseStream(actor.id, id);
+  }
 
   /** Sending the first request creates the case (context §4.1); opening the panel never does. */
   @Post()

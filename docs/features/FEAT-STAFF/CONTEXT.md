@@ -3,16 +3,16 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `b5d3890` plus the PH-1.5 change
+Verified against: `b1cc4c6` plus the PH-2.1 change (live updates)
 Verified on: 2026-09-13
-Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` (owned by FEAT-CASE)
+Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
 ## User outcome and applicable product rules
 Support staff have a workspace with three areas — queues, conversation, customer/case context — comfortable for daily use, where ownership is clear and internal work never leaks to the customer (`PROJECT_CONTEXT.md` §5, OBJ-SUP-02, OBJ-SUP-03).
 Rules: RULE-SUP-02 (managed queue / responsible person; transfers preserve follow-through), RULE-SUP-04 (internal notes never published), RULE-SUP-07 (verified vs pending vs unavailable information), RULE-SUP-09 (attributable actions).
 
 ## Current behavior and known gaps
-Implemented (PH-1.4): route `/staff` with simulated-agent picker (**Simulação**); tabs "Não atribuídos" (oldest first), "Meus casos", "Todos ativos" with 10 s refresh and immediate refresh after actions; case view with header (reference, subject, staff status label, responsible), messages with customer / staff / system attribution and internal notes rendered with a dashed warning border and "Nota interna · visível só para a equipe"; "Assumir caso" only when unowned and open; "Responder ao cliente" composer (public reply); context column with customer id, identity source "Simulada", an explicit "Orbit data unavailable (PH-4)" note, case facts and the event timeline. Monotonic request counters prevent stale polls from hiding fresh actions (FND-0002).
+Implemented (PH-1.4): route `/staff` with simulated-agent picker (**Simulação**); tabs "Não atribuídos" (oldest first), "Meus casos", "Todos ativos" with 10 s refresh and immediate refresh after actions; case view with header (reference, subject, staff status label, responsible), messages with customer / staff / system attribution and internal notes rendered with a dashed warning border and "Nota interna · visível só para a equipe"; "Assumir caso" only when unowned and open; "Responder ao cliente" composer (public reply); context column with customer id, identity source "Simulada", an explicit "Orbit data unavailable (PH-4)" note, case facts and the event timeline. Monotonic request counters prevent stale polls from hiding fresh actions (FND-0002). Live updates (PH-2.1): the workspace holds one `/api/staff/cases/stream` subscription; every case event refreshes the queue and, when it concerns the open case, the case view; polling drops to 60 s while connected. Measured delivery 129 ms customer → staff.
 Gaps (accepted target): internal-note composer, "waiting for customer / internal team" transitions, resolve with reason, transfer, consultation, priority/category edit (PH-3); filters, search by reference / user id / email / operation refs, saved replies, supervision views, schedule/config, metrics (PH-5); Orbit record cards and masked identity summary (PH-4); role-based permissions beyond agent/supervisor/admin labels (PH-7); the context column is hidden below 1100 px (desktop-first).
 
 ## Dependencies and consumers

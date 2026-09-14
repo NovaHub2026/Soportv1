@@ -9,7 +9,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 | ID | Capability | Objectives / rules | Status | Depends on |
 |---|---|---|---|---|
 | PH-1 | Foundation and end-to-end case skeleton: customer submits a request → persistent case with reference → staff sees it, takes it, replies → customer sees the reply. Includes workspace scaffold, verification gate and CI. | OBJ-SUP-01, -03; RULE-SUP-01 (basic), -09 (basic) | `APPROVED` | — |
-| PH-2 | Conversation reliability and continuity: live updates, send/unread states, idempotent retry and reconnection, multiple cases per customer, image/PDF attachments with protected access. | OBJ-SUP-01, -04; RULE-SUP-03, -06 | `PLANNED` | PH-1 |
+| PH-2 | Conversation reliability and continuity: live updates, send/unread states, idempotent retry and reconnection, multiple cases per customer, image/PDF attachments with protected access. | OBJ-SUP-01, -04; RULE-SUP-03, -06 | `ACTIVE` | PH-1 |
 | PH-3 | Case lifecycle and staff collaboration: statuses, assignment/transfer, priority/categories, internal notes, specialist consultation, resolve/reopen/close, linked follow-up, attributable history. | OBJ-SUP-03; RULE-SUP-02, -04, -05, -06, -09 | `PLANNED` | PH-1 |
 | PH-4 | Orbit context integration: identity summary, record cards, contextual entry ("Preciso de ajuda"), masking, visibly unavailable data; real adapter or labeled simulation. | OBJ-SUP-02; RULE-SUP-01, -07 | `PLANNED` | PH-1, ADR-0002, BL-001 |
 | PH-5 | Staff workspace completeness and supervision: essential views, filters/search, saved replies, schedule/config, queue oversight, service metrics. | OBJ-SUP-03; RULE-SUP-02, -08 | `PLANNED` | PH-3 |
@@ -20,7 +20,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: none active — PH-1 `APPROVED` 2026-09-13 (`PH-1.md`, evidence `../evidence/PH-1-phase-approval.md`). Next: PH-2 (see `CURRENT_STATE.md`).
+Phase: PH-2 `ACTIVE` (since 2026-09-13, `PH-2.md`). Subphase: none active — PH-2.1 `APPROVED` 2026-09-13; next PH-2.2. PH-1 `APPROVED` 2026-09-13 (`PH-1.md`, evidence `../evidence/PH-1-phase-approval.md`).
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.

@@ -47,7 +47,10 @@ export async function apiRequest<T>(path: string, identityHeaders: Record<string
   return data as T;
 }
 
-const customerHeaders = (identity: CustomerIdentity) => ({ [SIMULATED_IDENTITY_HEADERS.customerId]: identity.customerId });
+export const customerIdentityHeaders = (identity: CustomerIdentity): Record<string, string> => ({
+  [SIMULATED_IDENTITY_HEADERS.customerId]: identity.customerId,
+});
+const customerHeaders = customerIdentityHeaders;
 
 export const customerApi = {
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>

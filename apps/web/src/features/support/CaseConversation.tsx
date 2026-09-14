@@ -1,14 +1,17 @@
 "use client";
 
-import type { CaseMessage, CustomerCaseDetail } from "@orbit-support/shared";
+import { type CaseMessage, type CustomerCaseDetail, isStreamEvent } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { dictionary as t, formatMessageTime } from "@/i18n";
-import { type CustomerIdentity, customerApi, newClientMessageId } from "@/lib/api";
+import { type CustomerIdentity, customerApi, customerIdentityHeaders, newClientMessageId } from "@/lib/api";
+import { type StreamStatus, subscribeStream } from "@/lib/sse";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./support.module.css";
 
-/** Until PH-2 brings a live channel, the conversation refreshes on this interval. */
+/** Safety-net refresh while the live stream is down (ADR-0004). */
 export const REFRESH_INTERVAL_MS = 5000;
+/** Safety-net refresh while the live stream is connected. */
+export const CONNECTED_REFRESH_INTERVAL_MS = 60_000;
 
 interface CaseConversationProps {
   identity: CustomerIdentity;
@@ -29,6 +32,7 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const logRef = useRef<HTMLOListElement>(null);
   // Monotonic request counter: a poll that started before a send must not overwrite the sent message.
   const requestSeq = useRef(0);
@@ -53,16 +57,43 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
     [identity, caseId],
   );
 
+  const pollMs = streamStatus === "connected" ? CONNECTED_REFRESH_INTERVAL_MS : REFRESH_INTERVAL_MS;
   useEffect(() => {
     const controller = new AbortController();
     // The effect only subscribes: the first read and every tick run as callbacks, never synchronously here.
     queueMicrotask(() => void refresh(controller.signal));
-    const timer = setInterval(() => void refresh(controller.signal), REFRESH_INTERVAL_MS);
+    const timer = setInterval(() => void refresh(controller.signal), pollMs);
     return () => {
       controller.abort();
       clearInterval(timer);
     };
-  }, [refresh]);
+  }, [refresh, pollMs]);
+
+  // Live updates (ADR-0004): apply new messages at once, re-read on other changes, resync on every (re)connect.
+  useEffect(() => {
+    const stop = subscribeStream(`/support/cases/${caseId}/stream`, customerIdentityHeaders(identity), {
+      onEvent: (_type, data) => {
+        if (!isStreamEvent(data) || data.type === "heartbeat" || data.caseId !== caseId) return;
+        if (data.type === "message.created") {
+          const incoming = data.message;
+          requestSeq.current += 1; // a poll that started before this message must not undo it
+          setLoad((current) =>
+            current.status === "ready" && !current.detail.messages.some((m) => m.id === incoming.id)
+              ? { status: "ready", detail: { ...current.detail, messages: [...current.detail.messages, incoming] } }
+              : current,
+          );
+          setPending((current) => current.filter((p) => p.clientMessageId !== incoming.clientMessageId));
+        } else if (data.type === "case.updated") {
+          void refresh();
+        }
+      },
+      onStatus: (status) => {
+        setStreamStatus(status);
+        if (status === "connected") void refresh();
+      },
+    });
+    return stop;
+  }, [identity, caseId, refresh]);
 
   useEffect(() => {
     // Keep the newest entry in view; jsdom has no scrollIntoView, hence the optional call.

@@ -32,6 +32,8 @@ Exit codes propagate: the `verify` chain stops at the first failing layer. Vites
 | API (NestJS) | `npm run dev:api` | http://localhost:3001/api/health (`PORT` overrides; CORS allows `WEB_ORIGIN`, default http://localhost:3000) |
 | Web (Next.js) | `npm run dev:web` | http://localhost:3000 — simulated Orbit shell with the customer "Suporte" panel; http://localhost:3000/staff — staff workspace. The browser calls `/api/*`, rewritten to `API_ORIGIN` (default http://localhost:3001) |
 
+Live updates (ADR-0004): `GET /api/support/cases/<id>/stream` (customer, own case) and `GET /api/staff/cases/stream` (staff) are Server-Sent Events; try `curl -N -H 'x-simulated-staff-id: staff-ana' http://localhost:3001/api/staff/cases/stream`. Heartbeat every 15 s (`SUPPORT_SSE_HEARTBEAT_MS`). The event bus is in-process: run one API instance until PH-8 adds a shared channel.
+
 Simulated identity (DEC-0003): the API resolves the caller from headers `x-simulated-customer-id`, or `x-simulated-staff-id` (+ optional `x-simulated-staff-role`, `x-simulated-staff-name`). Example: `curl -H 'x-simulated-customer-id: cust-1' http://localhost:3001/api/support/cases`.
 
 `next dev` regenerates `apps/web/AGENTS.md`; commit that change with your work if it appears.

@@ -3,9 +3,9 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `b5d3890` plus the PH-1.5 change (identity hardening; no case logic changed)
+Verified against: `b1cc4c6` plus the PH-2.1 change (event publication and SSE endpoints)
 Verified on: 2026-09-13
-Scope: `packages/shared/src/cases.ts`, `apps/api/src/cases/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
+Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
 ## User outcome and applicable product rules
 A support matter is a persistent **case** with a customer-visible reference, status, category, priority, responsible agent, conversation and attributable history (`PROJECT_CONTEXT.md` §7, OBJ-SUP-03). "Chat" is the communication experience; the case is the managed matter whose status reflects work still required, not whether the panel is open.
@@ -18,6 +18,7 @@ Implemented (PH-1.2):
 - Staff **take**: assigns, `new → in_progress`, events `case_assigned` + `status_changed`; 409 `case_assigned_to_other` if owned by someone else; idempotent for the owner. A staff reply on an unowned case takes it.
 - Customer message: on `resolved` → `in_progress` + `case_reopened` (§7.2 simple rule); on `waiting_customer` → `in_progress`; on `closed` → 409 `case_closed`.
 - Idempotency: `clientMessageId` unique per author (partial unique index); a retry returns the stored case/message.
+- Live events (PH-2.1, ADR-0004): after each committed write the service publishes `case.updated` (with summary) and `message.created` (with message) on the in-process `CaseEventBus`; `GET /support/cases/:id/stream` (ownership checked first, internal messages filtered) and `GET /staff/cases/stream` expose them as SSE with a 15 s heartbeat.
 Accepted target, not yet implemented: staff transitions to `waiting_customer` / `waiting_internal`, resolve with reason and customer-facing explanation, transfer, internal-note endpoint, priority/category edits, specialist consultation, linked follow-up from `closed`, the 7-day closure job and shared incidents (PH-3); filters, search, pagination (PH-5); reminders/inactivity policy (PH-6/BL-002).
 
 ## Dependencies and consumers

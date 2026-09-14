@@ -25,4 +25,4 @@ Limitations / reuse boundary: valid for this tree. Changes under `apps/api/src/i
 `npm run verify`, 2026-09-14 00:55 UTC, on the completed PH-1.5 tree: `check-context: 21 documents, 285 links (2 gitignored skipped), 8 phases, 5 subphases, active: none — OK` (ledger 1/3 consistent with CURRENT_STATE); build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 20/20, web 18/18; overall exit 0.
 
 ## CI
-Pending push.
+Run `34794245671` on `b1cc4c6` (PH-1.5 / PH-1 approval commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 01:07 UTC. Claim 8 is EXECUTED for `b1cc4c6`; the PH-1 phase candidate is CI verified.

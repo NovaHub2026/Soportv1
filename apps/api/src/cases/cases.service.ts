@@ -16,6 +16,7 @@ import {
 } from '@orbit-support/shared';
 import { type Db, isUniqueViolation } from '../database/database.js';
 import { DB } from '../database/database.module.js';
+import { CaseEventBus } from '../events/case-event-bus.js';
 import {
   type CaseEventRow,
   caseEvents,
@@ -34,7 +35,10 @@ const OPEN = [...OPEN_CASE_STATUSES];
  */
 @Injectable()
 export class CasesService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly events: CaseEventBus,
+  ) {}
 
   // ---------- Customer ----------
 
@@ -44,7 +48,7 @@ export class CasesService {
       if (existing) return this.customerDetail(existing);
     }
     try {
-      const row = await this.db.transaction(async (tx) => {
+      const { row, message } = await this.db.transaction(async (tx) => {
         const now = new Date();
         const [created] = await tx
           .insert(supportCases)
@@ -58,14 +62,17 @@ export class CasesService {
             lastCustomerMessageAt: now,
           })
           .returning();
-        await tx.insert(caseMessages).values({
-          caseId: created.id,
-          authorType: 'customer',
-          authorId: customer.id,
-          body: input.message,
-          clientMessageId: input.clientMessageId ?? null,
-          createdAt: now,
-        });
+        const [first] = await tx
+          .insert(caseMessages)
+          .values({
+            caseId: created.id,
+            authorType: 'customer',
+            authorId: customer.id,
+            body: input.message,
+            clientMessageId: input.clientMessageId ?? null,
+            createdAt: now,
+          })
+          .returning();
         await tx.insert(caseEvents).values({
           caseId: created.id,
           type: 'case_created',
@@ -74,8 +81,10 @@ export class CasesService {
           data: { category: input.category, identitySource: customer.source },
           createdAt: now,
         });
-        return created;
+        return { row: created, message: first };
       });
+      this.publishCaseUpdated(row);
+      this.publishMessage(row, message);
       return this.customerDetail(row);
     } catch (error) {
       // Two retries raced past the lookup: the unique index kept one case; return it (RULE-SUP-03).
@@ -110,9 +119,9 @@ export class CasesService {
       const duplicate = await this.findMessageByClientId(customer.id, input.clientMessageId);
       if (duplicate) return toMessage(duplicate);
     }
-    return this.db.transaction(async (tx) => {
+    const { message, updated } = await this.db.transaction(async (tx) => {
       const now = new Date();
-      const [message] = await tx
+      const [inserted] = await tx
         .insert(caseMessages)
         .values({
           caseId: row.id,
@@ -141,9 +150,12 @@ export class CasesService {
         patch.status = 'in_progress';
         await tx.insert(caseEvents).values(statusChange(row, 'in_progress', customer.id, 'customer', now));
       }
-      await tx.update(supportCases).set(patch).where(eq(supportCases.id, row.id));
-      return toMessage(message);
+      const [changed] = await tx.update(supportCases).set(patch).where(eq(supportCases.id, row.id)).returning();
+      return { message: inserted, updated: changed };
     });
+    this.publishMessage(updated, message);
+    this.publishCaseUpdated(updated);
+    return toMessage(message);
   }
 
   // ---------- Staff ----------
@@ -171,11 +183,13 @@ export class CasesService {
     if (!OPEN.includes(row.status)) throw new ConflictException('case_not_open');
     if (row.assignedAgentId && row.assignedAgentId !== staff.id) throw new ConflictException('case_assigned_to_other');
     if (row.assignedAgentId === staff.id) return toSummary(row);
-    return this.db.transaction(async (tx) => {
+    const updated = await this.db.transaction(async (tx) => {
       const now = new Date();
-      const [updated] = await this.assign(tx, row, staff, now);
-      return toSummary(updated);
+      const [changed] = await this.assign(tx, row, staff, now);
+      return changed;
     });
+    this.publishCaseUpdated(updated);
+    return toSummary(updated);
   }
 
   async postStaffMessage(staff: StaffActor, caseId: string, input: PostMessageInput): Promise<CaseMessage> {
@@ -185,9 +199,9 @@ export class CasesService {
       const duplicate = await this.findMessageByClientId(staff.id, input.clientMessageId);
       if (duplicate) return toMessage(duplicate);
     }
-    return this.db.transaction(async (tx) => {
+    const { message, updated } = await this.db.transaction(async (tx) => {
       const now = new Date();
-      const [message] = await tx
+      const [inserted] = await tx
         .insert(caseMessages)
         .values({
           caseId: row.id,
@@ -202,11 +216,37 @@ export class CasesService {
         .returning();
       // Replying to an unowned case makes the replier responsible for it (RULE-SUP-02).
       const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
-      await tx
+      const [changed] = await tx
         .update(supportCases)
         .set({ updatedAt: now, lastMessageAt: now, lastStaffMessageAt: now })
-        .where(eq(supportCases.id, current.id));
-      return toMessage(message);
+        .where(eq(supportCases.id, current.id))
+        .returning();
+      return { message: inserted, updated: changed };
+    });
+    this.publishMessage(updated, message);
+    this.publishCaseUpdated(updated);
+    return toMessage(message);
+  }
+
+  // ---------- Live updates (ADR-0004): published only after the transaction committed ----------
+
+  private publishCaseUpdated(row: SupportCaseRow): void {
+    this.events.publish({
+      type: 'case.updated',
+      caseId: row.id,
+      customerId: row.customerId,
+      summary: toSummary(row),
+      at: new Date().toISOString(),
+    });
+  }
+
+  private publishMessage(row: SupportCaseRow, message: CaseMessageRow): void {
+    this.events.publish({
+      type: 'message.created',
+      caseId: row.id,
+      customerId: row.customerId,
+      message: toMessage(message),
+      at: new Date().toISOString(),
     });
   }
 

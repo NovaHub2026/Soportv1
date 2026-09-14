@@ -7,8 +7,10 @@ import { dictionary as t, formatMessageTime } from "@/i18n";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import styles from "./staff.module.css";
 
-/** Queue refresh cadence until PH-2 brings live updates. */
+/** Safety-net refresh while the staff stream is down (ADR-0004). */
 export const QUEUE_REFRESH_INTERVAL_MS = 10_000;
+/** Safety-net refresh while the staff stream is connected. */
+export const QUEUE_CONNECTED_REFRESH_INTERVAL_MS = 60_000;
 
 interface StaffQueueProps {
   identity: StaffIdentity;
@@ -16,12 +18,15 @@ interface StaffQueueProps {
   onViewChange: (view: StaffQueueView) => void;
   selectedCaseId: string | null;
   onSelectCase: (caseId: string) => void;
+  /** Bumped by the workspace whenever the live stream or an action says something changed. */
   refreshToken: number;
+  /** Whether the live stream is connected; only changes the safety-net cadence. */
+  live?: boolean;
 }
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; cases: CaseSummary[] };
 
-export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSelectCase, refreshToken }: StaffQueueProps) {
+export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSelectCase, refreshToken, live = false }: StaffQueueProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   // Monotonic request counter: a poll that started before an action must not overwrite the refreshed list.
@@ -42,12 +47,12 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
       }
     };
     void load();
-    const timer = setInterval(load, QUEUE_REFRESH_INTERVAL_MS);
+    const timer = setInterval(load, live ? QUEUE_CONNECTED_REFRESH_INTERVAL_MS : QUEUE_REFRESH_INTERVAL_MS);
     return () => {
       controller.abort();
       clearInterval(timer);
     };
-  }, [identity, view, refreshToken, attempt]);
+  }, [identity, view, refreshToken, attempt, live]);
 
   return (
     <section className={styles.queue} aria-label={t.staff.queues[view]}>

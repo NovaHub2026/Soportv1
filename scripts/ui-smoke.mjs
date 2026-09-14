@@ -23,6 +23,8 @@ const WEB_PORT = Number(process.env.UI_WEB_PORT ?? 3150);
 const WEB = `http://localhost:${WEB_PORT}`;
 const API = `http://localhost:${API_PORT}`;
 const OUT = resolve(process.argv[2] ?? `${ROOT}/docs/evidence/screenshots/latest`);
+/** Live delivery must beat the old 5 s poll by a clear margin (PH-2.1). */
+const LIVE_DELIVERY_BUDGET_MS = 3000;
 mkdirSync(OUT, { recursive: true });
 
 if (!process.env.SUPPORT_DB_DIR) {
@@ -141,8 +143,19 @@ try {
 
     const replyText = 'Olá! Aqui é a Ana, do suporte. Já estou verificando o seu saque.';
     await staffPage.getByLabel('Resposta ao cliente').fill(replyText);
+    const sentAt = Date.now();
     await staffPage.getByRole('button', { name: 'Responder ao cliente' }).click();
     await staffPage.getByText(replyText).waitFor();
+
+    // Live delivery (ADR-0004): the customer panel is open in another page and must show the reply
+    // well under the old 5 s poll, without any reload.
+    await desktop.getByText(replyText).waitFor({ timeout: 15_000 });
+    const liveMs = Date.now() - sentAt;
+    if (liveMs > LIVE_DELIVERY_BUDGET_MS) throw new Error(`Staff reply took ${liveMs} ms to reach the customer (budget ${LIVE_DELIVERY_BUDGET_MS} ms)`);
+    await desktop.getByText('Em atendimento').waitFor();
+    note('reply-live', `staff reply attributed to "Ana Ribeiro" reached the open customer panel in ${liveMs} ms via the live stream; status "Em atendimento"`);
+    await shot(desktop, '04-conversation-reply');
+
     await staffPage.getByText(/integração com o Orbit ainda não foi construída/).waitFor();
     // A poll that raced the reply must not make the message vanish (regression found in PH-1.4).
     await staffPage.waitForTimeout(2500);
@@ -151,25 +164,25 @@ try {
     note('staff-reply', 'the public reply stays visible across refreshes; the context column shows Orbit data as unavailable and the assignment in the history');
     await shot(staffPage, '09-staff-case-reply');
 
+    // Customer follow-up from the composer, delivered live to the open staff case view.
+    const followUp = 'Obrigada! Fico no aguardo.';
+    await desktop.getByLabel('Sua mensagem').fill(followUp);
+    const followUpAt = Date.now();
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    await desktop.getByText(followUp).waitFor();
+    await staffPage.getByText(followUp).waitFor({ timeout: 15_000 });
+    const followUpMs = Date.now() - followUpAt;
+    if (followUpMs > LIVE_DELIVERY_BUDGET_MS) throw new Error(`Customer message took ${followUpMs} ms to reach staff (budget ${LIVE_DELIVERY_BUDGET_MS} ms)`);
+    await desktop.waitForTimeout(2500);
+    if (!(await desktop.getByText(followUp).isVisible())) throw new Error('Customer message disappeared after a refresh');
+    note('follow-up-live', `customer follow-up shown as own message, still there after a refresh, and visible in the staff case view in ${followUpMs} ms`);
+
     await staffPage.getByRole('tab', { name: 'Meus casos' }).click();
     await staffPage.getByRole('button', { name: new RegExp(reference) }).waitFor();
     await staffPage.getByRole('tab', { name: 'Não atribuídos' }).click();
     await staffPage.getByText('Nenhum caso aguardando atribuição.').waitFor();
     note('staff-queues', 'after taking, the case is under "Meus casos" and the unassigned queue is empty');
     await staffPage.close();
-
-    await desktop.getByText(replyText).waitFor({ timeout: 15_000 });
-    await desktop.getByText('Em atendimento').waitFor();
-    note('reply', 'staff reply attributed to "Ana Ribeiro" reached the customer panel by refresh within 15 s; status "Em atendimento"');
-    await shot(desktop, '04-conversation-reply');
-
-    // Customer follow-up from the composer.
-    await desktop.getByLabel('Sua mensagem').fill('Obrigada! Fico no aguardo.');
-    await desktop.getByRole('button', { name: 'Enviar' }).click();
-    await desktop.getByText('Obrigada! Fico no aguardo.').waitFor();
-    await desktop.waitForTimeout(2500);
-    if (!(await desktop.getByText('Obrigada! Fico no aguardo.').isVisible())) throw new Error('Customer message disappeared after a refresh');
-    note('follow-up', 'customer follow-up sent from the composer, shown as own message and still there after a refresh');
 
     // Continuity: reload, history still there.
     await desktop.reload();

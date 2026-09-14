@@ -1,9 +1,22 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import type { StreamHandlers } from "@/lib/sse";
 import { CaseConversation } from "./CaseConversation";
 import { identity, message, mockFetch, summary } from "./test-utils";
 
-afterEach(() => vi.restoreAllMocks());
+// The live stream is exercised through its handlers; the transport itself is tested in lib/sse.test.ts.
+const streams: Array<{ path: string; headers: Record<string, string>; handlers: StreamHandlers }> = [];
+vi.mock("@/lib/sse", () => ({
+  subscribeStream: (path: string, headers: Record<string, string>, handlers: StreamHandlers) => {
+    streams.push({ path, headers, handlers });
+    return () => {};
+  },
+}));
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  streams.length = 0;
+});
 
 const detail = {
   ...summary({ status: "in_progress", assignedAgentId: "staff-ana", subject: "Saque pendente" }),
@@ -52,6 +65,28 @@ describe("CaseConversation", () => {
     expect(postBodies).toHaveLength(2);
     expect(postBodies[0].clientMessageId).toBe(postBodies[1].clientMessageId);
     expect(screen.getByText("Segue o comprovante")).toBeDefined();
+  });
+
+  test("subscribes to the case stream with the identity header and shows a pushed staff message at once", async () => {
+    mockFetch(() => ({ body: detail }));
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    await screen.findByText(/SUP-000001/);
+
+    expect(streams).toHaveLength(1);
+    expect(streams[0].path).toBe(`/support/cases/${detail.id}/stream`);
+    expect(streams[0].headers["x-simulated-customer-id"]).toBe("cust-test");
+
+    const pushed = message({ id: "m9", authorType: "staff", authorId: "staff-ana", authorName: "Ana", body: "Chegou ao vivo" });
+    act(() => {
+      streams[0].handlers.onEvent("message.created", {
+        type: "message.created",
+        caseId: detail.id,
+        customerId: identity.customerId,
+        message: pushed,
+        at: new Date().toISOString(),
+      });
+    });
+    expect(screen.getByText("Chegou ao vivo")).toBeDefined();
   });
 
   test("a closed case shows the closure notice instead of the composer", async () => {

@@ -16,11 +16,12 @@ export interface StaffIdentity {
   role: StaffRole;
 }
 
-const staffHeaders = (identity: StaffIdentity) => ({
+export const staffIdentityHeaders = (identity: StaffIdentity): Record<string, string> => ({
   [SIMULATED_IDENTITY_HEADERS.staffId]: identity.staffId,
   [SIMULATED_IDENTITY_HEADERS.staffName]: identity.displayName,
   [SIMULATED_IDENTITY_HEADERS.staffRole]: identity.role,
 });
+const staffHeaders = staffIdentityHeaders;
 
 export const staffApi = {
   listCases: (identity: StaffIdentity, view: StaffQueueView, signal?: AbortSignal) =>
