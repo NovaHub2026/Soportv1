@@ -111,6 +111,42 @@ describe("StaffCaseView", () => {
     expect(screen.queryByRole("button", { name: "Assumir caso" })).toBeNull();
   });
 
+  test("status actions and the resolution form call the lifecycle endpoints (PH-3.1)", async () => {
+    let status: "in_progress" | "waiting_customer" | "resolved" = "in_progress";
+    let reason: string | null = null;
+    const { requests } = mockFetch((request) => {
+      if (request.url.endsWith("/status")) {
+        status = (request.body as { status: "waiting_customer" }).status;
+        return { body: summary({ status }) };
+      }
+      if (request.url.endsWith("/resolve")) {
+        status = "resolved";
+        reason = (request.body as { reason: string }).reason;
+        return { body: summary({ status, resolutionReason: "answered" }) };
+      }
+      return { body: { ...detail, status, assignedAgentId: "staff-ana", resolutionReason: status === "resolved" ? "answered" : null } };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Aguardar cliente" }));
+    await waitFor(() => expect(requests.some((r) => r.url === `/api/staff/cases/${detail.id}/status`)).toBe(true));
+    expect(await screen.findByText("Aguardando cliente")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resolver caso" }));
+    const form = await screen.findByRole("form", { name: "Resolver caso" });
+    expect(form).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Motivo"), { target: { value: "answered" } });
+    fireEvent.change(screen.getByLabelText("Explicação para o cliente"), { target: { value: "A operação liquidou às 10:31." } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar resolução" }));
+
+    await waitFor(() => expect(reason).toBe("answered"));
+    const resolvePost = requests.find((r) => r.url.endsWith("/resolve"));
+    expect(resolvePost?.body).toEqual({ reason: "answered", explanation: "A operação liquidou às 10:31." });
+    expect(await screen.findByText("Resolvido · Dúvida respondida")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Resolver caso" })).toBeNull();
+  });
+
   test("a public reply is posted and then shown in the conversation", async () => {
     let replied = false;
     mockFetch((request) => {

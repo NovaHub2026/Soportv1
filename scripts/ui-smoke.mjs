@@ -256,6 +256,34 @@ try {
     await desktop.getByRole('button', { name: /Voltar/ }).click();
     await desktop.getByLabel('1 nova mensagem').waitFor({ state: 'detached', timeout: 5000 });
     note('home-unread-cleared', 'opening the conversation clears the badge and staff see the reply as read');
+
+    // Lifecycle (PH-3.1): waiting for the customer → reply resumes; resolve with explanation → "Ainda preciso de ajuda".
+    await desktop.getByRole('button', { name: new RegExp(reference) }).click();
+    await staffPage.getByRole('button', { name: 'Aguardar cliente' }).click();
+    await desktop.getByText('Aguardando sua resposta').waitFor({ timeout: 5000 });
+    await desktop.getByLabel('Sua mensagem').fill('Aqui está a informação que faltava.');
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    await staffPage.getByText('Em atendimento').first().waitFor({ timeout: 5000 });
+    note('waiting-customer', 'staff set "Aguardar cliente"; the customer saw "Aguardando sua resposta" and their reply returned the case to "Em atendimento" for staff');
+
+    await staffPage.getByRole('button', { name: 'Resolver caso' }).click();
+    await staffPage.getByLabel('Motivo').selectOption('solved');
+    const explanation = 'Confirmamos que o saque foi creditado na rede TRC20. Se precisar, é só chamar.';
+    await staffPage.getByLabel('Explicação para o cliente').fill(explanation);
+    await staffPage.getByRole('button', { name: 'Confirmar resolução' }).click();
+    await desktop.getByText('Resolvido', { exact: true }).waitFor({ timeout: 5000 });
+    await desktop.getByText(explanation).waitFor({ timeout: 5000 });
+    await desktop.getByRole('button', { name: 'Ainda preciso de ajuda' }).waitFor();
+    await staffPage.getByText('Resolvido · Problema resolvido').waitFor({ timeout: 5000 });
+    await staffPage.getByText('Resolvido: Problema resolvido').waitFor();
+    note('resolved', 'staff resolved with reason "Problema resolvido"; the customer saw "Resolvido", the explanation in the conversation and the "Ainda preciso de ajuda" button; the history records the resolution');
+    await shot(desktop, '13-customer-resolved');
+
+    await desktop.getByRole('button', { name: 'Ainda preciso de ajuda' }).click();
+    await desktop.getByText('Em atendimento').waitFor({ timeout: 5000 });
+    await staffPage.getByText('Reaberto pelo cliente').waitFor({ timeout: 5000 });
+    await staffPage.getByText('Em atendimento').first().waitFor();
+    note('reopened', '"Ainda preciso de ajuda" reactivated the same case: "Em atendimento" on both sides and "Reaberto pelo cliente" in the history');
     await staffPage.close();
 
     // Continuity: reload, history still there.

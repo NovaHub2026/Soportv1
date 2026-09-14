@@ -52,6 +52,8 @@ export const supportCases = pgTable(
     customerLastReadAt: tz('customer_last_read_at'),
     staffLastReadAt: tz('staff_last_read_at'),
     resolvedAt: tz('resolved_at'),
+    /** Reason code of the latest resolution (PH-3.1); the explanation is a public message. */
+    resolutionReason: text('resolution_reason'),
     closedAt: tz('closed_at'),
   },
   (t) => [

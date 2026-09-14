@@ -44,8 +44,44 @@ export const CASE_EVENT_TYPES = [
   "case_assigned",
   "status_changed",
   "case_reopened",
+  // PH-3 vocabulary (added to the database enum in migration 0003)
+  "case_resolved",
+  "case_closed",
+  "priority_changed",
+  "category_changed",
+  "consultation_requested",
+  "consultation_answered",
+  "follow_up_created",
+  "incident_linked",
 ] as const;
 export type CaseEventType = (typeof CASE_EVENT_TYPES)[number];
+
+/** Statuses staff may set directly (§7); `resolved` goes through the resolution flow, `closed` through closure. */
+export const STAFF_STATUS_TARGETS = ["in_progress", "waiting_customer", "waiting_internal"] as const;
+export type StaffStatusTarget = (typeof STAFF_STATUS_TARGETS)[number];
+
+/** Working defaults for resolution reasons (context §7.1, §13.1) — refine with Operations (BL-002). */
+export const RESOLUTION_REASONS = [
+  "solved",
+  "answered",
+  "no_action_possible",
+  "handled_elsewhere",
+  "duplicate",
+  "no_customer_response",
+] as const;
+export type ResolutionReason = (typeof RESOLUTION_REASONS)[number];
+
+export const setStatusSchema = z.object({
+  status: z.enum(STAFF_STATUS_TARGETS),
+});
+export type SetStatusInput = z.infer<typeof setStatusSchema>;
+
+export const resolveCaseSchema = z.object({
+  reason: z.enum(RESOLUTION_REASONS),
+  /** Customer-facing explanation; posted as a public message so it lives in the conversation (§7.1). */
+  explanation: z.string().trim().min(1, "explanation_required").max(5000, "explanation_too_long"),
+});
+export type ResolveCaseInput = z.infer<typeof resolveCaseSchema>;
 
 export const STAFF_QUEUE_VIEWS = ["unassigned", "mine", "active"] as const;
 export type StaffQueueView = (typeof STAFF_QUEUE_VIEWS)[number];
@@ -159,6 +195,8 @@ export const caseSummarySchema = z.object({
   staffLastReadAt: z.string().nullable(),
   /** Messages the *viewer* has not read yet — viewer-dependent, recomputed per request; 0 inside stream events. */
   unreadCount: z.number().int().nonnegative(),
+  resolvedAt: z.string().nullable(),
+  resolutionReason: z.enum(RESOLUTION_REASONS).nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 

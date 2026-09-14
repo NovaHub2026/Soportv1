@@ -63,6 +63,34 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(app.getHttpServer()).get('/api/support/cases/not-a-uuid').set(asCustomer('cust-1')).expect(400);
   });
 
+  it('lifecycle endpoints: staff set status and resolve; customers cannot; validation and conflicts are explicit', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-lia'))
+      .send({ category: 'operations', message: 'Operação não liquidou' })
+      .expect(201);
+    const id: string = created.body.id;
+
+    await request(server).post(`/api/staff/cases/${id}/status`).set(asCustomer('cust-lia')).send({ status: 'waiting_customer' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/status`).set(asStaff('staff-ana', 'Ana')).send({ status: 'resolved' }).expect(400);
+    const waiting = await request(server).post(`/api/staff/cases/${id}/status`).set(asStaff('staff-ana', 'Ana')).send({ status: 'waiting_customer' }).expect(200);
+    expect(waiting.body).toMatchObject({ status: 'waiting_customer', assignedAgentId: 'staff-ana' });
+
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: '   ' }).expect(400);
+    const resolved = await request(server)
+      .post(`/api/staff/cases/${id}/resolve`)
+      .set(asStaff('staff-ana', 'Ana'))
+      .send({ reason: 'answered', explanation: 'A operação foi liquidada às 10:31 com o preço de referência X.' })
+      .expect(200);
+    expect(resolved.body).toMatchObject({ status: 'resolved', resolutionReason: 'answered' });
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: 'x' }).expect(409);
+
+    const customerView = await request(server).get(`/api/support/cases/${id}`).set(asCustomer('cust-lia')).expect(200);
+    expect(customerView.body.status).toBe('resolved');
+    expect(customerView.body.messages.at(-1).body).toContain('liquidada às 10:31');
+  });
+
   it('runs the PH-1 journey: customer request → staff queue → take → reply → customer sees the reply', async () => {
     const server = app.getHttpServer();
 

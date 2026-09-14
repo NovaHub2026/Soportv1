@@ -1,6 +1,6 @@
 "use client";
 
-import type { CaseEvent, CaseMessage, StaffCaseDetail } from "@orbit-support/shared";
+import { type CaseEvent, type CaseMessage, RESOLUTION_REASONS, type ResolutionReason, type StaffCaseDetail, type StaffStatusTarget } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentComposer } from "@/features/support/AttachmentComposer";
 import { AttachmentList } from "@/features/support/AttachmentList";
@@ -36,6 +36,10 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const [clientMessageId, setClientMessageId] = useState(() => newClientMessageId());
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [attachClearToken, setAttachClearToken] = useState(0);
+  const [action, setAction] = useState<ActionState>({ status: "idle" });
+  const [resolving, setResolving] = useState(false);
+  const [resolveReason, setResolveReason] = useState<ResolutionReason>("solved");
+  const [resolveExplanation, setResolveExplanation] = useState("");
   const logRef = useRef<HTMLOListElement>(null);
   const attachmentClient = useMemo(() => staffApi.attachments(identity, caseId), [identity, caseId]);
   // Monotonic request counter: a poll that started before an action must not overwrite the action's result.
@@ -97,6 +101,37 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
     } catch (error) {
       console.warn("staff: could not take case", error);
       setTake({ status: "error", message: t.staff.takeFailed });
+    }
+  }
+
+  async function handleStatus(target: StaffStatusTarget) {
+    setAction({ status: "busy" });
+    try {
+      await staffApi.setStatus(identity, caseId, target);
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not change status", error);
+      setAction({ status: "error", message: t.staff.actions.failed });
+    }
+  }
+
+  async function handleResolve(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const explanation = resolveExplanation.trim();
+    if (!explanation) return;
+    setAction({ status: "busy" });
+    try {
+      await staffApi.resolve(identity, caseId, { reason: resolveReason, explanation });
+      setResolving(false);
+      setResolveExplanation("");
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not resolve case", error);
+      setAction({ status: "error", message: t.staff.actions.failed });
     }
   }
 
@@ -185,6 +220,76 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
               {customerReadLatest && detail.customerLastReadAt ? ` · ${formatMessageTime(detail.customerLastReadAt)}` : ""}
             </p>
           )}
+          {detail.status === "resolved" && detail.resolutionReason && (
+            <p className={styles.readState}>{fill(t.staff.actions.resolvedAs, { reason: t.staff.reasons[detail.resolutionReason] })}</p>
+          )}
+
+          {detail.status !== "closed" && (
+            <div className={styles.actions} role="group" aria-label={t.staff.actions.title}>
+              {detail.status !== "waiting_customer" && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleStatus("waiting_customer")}>
+                  {t.staff.actions.waitCustomer}
+                </button>
+              )}
+              {detail.status !== "waiting_internal" && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleStatus("waiting_internal")}>
+                  {t.staff.actions.waitInternal}
+                </button>
+              )}
+              {detail.status !== "in_progress" && detail.status !== "new" && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleStatus("in_progress")}>
+                  {t.staff.actions.resume}
+                </button>
+              )}
+              {detail.status !== "resolved" && !resolving && (
+                <button type="button" className={styles.resolveButton} disabled={action.status === "busy"} onClick={() => setResolving(true)}>
+                  {t.staff.actions.resolve}
+                </button>
+              )}
+            </div>
+          )}
+          {action.status === "error" && (
+            <p className={styles.errorText} role="alert">
+              {action.message}
+            </p>
+          )}
+          {resolving && (
+            <form className={styles.resolveForm} onSubmit={handleResolve} aria-label={t.staff.actions.resolve}>
+              <label className={styles.composerLabel} htmlFor="resolve-reason">
+                {t.staff.actions.resolveReason}
+              </label>
+              <select id="resolve-reason" className={styles.select} value={resolveReason} onChange={(event) => setResolveReason(event.target.value as ResolutionReason)}>
+                {RESOLUTION_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {t.staff.reasons[reason]}
+                  </option>
+                ))}
+              </select>
+              <label className={styles.composerLabel} htmlFor="resolve-explanation">
+                {t.staff.actions.resolveExplanation}
+              </label>
+              <textarea
+                id="resolve-explanation"
+                className={styles.composerInput}
+                rows={3}
+                maxLength={5000}
+                value={resolveExplanation}
+                onChange={(event) => setResolveExplanation(event.target.value)}
+                aria-describedby="resolve-explanation-hint"
+              />
+              <p id="resolve-explanation-hint" className={styles.hint}>
+                {t.staff.actions.resolveExplanationHint}
+              </p>
+              <div className={styles.composerActions}>
+                <button type="button" className={styles.secondaryButton} onClick={() => setResolving(false)}>
+                  {t.staff.actions.cancel}
+                </button>
+                <button type="submit" className={styles.primaryButton} disabled={!resolveExplanation.trim() || action.status === "busy"}>
+                  {t.staff.actions.resolveConfirm}
+                </button>
+              </div>
+            </form>
+          )}
         </header>
 
         <ol ref={logRef} className={styles.messageLog} aria-live="polite" aria-relevant="additions">
@@ -260,6 +365,10 @@ function describeEvent(event: CaseEvent): string {
   switch (event.type) {
     case "case_assigned":
       return fill(t.staff.events.case_assigned, { agent: str("agentName") || str("agentId") });
+    case "case_resolved": {
+      const reason = str("reason") as ResolutionReason;
+      return fill(t.staff.events.case_resolved, { reason: t.staff.reasons[reason] ?? reason });
+    }
     case "status_changed": {
       const from = str("from") as keyof typeof t.staff.status;
       const to = str("to") as keyof typeof t.staff.status;

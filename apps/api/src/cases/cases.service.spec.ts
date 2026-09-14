@@ -41,6 +41,54 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     published = [];
   });
 
+  describe('lifecycle: status transitions and resolution (PH-3.1)', () => {
+    it('staff set what the case is waiting for, taking responsibility for an unowned case, with attributable events', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Preciso de ajuda' });
+      const waiting = await service.setStatus(ana, created.id, 'waiting_customer');
+      expect(waiting).toMatchObject({ status: 'waiting_customer', assignedAgentId: ana.id });
+
+      // The customer's reply returns the case to active attention (§7.2).
+      await service.postCustomerMessage(alice, created.id, { body: 'Segue a informação' });
+      expect((await service.getStaffCase(created.id)).status).toBe('in_progress');
+
+      const internal = await service.setStatus(ana, created.id, 'waiting_internal');
+      expect(internal.status).toBe('waiting_internal');
+      // A customer reply while waiting for an internal team keeps the dependency (§7.2).
+      await service.postCustomerMessage(alice, created.id, { body: 'Alguma novidade?' });
+      expect((await service.getStaffCase(created.id)).status).toBe('waiting_internal');
+
+      const resumed = await service.setStatus(ana, created.id, 'in_progress');
+      expect(resumed.status).toBe('in_progress');
+      const types = (await service.getStaffCase(created.id)).events.map((e) => e.type);
+      expect(types.filter((t) => t === 'status_changed').length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('resolves with a reason and a customer-facing explanation; a customer reply reactivates and clears the reason', async () => {
+      const created = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Saque atrasado' });
+      const resolved = await service.resolve(ana, created.id, { reason: 'solved', explanation: 'Seu saque foi confirmado na rede às 14:02.' });
+      expect(resolved).toMatchObject({ status: 'resolved', resolutionReason: 'solved', assignedAgentId: ana.id });
+      expect(resolved.resolvedAt).not.toBeNull();
+
+      const customerView = await service.getCustomerCase(alice, created.id);
+      expect(customerView.messages.at(-1)).toMatchObject({ authorType: 'staff', visibility: 'public', body: 'Seu saque foi confirmado na rede às 14:02.' });
+      const events = (await service.getStaffCase(created.id)).events;
+      expect(events.at(-1)).toMatchObject({ type: 'case_resolved', actorId: ana.id, data: { reason: 'solved' } });
+
+      await expect(service.resolve(ana, created.id, { reason: 'solved', explanation: 'de novo' })).rejects.toBeInstanceOf(ConflictException);
+
+      await service.postCustomerMessage(alice, created.id, { body: 'Ainda preciso de ajuda.' });
+      const reopened = await service.getStaffCase(created.id);
+      expect(reopened).toMatchObject({ status: 'in_progress', resolvedAt: null, resolutionReason: null });
+    });
+
+    it('refuses transitions on a closed case', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await db.update(supportCases).set({ status: 'closed', closedAt: new Date() }).where(eq(supportCases.id, created.id));
+      await expect(service.setStatus(ana, created.id, 'in_progress')).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.resolve(ana, created.id, { reason: 'solved', explanation: 'x' })).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
   describe('read markers and unread counts (PH-2.2)', () => {
     it('counts staff replies as unread for the customer until they mark the case read, and vice versa', async () => {
       const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });

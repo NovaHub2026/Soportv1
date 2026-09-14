@@ -2,10 +2,12 @@ import {
   type CaseMessage,
   type CaseSummary,
   type PostMessageInput,
+  type ResolveCaseInput,
   SIMULATED_IDENTITY_HEADERS,
   type StaffCaseDetail,
   type StaffQueueView,
   type StaffRole,
+  type StaffStatusTarget,
 } from "@orbit-support/shared";
 import { apiRequest, type AttachmentClient, fetchBlob, uploadFile } from "./api";
 
@@ -34,6 +36,10 @@ export const staffApi = {
     apiRequest<CaseMessage>(`/staff/cases/${caseId}/messages`, staffHeaders(identity), { method: "POST", body: input }),
   markRead: (identity: StaffIdentity, caseId: string) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/read`, staffHeaders(identity), { method: "POST" }),
+  setStatus: (identity: StaffIdentity, caseId: string, status: StaffStatusTarget) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}/status`, staffHeaders(identity), { method: "POST", body: { status } }),
+  resolve: (identity: StaffIdentity, caseId: string, input: ResolveCaseInput) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}/resolve`, staffHeaders(identity), { method: "POST", body: input }),
   attachments: (identity: StaffIdentity, caseId: string): AttachmentClient => ({
     upload: (file) => uploadFile(`/staff/cases/${caseId}/attachments`, staffHeaders(identity), file),
     fetchBlob: (attachmentId, signal) => fetchBlob(`/staff/cases/${caseId}/attachments/${attachmentId}`, staffHeaders(identity), signal),

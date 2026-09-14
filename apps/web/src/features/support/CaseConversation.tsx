@@ -251,6 +251,25 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
       {detail.status === "new" && pending.length === 0 && (
         <p className={styles.notice}>{t.support.conversation.waitingNotice}</p>
       )}
+      {detail.status === "resolved" && (
+        <div className={styles.resolvedNotice} role="status">
+          <p>{t.support.conversation.resolvedNotice}</p>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() =>
+              void send({
+                clientMessageId: newClientMessageId(),
+                body: t.support.conversation.stillNeedHelpMessage,
+                createdAt: new Date().toISOString(),
+                state: "sending",
+              })
+            }
+          >
+            {t.support.conversation.stillNeedHelp}
+          </button>
+        </div>
+      )}
 
       {closed ? (
         <p className={styles.notice} role="status">

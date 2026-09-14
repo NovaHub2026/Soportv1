@@ -23,6 +23,10 @@ import {
   type CaseSummary,
   postMessageSchema,
   type PostMessageInput,
+  resolveCaseSchema,
+  type ResolveCaseInput,
+  setStatusSchema,
+  type SetStatusInput,
   type StaffCaseDetail,
   type StaffQueueView,
   staffQueueViewSchema,
@@ -92,6 +96,28 @@ export class StaffCasesController {
   @HttpCode(200)
   take(@CurrentActor() actor: StaffActor, @Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
     return this.cases.takeCase(actor, id);
+  }
+
+  /** What the case is waiting for (PH-3.1): in_progress | waiting_customer | waiting_internal. */
+  @Post(':id/status')
+  @HttpCode(200)
+  setStatus(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setStatusSchema)) input: SetStatusInput,
+  ): Promise<CaseSummary> {
+    return this.cases.setStatus(actor, id, input.status);
+  }
+
+  /** Conclude with a reason and a customer-facing explanation (§7.1). */
+  @Post(':id/resolve')
+  @HttpCode(200)
+  resolve(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(resolveCaseSchema)) input: ResolveCaseInput,
+  ): Promise<CaseSummary> {
+    return this.cases.resolve(actor, id, input);
   }
 
   /** Staff have the conversation open: customer messages received so far count as read. */

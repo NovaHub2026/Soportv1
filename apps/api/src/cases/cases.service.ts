@@ -11,8 +11,11 @@ import {
   formatCaseReference,
   OPEN_CASE_STATUSES,
   type PostMessageInput,
+  type ResolutionReason,
+  type ResolveCaseInput,
   type StaffCaseDetail,
   type StaffQueueView,
+  type StaffStatusTarget,
 } from '@orbit-support/shared';
 import { AttachmentsService, toAttachment } from '../attachments/attachments.service.js';
 import { type Db, isUniqueViolation } from '../database/database.js';
@@ -157,6 +160,7 @@ export class CasesService {
         // §7.2 simple rule: any customer message reactivates a resolved case, whatever it says.
         patch.status = 'in_progress';
         patch.resolvedAt = null;
+        patch.resolutionReason = null;
         await tx.insert(caseEvents).values({
           caseId: row.id,
           type: 'case_reopened',
@@ -284,6 +288,82 @@ export class CasesService {
       }
       throw error;
     }
+  }
+
+  // ---------- Lifecycle (PH-3.1): status means "work still required" (§7) ----------
+
+  /**
+   * Staff say what the case is waiting for. Acting on an unowned case makes the actor responsible
+   * (RULE-SUP-02). `resolved` and `closed` have their own flows; `closed` cases do not move here.
+   */
+  async setStatus(staff: StaffActor, caseId: string, target: StaffStatusTarget): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    const updated = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
+      if (current.status === target) return current;
+      await tx.insert(caseEvents).values(statusChange(current, target, staff.id, 'staff', now));
+      const [changed] = await tx
+        .update(supportCases)
+        .set({ status: target, updatedAt: now, resolvedAt: null, resolutionReason: null })
+        .where(eq(supportCases.id, current.id))
+        .returning();
+      return changed;
+    });
+    this.publishCaseUpdated(updated);
+    return toSummary(updated);
+  }
+
+  /**
+   * A supported conclusion: reason code plus an explanation the customer reads in the conversation (§7.1).
+   * Resolving changes nothing but the case itself (RULE-SUP-05). The customer can reactivate by replying.
+   */
+  async resolve(staff: StaffActor, caseId: string, input: ResolveCaseInput): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    if (row.status === 'resolved') throw new ConflictException('case_already_resolved');
+    const { updated, message } = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
+      const [explanation] = await tx
+        .insert(caseMessages)
+        .values({
+          caseId: current.id,
+          authorType: 'staff',
+          authorId: staff.id,
+          authorName: staff.displayName,
+          visibility: 'public',
+          body: input.explanation,
+          createdAt: now,
+        })
+        .returning();
+      await tx.insert(caseEvents).values(statusChange(current, 'resolved', staff.id, 'staff', now));
+      await tx.insert(caseEvents).values({
+        caseId: current.id,
+        type: 'case_resolved',
+        actorType: 'staff',
+        actorId: staff.id,
+        data: { reason: input.reason, messageId: explanation.id },
+        createdAt: now,
+      });
+      const [changed] = await tx
+        .update(supportCases)
+        .set({
+          status: 'resolved',
+          resolvedAt: now,
+          resolutionReason: input.reason,
+          updatedAt: now,
+          lastMessageAt: now,
+          lastStaffMessageAt: now,
+        })
+        .where(eq(supportCases.id, current.id))
+        .returning();
+      return { updated: changed, message: explanation };
+    });
+    this.publishMessage(updated, toMessage(message));
+    this.publishCaseUpdated(updated);
+    return toSummary(updated);
   }
 
   // ---------- Rows for controllers that need the case before acting (attachments) ----------
@@ -459,6 +539,8 @@ function toSummary(row: SupportCaseRow, unreadCount = 0): CaseSummary {
     customerLastReadAt: iso(row.customerLastReadAt),
     staffLastReadAt: iso(row.staffLastReadAt),
     unreadCount,
+    resolvedAt: iso(row.resolvedAt),
+    resolutionReason: (row.resolutionReason as ResolutionReason | null) ?? null,
   };
 }
 

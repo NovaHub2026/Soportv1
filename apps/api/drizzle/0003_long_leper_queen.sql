@@ -1,0 +1,9 @@
+ALTER TYPE "public"."case_event_type" ADD VALUE 'case_resolved';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'case_closed';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'priority_changed';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'category_changed';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'consultation_requested';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'consultation_answered';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'follow_up_created';--> statement-breakpoint
+ALTER TYPE "public"."case_event_type" ADD VALUE 'incident_linked';--> statement-breakpoint
+ALTER TABLE "support_cases" ADD COLUMN "resolution_reason" text;

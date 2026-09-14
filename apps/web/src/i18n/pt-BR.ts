@@ -1,4 +1,4 @@
-import type { CaseCategory, CaseEventType, CasePriority, CaseStatus, StaffQueueView } from "@orbit-support/shared";
+import type { CaseCategory, CaseEventType, CasePriority, CaseStatus, ResolutionReason, StaffQueueView } from "@orbit-support/shared";
 
 /** Customer-facing copy, Brazilian Portuguese first (PROJECT_CONTEXT.md §10.1). */
 export const ptBR = {
@@ -59,6 +59,9 @@ export const ptBR = {
       waitingNotice: "Recebemos sua mensagem. Uma pessoa da equipe vai responder por aqui.",
       unreadOne: "1 nova mensagem",
       unreadMany: "{n} novas mensagens",
+      resolvedNotice: "Este caso foi marcado como resolvido. Se ainda precisar de ajuda, é só responder ou tocar no botão abaixo.",
+      stillNeedHelp: "Ainda preciso de ajuda",
+      stillNeedHelpMessage: "Ainda preciso de ajuda.",
     },
     connection: {
       connecting: "Conectando…",
@@ -141,11 +144,41 @@ export const ptBR = {
       none: "—",
       history: "Histórico",
     },
+    actions: {
+      title: "Ações do caso",
+      waitCustomer: "Aguardar cliente",
+      waitInternal: "Aguardar equipe interna",
+      resume: "Retomar atendimento",
+      resolve: "Resolver caso",
+      resolveReason: "Motivo",
+      resolveExplanation: "Explicação para o cliente",
+      resolveExplanationHint: "O cliente verá este texto na conversa, junto com o status “Resolvido”.",
+      resolveConfirm: "Confirmar resolução",
+      cancel: "Cancelar",
+      failed: "Não foi possível aplicar a ação. Tente novamente.",
+      resolvedAs: "Resolvido · {reason}",
+    },
+    reasons: {
+      solved: "Problema resolvido",
+      answered: "Dúvida respondida",
+      no_action_possible: "Analisado, sem ação possível",
+      handled_elsewhere: "Encaminhado ao processo responsável",
+      duplicate: "Duplicado de outro caso",
+      no_customer_response: "Sem resposta do cliente",
+    } satisfies Record<ResolutionReason, string>,
     events: {
       case_created: "Caso aberto pelo cliente",
       case_assigned: "Atribuído a {agent}",
       status_changed: "Status: {from} → {to}",
       case_reopened: "Reaberto pelo cliente",
+      case_resolved: "Resolvido: {reason}",
+      case_closed: "Encerrado após o prazo de acompanhamento",
+      priority_changed: "Prioridade: {from} → {to}",
+      category_changed: "Assunto: {from} → {to}",
+      consultation_requested: "Consulta enviada para {team}",
+      consultation_answered: "Consulta respondida por {agent}",
+      follow_up_created: "Continuação aberta: {reference}",
+      incident_linked: "Vinculado ao incidente “{incident}”",
     } satisfies Record<CaseEventType, string>,
     priority: {
       low: "Baixa",

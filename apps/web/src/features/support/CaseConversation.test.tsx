@@ -153,6 +153,27 @@ describe("CaseConversation", () => {
     expect(screen.getAllByText("Só uma vez")).toHaveLength(1);
   });
 
+  test("a resolved case offers 'Ainda preciso de ajuda', which sends a message that reactivates it (PH-3.1)", async () => {
+    let status: "resolved" | "in_progress" = "resolved";
+    const { requests } = mockFetch((request) => {
+      if (request.method === "POST" && request.url.endsWith("/messages")) {
+        status = "in_progress";
+        const body = request.body as { body: string; clientMessageId: string };
+        return { status: 201, body: message({ id: "m-help", body: body.body, clientMessageId: body.clientMessageId }) };
+      }
+      if (request.url.endsWith("/read")) return { body: summary() };
+      return { body: { ...detail, status, resolutionReason: status === "resolved" ? "solved" : null } };
+    });
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    expect(await screen.findByText("Resolvido")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Ainda preciso de ajuda" }));
+
+    await waitFor(() => expect(screen.getByText("Em atendimento")).toBeDefined());
+    const post = requests.find((r) => r.method === "POST" && r.url.endsWith("/messages"));
+    expect((post?.body as { body: string }).body).toBe("Ainda preciso de ajuda.");
+    expect(screen.queryByRole("button", { name: "Ainda preciso de ajuda" })).toBeNull();
+  });
+
   test("a closed case shows the closure notice instead of the composer", async () => {
     mockFetch(() => ({ body: { ...detail, status: "closed" } }));
     render(<CaseConversation identity={identity} caseId={detail.id} />);

@@ -21,4 +21,4 @@ Not verified: real-network partitions and multi-instance deployments (ADR-0004 l
 `npm run verify`, 2026-09-14 01:34 UTC, on the completed PH-2.4 tree: `check-context: 27 documents, 378 links (2 gitignored skipped), 8 phases, 9 subphases, active: none — OK` (ledger 2/3 consistent with CURRENT_STATE); build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 27/27, web 34/34; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34796413346` on `8a5f211` (PH-2.4 / PH-2 approval commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 01:43 UTC. Claim 6 is EXECUTED for `8a5f211`; the PH-2 phase candidate is CI verified.
