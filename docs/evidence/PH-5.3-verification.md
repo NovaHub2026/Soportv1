@@ -15,10 +15,11 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 | 5 | CI executes the gate on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
 
 ## Smoke
-SMOKE_PLACEHOLDER
+43 observations, exit 0 (2026-09-14), screenshots `screenshots/ph-5.3/01`–`24`. New observations: `saved-reply` — a reply created by the supervisor through the API ("Saque em análise") was offered in Ana's composer; choosing it inserted the text into the draft, nothing was sent, the agent cleared it and continued; `search` — searching "WD-48213" under "Todos ativos" listed only SUP-000003 (the debounced list dropped SUP-000002), "nada-disso" showed "Nenhum caso ativo no momento." and "Limpar" restored the list. Two harness fixes on the way: the context-column "Prioridade" locator became exact (the new filter select also matched), and the search assertion waits for the debounce. Every earlier observation passed unchanged.
 
 ## Final gate run
-GATE_PLACEHOLDER
+**Corrected (FND-0028, second occurrence).** At commit time of `6d11ee8` the `verify` run failed at `check-context` (the pre-written `docs/phases/PH-5.4.md` linked evidence files that did not exist yet) and the chain stopped there; the commit was created anyway because a heredoc in the shell command ended the `&&` chain. The suites had run individually on the same tree (api unit 52/52, api e2e 26/26, web 56/56; lint/typecheck exit 0) and the smoke passed, but claim 4 is NOT VERIFIED for `6d11ee8`. The next commit (documentation only: pending links marked as such, this record completed) is the first with a full green `verify` on this code; from that commit on, every commit is produced by a gate-then-commit script that cannot commit after a failed gate.
 
 ## CI
-Pending push.
+Commit `6d11ee8`: expected **failure** (check-context) — see "Final gate run". The corrective commit's run is recorded below when known.
+Corrective commit: pending push.

@@ -18,11 +18,11 @@ Supervisors configure the operating schedule and the attention threshold, and th
 - Availability reflects the schedule: inside hours "aberto", outside "fechado" with the next opening; a fully closed day says so; the copy never promises response times.
 - Overview counts match the queue views; overdue = awaiting reply longer than the configured threshold; reassignment from the overview records `case_assigned` like a transfer.
 - Metrics are computed only from events/messages in the period and expose sample sizes; with no data they show "sem dados" rather than zero durations.
-Acceptance evidence: `../evidence/PH-5.4-verification.md`; phase evidence `../evidence/PH-5-phase-approval.md`.
+Acceptance evidence: `../evidence/PH-5.4-verification.md` (to be created); phase evidence `../evidence/PH-5-phase-approval.md` (to be created).
 
 ## Work performed and important decisions
 Filled at approval.
 
 ## Verification, limitations and context updates
-Evidence: `../evidence/PH-5.4-verification.md`. Limitations: schedule defaults are working defaults (BL-002); role gating uses the simulated role; metrics are computed on request (no aggregation tables).
+Evidence: `../evidence/PH-5.4-verification.md` (to be created). Limitations: schedule defaults are working defaults (BL-002); role gating uses the simulated role; metrics are computed on request (no aggregation tables).
 Context updated at approval: `PH-5.md`, `ROADMAP.md` (ledger), `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `CONTEXT_INDEX.md`, feature contexts, `../runbooks/VERIFICATION.md`, `../decisions/DECISION_LOG.md`, `../BACKLOG.md`.
