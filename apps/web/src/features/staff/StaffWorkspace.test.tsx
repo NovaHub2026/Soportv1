@@ -36,6 +36,28 @@ const detail = {
   consultations: [],
 };
 
+const orbitAvailable = {
+  customer: {
+    state: "available",
+    source: "simulated",
+    fetchedAt: new Date().toISOString(),
+    data: {
+      userId: "cust-test",
+      username: "alice.souza",
+      accountStatus: "active",
+      language: "pt-BR",
+      country: "BR",
+      registeredAt: "2025-11-03T14:12:00.000Z",
+      emailMasked: "a***@e***.com",
+      phoneMasked: "+55 ••• ••• 1234",
+      verificationStatus: "verified",
+      verificationNextAction: null,
+      environment: "real",
+    },
+  },
+};
+const orbitUnavailable = { customer: { state: "unavailable", source: "simulated", fetchedAt: new Date().toISOString(), reason: "unavailable" } };
+
 describe("StaffQueue", () => {
   test("requests the selected view with the simulated staff headers and lists cases", async () => {
     const { requests } = mockFetch(() => ({ body: [summary({ subject: "Saque pendente" })] }));
@@ -67,16 +89,36 @@ describe("StaffQueue", () => {
 });
 
 describe("StaffCaseView", () => {
-  test("shows the conversation with internal notes visibly marked and the Orbit context as unavailable", async () => {
-    mockFetch(() => ({ body: detail }));
+  test("shows the conversation with internal notes visibly marked and the Orbit summary, masked and labeled (PH-4.1)", async () => {
+    mockFetch((request) => (request.url.endsWith("/orbit") ? { body: orbitAvailable } : { body: detail }));
     render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
 
     expect(await screen.findByText(/SUP-000001/)).toBeDefined();
     expect(screen.getByText("Meu saque não chegou")).toBeDefined();
     expect(screen.getByText(/Nota interna · visível só para a equipe/)).toBeDefined();
     expect(screen.getByText("Verificar com Finance antes de responder.")).toBeDefined();
-    expect(screen.getByText(/integração com o Orbit ainda não foi construída/)).toBeDefined();
     expect(screen.getByText("Caso aberto pelo cliente")).toBeDefined();
+    const facts = await screen.findByTestId("orbit-customer");
+    expect(facts.textContent).toContain("alice.souza");
+    expect(facts.textContent).toContain("a***@e***.com");
+    expect(facts.textContent).toContain("Verificada");
+    expect(facts.textContent).toContain("Conta real");
+    expect(facts.textContent).not.toContain("example.com");
+    expect(screen.getByText(/ainda não estão integrados/)).toBeDefined();
+  });
+
+  test("shows the Orbit summary as unavailable with its reason and a retry, never as an assumed value (RULE-SUP-07)", async () => {
+    let calls = 0;
+    mockFetch((request) => {
+      if (!request.url.endsWith("/orbit")) return { body: detail };
+      calls += 1;
+      return { body: calls === 1 ? orbitUnavailable : orbitAvailable };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    expect((await screen.findByText(/Dados do Orbit indisponíveis: Orbit sem resposta/)).textContent).toBeDefined();
+    expect(screen.queryByTestId("orbit-customer")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect((await screen.findByTestId("orbit-customer")).textContent).toContain("alice.souza");
   });
 
   test("marks customer messages read on open and tells whether the customer read the latest reply", async () => {

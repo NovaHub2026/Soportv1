@@ -8,6 +8,7 @@ import {
   type Incident,
   type IncidentNoteInput,
   type IncidentStatus,
+  type OrbitCaseContext,
   type PostMessageInput,
   type PostNoteInput,
   type RequestConsultationInput,
@@ -40,6 +41,9 @@ export const staffApi = {
     apiRequest<CaseSummary[]>(`/staff/cases?view=${view}`, staffHeaders(identity), { signal }),
   getCase: (identity: StaffIdentity, caseId: string, signal?: AbortSignal) =>
     apiRequest<StaffCaseDetail>(`/staff/cases/${caseId}`, staffHeaders(identity), { signal }),
+  /** Orbit context of the case's customer (PH-4.1): available or explicitly unavailable, masked, labeled. */
+  getOrbitContext: (identity: StaffIdentity, caseId: string, signal?: AbortSignal) =>
+    apiRequest<OrbitCaseContext>(`/staff/cases/${caseId}/orbit`, staffHeaders(identity), { signal }),
   takeCase: (identity: StaffIdentity, caseId: string) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/take`, staffHeaders(identity), { method: "POST" }),
   postMessage: (identity: StaffIdentity, caseId: string, input: PostMessageInput) =>

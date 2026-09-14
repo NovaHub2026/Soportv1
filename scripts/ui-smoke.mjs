@@ -193,12 +193,17 @@ try {
     await staffPage.getByText(/Última resposta lida pelo cliente/).waitFor({ timeout: 5000 });
     note('read-receipt', 'staff see "Última resposta lida pelo cliente" once the open customer panel received the reply');
 
-    await staffPage.getByText(/integração com o Orbit ainda não foi construída/).waitFor();
+    // PH-4.1: the context column shows the customer's Orbit summary — masked contact, verification, environment — labeled as simulation.
+    await staffPage.getByText('Cliente no Orbit').waitFor();
+    await staffPage.getByText('a***@e***.com').waitFor({ timeout: 5000 });
+    await staffPage.getByText('Verificada').waitFor();
+    if (await staffPage.getByText('alice.souza@').count()) throw new Error('Raw e-mail rendered for staff');
+    note('orbit-summary', 'the staff context column shows the customer\'s Orbit summary from the simulated adapter: username alice.souza, e-mail masked as a***@e***.com, verification "Verificada", "Conta real" — labeled Simulação; the raw e-mail never appears');
     // A poll that raced the reply must not make the message vanish (regression found in PH-1.4).
     await staffPage.waitForTimeout(2500);
     if (!(await staffPage.getByText(replyText).isVisible())) throw new Error('Staff reply disappeared after a refresh');
     await staffPage.getByText('Atribuído a Ana Ribeiro').waitFor();
-    note('staff-reply', 'the public reply stays visible across refreshes; the context column shows Orbit data as unavailable and the assignment in the history');
+    note('staff-reply', 'the public reply stays visible across refreshes; the context column shows the Orbit summary, the pending-records note and the assignment in the history');
     await shot(staffPage, '09-staff-case-reply');
 
     // Customer follow-up from the composer, delivered live to the open staff case view.

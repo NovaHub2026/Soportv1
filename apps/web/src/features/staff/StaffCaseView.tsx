@@ -25,6 +25,7 @@ import { ApiError, apiErrorCode, type AttachmentClient, newClientMessageId } fro
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import { IncidentSection } from "./IncidentSection";
+import { OrbitCustomerSection } from "./OrbitCustomerSection";
 import styles from "./staff.module.css";
 
 /** Safety-net refresh while the staff stream is down (ADR-0004). */
@@ -537,7 +538,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         )}
       </section>
 
-      <CaseContext detail={detail} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"}>
+      <CaseContext detail={detail} identity={identity} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"}>
         <IncidentSection
           identity={identity}
           detail={detail}
@@ -675,12 +676,14 @@ function describeEvent(event: CaseEvent): string {
 
 function CaseContext({
   detail,
+  identity,
   onAnswer,
   onAttributes,
   busy,
   children,
 }: {
   detail: StaffCaseDetail;
+  identity: StaffIdentity;
   onAnswer: (c: CaseConsultation, answer: string) => void;
   onAttributes: (input: UpdateCaseInput) => void;
   busy: boolean;
@@ -715,10 +718,8 @@ function CaseContext({
         <dt>{c.identitySource}</dt>
         <dd>{c.simulated}</dd>
       </dl>
-      {/* Missing data is shown as unavailable, never as an assumed value (RULE-SUP-07). */}
-      <p className={styles.unavailable} role="note">
-        {c.orbitUnavailable}
-      </p>
+      {/* Orbit context: available or explicitly unavailable, never an assumed value (RULE-SUP-07, PH-4.1). */}
+      <OrbitCustomerSection key={detail.id} identity={identity} caseId={detail.id} />
 
       <h3 className={styles.contextTitle}>{c.caseSection}</h3>
       <dl className={styles.facts}>

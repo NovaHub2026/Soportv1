@@ -2,9 +2,18 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { IdentityController } from './identity.controller.js';
 import { ORBIT_IDENTITY } from './identity.types.js';
 import { SimulatedOrbitIdentity } from './simulated-orbit-identity.js';
+import { ORBIT_RECORDS } from './orbit-records.js';
+import { SimulatedOrbitRecords } from './simulated-orbit-records.js';
 import { SimulatedStaffDirectory, STAFF_DIRECTORY } from './staff-directory.js';
 
 export type IdentityProviderName = 'simulated';
+
+/** Records adapter selection (PH-4.1): only the simulated one exists (DEC-0003). */
+export function resolveOrbitRecordsName(env: NodeJS.ProcessEnv): 'simulated' {
+  const name = env.SUPPORT_ORBIT_RECORDS ?? 'simulated';
+  if (name !== 'simulated') throw new Error(`Unknown Orbit records adapter "${name}". Only "simulated" exists until Orbit provides records (ADR-0002).`);
+  return name;
+}
 
 /**
  * Chooses the identity provider from the environment and refuses unsafe combinations. The simulated
@@ -45,8 +54,15 @@ export class IdentityModule {
           },
         },
         { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory },
+        {
+          provide: ORBIT_RECORDS,
+          useFactory: () => {
+            resolveOrbitRecordsName(env);
+            return new SimulatedOrbitRecords(env);
+          },
+        },
       ],
-      exports: [ORBIT_IDENTITY, STAFF_DIRECTORY],
+      exports: [ORBIT_IDENTITY, STAFF_DIRECTORY, ORBIT_RECORDS],
     };
   }
 }

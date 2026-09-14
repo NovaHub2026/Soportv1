@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Inject,
   type MessageEvent,
   Param,
   ParseUUIDPipe,
@@ -29,6 +30,7 @@ import {
   type CaseSummary,
   linkIncidentSchema,
   type LinkIncidentInput,
+  type OrbitCaseContext,
   postMessageSchema,
   type PostMessageInput,
   postNoteSchema,
@@ -51,6 +53,7 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { CaseStreamService } from '../events/case-stream.service.js';
 import { CurrentActor, StaffGuard } from '../identity/guards.js';
 import type { StaffActor } from '../identity/identity.types.js';
+import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { CasesService } from './cases.service.js';
 
 const viewSchema = staffQueueViewSchema.default('unassigned');
@@ -63,7 +66,18 @@ export class StaffCasesController {
     private readonly cases: CasesService,
     private readonly streams: CaseStreamService,
     private readonly attachments: AttachmentsService,
+    @Inject(ORBIT_RECORDS) private readonly orbit: OrbitRecordsPort,
   ) {}
+
+  /**
+   * Orbit context for the case's customer (PH-4.1, context §6.1): a separate read so an adapter failure never
+   * delays or breaks the conversation; each lookup is available or explicitly unavailable (RULE-SUP-07).
+   */
+  @Get(':id/orbit')
+  async orbitContext(@Param('id', ParseUUIDPipe) id: string): Promise<OrbitCaseContext> {
+    const row = await this.cases.requireCaseRow(id);
+    return { customer: await this.orbit.customerSummary(row.customerId) };
+  }
 
   @Post(':id/attachments')
   @UseInterceptors(FileInterceptor('file', UPLOAD_OPTIONS))

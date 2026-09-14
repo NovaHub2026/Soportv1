@@ -284,4 +284,32 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: 'Feito' }).expect(200);
   });
 
+
+  it('PH-4.1: staff read the customer\'s Orbit summary — masked, labeled, or explicitly unavailable; customers cannot', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-alice')).send({ category: 'other', message: 'Contexto' }).expect(201);
+    const id: string = created.body.id;
+    await request(server).get(`/api/staff/cases/${id}/orbit`).set(asCustomer('cust-alice')).expect(403);
+    await request(server).get('/api/staff/cases/11111111-1111-4111-8111-111111111111/orbit').set(asStaff('staff-ana', 'Ana')).expect(404);
+
+    const context = await request(server).get(`/api/staff/cases/${id}/orbit`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(context.body.customer).toMatchObject({ state: 'available', source: 'simulated', data: { username: 'alice.souza', emailMasked: 'a***@e***.com' } });
+    expect(context.text).not.toContain('alice.souza@');
+    expect(context.text).not.toContain('99999');
+
+    const stranger = await request(server).post('/api/support/cases').set(asCustomer('cust-ghost')).send({ category: 'other', message: 'Quem?' }).expect(201);
+    const missing = await request(server).get(`/api/staff/cases/${stranger.body.id}/orbit`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(missing.body.customer).toMatchObject({ state: 'unavailable', reason: 'not_found' });
+
+    process.env.SUPPORT_SIMULATED_ORBIT = 'unavailable';
+    try {
+      const outage = await request(server).get(`/api/staff/cases/${id}/orbit`).set(asStaff('staff-ana', 'Ana')).expect(200);
+      expect(outage.body.customer).toMatchObject({ state: 'unavailable', reason: 'unavailable' });
+    } finally {
+      delete process.env.SUPPORT_SIMULATED_ORBIT;
+    }
+    const health = await request(server).get('/api/health').expect(200);
+    expect(health.body.orbitRecords).toBe('simulated');
+  });
+
 });
