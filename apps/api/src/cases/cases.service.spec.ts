@@ -1,3 +1,4 @@
+import { DataExportService } from './data-export.service.js';
 import { ATTACHMENT_STORAGE, type AttachmentStorage } from '../attachments/storage.js';
 import { AttachmentsService } from '../attachments/attachments.service.js';
 import { randomUUID } from 'node:crypto';
@@ -50,6 +51,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         NotificationsService,
         NotificationJob,
         ReminderJob,
+        DataExportService,
         { provide: EMAIL_NOTIFIER, useClass: SimulatedEmailNotifier },
       ],
     }).compile();
@@ -1169,6 +1171,38 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect(overview.complaints.list.map((c) => c.id)).toEqual([late.id, fresh.id]);
       await service.resolve(carla, late.id, { reason: 'solved', explanation: 'ok' });
       expect((await supervision.overview(carla)).complaints).toMatchObject({ count: 1, overdue: 0 });
+    });
+  });
+
+  describe('exports of a customer\'s data (PH-10.3, DEC-0039 h)', () => {
+    it('an administrator exports only what the customer can see and the export is recorded; others are refused', async () => {
+      const exports = moduleRef.get(DataExportService);
+      const dani: StaffActor = { kind: 'staff', id: 'staff-dani', role: 'admin', displayName: 'Dani', source: 'simulated' };
+      const created = await service.createCase(alice, { category: 'other', message: 'Quero meus dados.' });
+      await service.postStaffMessage(ana, created.id, { body: 'Claro.' });
+      await service.postInternalNote(ana, created.id, { body: 'NOTA INTERNA' });
+      await service.requestConsultation(ana, created.id, { team: 'finance', question: 'PERGUNTA INTERNA' });
+      await service.createCase(bob, { category: 'other', message: 'Caso do Bob' });
+      await expect(exports.exportCustomer(carla, alice.id, { reason: 'Pedido do cliente.' })).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(exports.exportCustomer(ana, alice.id, { reason: 'Pedido do cliente.' })).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(exports.exportCustomer(dani, 'not valid!', { reason: 'Pedido do cliente.' })).rejects.toBeInstanceOf(BadRequestException);
+      const result = await exports.exportCustomer(dani, alice.id, { reason: 'Pedido do cliente.' });
+      expect(result.record).toMatchObject({ customerId: alice.id, requestedById: dani.id, reason: 'Pedido do cliente.', caseCount: 1 });
+      expect(result.cases.map((c) => c.id)).toEqual([created.id]);
+      expect(result.cases[0].messages.map((m) => m.body)).toEqual(['Quero meus dados.', 'Claro.']);
+      expect(result.cases[0].events.map((e) => e.type)).toContain('case_created');
+      const text = JSON.stringify(result);
+      expect(text).not.toContain('NOTA INTERNA');
+      expect(text).not.toContain('PERGUNTA INTERNA');
+      expect(text).not.toContain('Caso do Bob');
+      expect(typeof result.preferences.emailNotifications).toBe('boolean'); // whatever the customer chose (an earlier test opted Alice out)
+      const list = await exports.list(dani);
+      expect(list[0].id).toBe(result.record.id);
+      await expect(exports.list(carla)).rejects.toBeInstanceOf(ForbiddenException);
+      // A customer with no cases exports an empty, still recorded, set.
+      const empty = await exports.exportCustomer(dani, 'cust-nobody', { reason: 'Pedido do cliente.' });
+      expect(empty).toMatchObject({ cases: [], record: { caseCount: 0 } });
+      expect(empty.preferences).toEqual({ emailNotifications: true, updatedAt: null }); // never set: the default
     });
   });
 });

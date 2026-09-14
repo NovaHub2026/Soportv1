@@ -620,6 +620,23 @@ try {
     await desktop.getByRole('button', { name: 'Voltar' }).click();
     await desktop.getByText('Conversas em andamento').waitFor();
 
+    // PH-10.3 (DEC-0039 h): an administrator exports a customer's data on request; the export is recorded.
+    const adminPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await adminPage.goto(`${WEB}/staff`);
+    await adminPage.getByLabel('Atendente simulado').selectOption('staff-dani');
+    await adminPage.getByRole('button', { name: 'Supervisão' }).click();
+    await adminPage.getByTestId('data-export').waitFor({ timeout: 10_000 });
+    await adminPage.getByLabel('ID Orbit do cliente').fill('cust-alice');
+    await adminPage.getByLabel('Motivo (pedido do cliente)').fill('Pedido do cliente por e-mail (LGPD).');
+    const download = adminPage.waitForEvent('download', { timeout: 10_000 });
+    await adminPage.getByRole('button', { name: 'Exportar', exact: true }).click();
+    const file = await download;
+    await adminPage.getByRole('status').filter({ hasText: /caso\(s\) de cust-alice/ }).waitFor({ timeout: 10_000 });
+    await adminPage.getByTestId('data-export-records').getByText(/Dani Alves/).waitFor();
+    note('data-export', `Dani (admin) exported cust-alice's support data with a reason: the browser received ${file.suggestedFilename()}, the page confirmed the recorded export and listed it under "Exportações registradas" (DEC-0039 h)`);
+    await shot(adminPage, '34-admin-data-export');
+    await adminPage.close();
+
     // PH-7.1: "Não consigo acessar minha conta" from the host, without any session; staff handle it in their own page.
     await desktop.getByRole('button', { name: 'Não consigo acessar minha conta' }).click();
     await desktop.getByLabel(/E-mail ou telefone/).fill('recupera@example.com');
@@ -636,11 +653,11 @@ try {
     await recoveryStaff.getByRole('button', { name: 'Recuperação de acesso' }).click();
     await recoveryStaff.getByText(new RegExp(recoveryReference)).first().waitFor({ timeout: 5000 });
     await recoveryStaff.getByLabel('Observação (opcional)').fill('Retornei por e-mail.');
-    await recoveryStaff.getByRole('button', { name: 'Encaminhar ao processo de verificação' }).click();
+    await recoveryStaff.getByRole('button', { name: 'Encaminhar à equipe de Verificação' }).click();
     await recoveryStaff.getByText(new RegExp(`${recoveryReference} encaminhado`)).waitFor({ timeout: 5000 });
     await recoveryStaff.getByLabel('Mostrar').selectOption('forwarded'); // the status filter, not the agent picker
     await recoveryStaff.getByText(/Tratado por Ana Ribeiro/).waitFor({ timeout: 5000 });
-    note('access-recovery-staff', `staff saw ${recoveryReference} under "Recuperação de acesso" with the unverified contact and the description, recorded "Encaminhar ao processo de verificação" (labeled simulation) with a note, and the outcome is attributed to Ana with its time (PH-7.1)`);
+    note('access-recovery-staff', `staff saw ${recoveryReference} under "Recuperação de acesso" with the unverified contact and the description, recorded "Encaminhar à equipe de Verificação" (labeled simulation — DEC-0039 i) with a note, and the outcome is attributed to Ana with its time (PH-7.1)`);
     await shot(recoveryStaff, '27-staff-access-recovery');
     await recoveryStaff.close();
 

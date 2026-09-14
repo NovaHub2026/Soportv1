@@ -20,6 +20,7 @@ describe("role model (PH-7.2, DEC-0029)", () => {
     expect(caseOwnership("staff-ana", "staff-ana")).toBe("own");
     expect(caseOwnership("staff-bruno", "staff-ana")).toBe("other");
     expect(findSimulatedStaff("staff-carla")?.role).toBe("supervisor");
+    expect(findSimulatedStaff("staff-dani")?.role).toBe("admin"); // PH-10.3: exports need an administrator
     expect(findSimulatedStaff("staff-zzz")).toBeUndefined();
   });
 

@@ -21,7 +21,7 @@ describe("AccessRecoveryForm (PH-7.1, §4.5)", () => {
     expect(requests[0].url).toBe("/api/public/access-recovery");
     expect(Object.keys(requests[0].headers).some((h) => h.startsWith("x-simulated"))).toBe(false);
     expect(requests[0].body).toMatchObject({ contact: "alice@example.com", description: "O código de verificação nunca chega.", clientRequestId: expect.any(String) });
-    expect(screen.getByText(/Próximo passo: a equipe entra em contato/)).toBeDefined();
+    expect(screen.getByText(/Próximo passo: a equipe de Verificação entra em contato/)).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
     expect(onClose).toHaveBeenCalled();
   });

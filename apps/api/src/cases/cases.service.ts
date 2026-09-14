@@ -1190,6 +1190,13 @@ export class CasesService {
   }
 
   /** Customer detail: the customer projection of the summary plus the public conversation (RULE-SUP-04). */
+  /** One case as the customer may see it, plus the attributable history (PH-10.3 exports): public messages only. */
+  async exportCase(customer: CustomerActor, row: SupportCaseRow): Promise<CustomerCaseDetail & { events: CaseEvent[] }> {
+    if (row.customerId !== customer.id) throw new NotFoundException('case_not_found');
+    const [detail, events] = await Promise.all([this.customerDetail(row), this.loadEvents(row.id)]);
+    return { ...detail, events };
+  }
+
   private async customerDetail(row: SupportCaseRow): Promise<CustomerCaseDetail> {
     const [messages, summary] = await Promise.all([this.loadMessages(row.id, true), this.summaryOf(row, 'customer')]);
     return { ...toCustomerCaseSummary(summary), messages, record: toCaseRecord(row) };

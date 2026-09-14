@@ -565,7 +565,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const server = app.getHttpServer();
     const body = { contact: 'alice@example.com', description: 'Não consigo entrar: o código nunca chega.', clientRequestId: 'rec-e2e-1' };
     const receipt = await request(server).post('/api/public/access-recovery').send(body).expect(201);
-    expect(receipt.body).toEqual({ reference: expect.stringMatching(/^REC-\d{6}$/), receivedAt: expect.any(String), nextStep: 'orbit_verification', delivery: 'simulated' });
+    expect(receipt.body).toEqual({ reference: expect.stringMatching(/^REC-\d{6}$/), receivedAt: expect.any(String), nextStep: 'orbit_verification', delivery: 'simulated', handlingTeam: 'verification' });
     // A retry with the same client id answers with the same reference; a known customer's e-mail and an unknown one get the same shape.
     const again = await request(server).post('/api/public/access-recovery').send(body).expect(201);
     expect(again.body.reference).toBe(receipt.body.reference);
@@ -675,6 +675,38 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(overview.body.complaints.count).toBeGreaterThanOrEqual(1);
     expect(overview.body.complaints.list.some((c: { id: string }) => c.id === id)).toBe(true);
     await request(server).post(`/api/staff/cases/${id}/assign`).set(supervisor).send({ agentId: 'staff-ana' }).expect(400);
+  });
+
+  it('PH-10.3: an administrator exports one customer\'s support data on request and the export is recorded; supervisors and agents cannot; a forwarded recovery request names the Verification team (DEC-0039 h, i)', async () => {
+    const server = app.getHttpServer();
+    const admin = asStaff('staff-dani', 'Dani');
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-export')).send({ category: 'other', message: 'Meus dados, por favor.' }).expect(201);
+    await request(server).post(`/api/staff/cases/${created.body.id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: 'NOTA INTERNA sobre a exportação' }).expect(201);
+    await request(server).post('/api/support/cases').set(asCustomer('cust-other-export')).send({ category: 'other', message: 'Segredo de outro cliente' }).expect(201);
+    await request(server).post('/api/staff/customers/cust-export/export').set(supervisor).send({ reason: 'Pedido do cliente por e-mail.' }).expect(403);
+    await request(server).post('/api/staff/customers/cust-export/export').set(asStaff('staff-ana', 'Ana')).send({ reason: 'Pedido do cliente por e-mail.' }).expect(403);
+    await request(server).post('/api/staff/customers/cust-export/export').set(admin).send({ reason: 'x' }).expect(400);
+    await request(server).post('/api/staff/customers/not%20valid!/export').set(admin).send({ reason: 'Pedido do cliente por e-mail.' }).expect(400);
+    const exported = await request(server).post('/api/staff/customers/cust-export/export').set(admin).send({ reason: 'Pedido do cliente por e-mail.' }).expect(201);
+    expect(exported.body.record).toMatchObject({ customerId: 'cust-export', requestedById: 'staff-dani', requestedByName: 'Dani Alves', reason: 'Pedido do cliente por e-mail.', caseCount: 1 });
+    expect(exported.body.cases).toHaveLength(1);
+    expect(exported.body.cases[0].messages.map((m: { body: string }) => m.body)).toEqual(['Meus dados, por favor.']);
+    expect(exported.body.cases[0].events.length).toBeGreaterThan(0);
+    const text = JSON.stringify(exported.body);
+    expect(text).not.toContain('NOTA INTERNA');
+    expect(text).not.toContain('Segredo de outro cliente');
+    for (const field of STAFF_ONLY_SUMMARY_FIELDS) expect(exported.body.cases[0]).not.toHaveProperty(field);
+    const list = await request(server).get('/api/staff/data-exports').set(admin).expect(200);
+    expect(list.body[0]).toMatchObject({ id: exported.body.record.id, customerId: 'cust-export' });
+    await request(server).get('/api/staff/data-exports').set(supervisor).expect(403);
+    const receipt = await request(server).post('/api/public/access-recovery').send({ contact: 'verifica@example.com', description: 'Não consigo entrar, o código não chega.' }).expect(201);
+    expect(receipt.body.handlingTeam).toBe('verification');
+    const pending = await request(server).get('/api/staff/access-recovery?status=received').set(asStaff('staff-ana', 'Ana')).expect(200);
+    const mine = pending.body.find((r: { reference: string }) => r.reference === receipt.body.reference);
+    expect(mine.forwardedTo).toBeNull();
+    const handled = await request(server).post(`/api/staff/access-recovery/${mine.id}/handle`).set(asStaff('staff-ana', 'Ana')).send({ outcome: 'forwarded' }).expect(200);
+    expect(handled.body.forwardedTo).toBe('verification');
   });
 });
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { message, mockFetch, summary } from "@/features/support/test-utils";
@@ -517,7 +517,7 @@ describe("StaffCaseView", () => {
     expect((await screen.findByTestId("recovery-request")).textContent).toContain("REC-000001");
     expect(screen.getByText(/alice@example.com/)).toBeDefined();
     fireEvent.change(screen.getByLabelText("Observação (opcional)"), { target: { value: "Retornei por e-mail." } });
-    fireEvent.click(screen.getByRole("button", { name: "Encaminhar ao processo de verificação" }));
+    fireEvent.click(screen.getByRole("button", { name: "Encaminhar à equipe de Verificação" }));
     expect((await screen.findByRole("status")).textContent).toContain("REC-000001 encaminhado");
     const call = requests.find((r) => r.url.endsWith("/handle"))!;
     expect(call.body).toEqual({ outcome: "forwarded", note: "Retornei por e-mail." });
@@ -585,5 +585,39 @@ describe("StaffCaseView", () => {
     render(<StaffCaseView identity={carla} caseId={detail.id} onChanged={() => {}} />);
     expect(await screen.findByRole("button", { name: "Assumir caso" })).toBeDefined();
     expect(screen.queryByTestId("complaint-locked")).toBeNull();
+  });
+
+  test("PH-10.3: an administrator exports a customer's data with a reason, the export is recorded and listed; a supervisor has no export section (DEC-0039 h)", async () => {
+    const dani: StaffIdentity = { staffId: "staff-dani", displayName: "Dani Alves", role: "admin" };
+    const carla: StaffIdentity = { staffId: "staff-carla", displayName: "Carla Nunes", role: "supervisor" };
+    const record = { id: "11111111-2222-4333-8444-555555555555", customerId: "cust-alice", requestedById: "staff-dani", requestedByName: "Dani Alves", reason: "Pedido do cliente por e-mail.", caseCount: 2, createdAt: new Date().toISOString() };
+    let exported = false;
+    const { requests } = mockFetch((request) => {
+      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 0, in_progress: 0, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 0, oldestCreatedAt: null }, awaitingReply: { count: 0, oldestSince: null }, waitingInternal: { count: 0, oldestSince: null }, byAgent: [], attentionThresholdHours: 4, overdue: [], complaints: { count: 0, overdue: 0, list: [] }, computedAt: "" } };
+      if (request.url.startsWith("/api/staff/metrics")) return { body: { periodDays: 7, from: "", to: "", created: 0, resolved: 0, closed: 0, reopened: 0, firstResponse: { count: 0, medianMinutes: null, p90Minutes: null }, resolution: { count: 0, medianMinutes: null, p90Minutes: null }, unansweredNow: { count: 0, oldestMinutes: null }, reopenRate: null, targets: null } };
+      if (request.url === "/api/staff/settings") return { body: { timezone: "America/Sao_Paulo", schedule: { mon: { open: "09:00", close: "18:00" }, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null }, attentionThresholdHours: 4, followUpWindowDays: 7, emailDelayMinutes: 15, reminderAfterHours: 48, workingDefault: true, updatedById: null, updatedByName: null, updatedAt: null } };
+      if (request.url === "/api/staff/data-exports") return { body: exported ? [record] : [] };
+      if (request.url === "/api/staff/customers/cust-alice/export") {
+        exported = true;
+        return { status: 201, body: { record, customerId: "cust-alice", preferences: { emailNotifications: true, updatedAt: null }, cases: [] } };
+      }
+      return { body: [] };
+    });
+    const { unmount } = render(<SupervisionPanel identity={carla} onClose={() => {}} onOpenCase={() => {}} />);
+    await screen.findByTestId("overview");
+    expect(screen.queryByTestId("data-export")).toBeNull();
+    unmount();
+    render(<SupervisionPanel identity={dani} onClose={() => {}} onOpenCase={() => {}} />);
+    const section = await screen.findByTestId("data-export");
+    expect(await within(section).findByText("Nenhuma exportação registrada.")).toBeDefined();
+    const submit = screen.getByRole("button", { name: "Exportar" }) as HTMLButtonElement;
+    fireEvent.change(screen.getByLabelText("ID Orbit do cliente"), { target: { value: "cust-alice" } });
+    expect(submit.disabled).toBe(true); // a reason is required
+    fireEvent.change(screen.getByLabelText("Motivo (pedido do cliente)"), { target: { value: "Pedido do cliente por e-mail." } });
+    fireEvent.click(submit);
+    expect((await screen.findByRole("status")).textContent).toContain("2 caso(s) de cust-alice");
+    expect(requests.find((r) => r.url === "/api/staff/customers/cust-alice/export")?.body).toEqual({ reason: "Pedido do cliente por e-mail." });
+    expect(requests.find((r) => r.url === "/api/staff/customers/cust-alice/export")?.headers["x-simulated-staff-id"]).toBe("staff-dani");
+    expect((await within(section).findByTestId("data-export-records")).textContent).toContain("Dani Alves");
   });
 });

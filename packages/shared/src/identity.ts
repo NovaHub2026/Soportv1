@@ -32,6 +32,8 @@ export const SIMULATED_STAFF_DIRECTORY: readonly SimulatedStaffMember[] = [
   { id: "staff-ana", name: "Ana Ribeiro", role: "agent" },
   { id: "staff-bruno", name: "Bruno Costa", role: "agent" },
   { id: "staff-carla", name: "Carla Nunes", role: "supervisor" },
+  /** An administrator (PH-10.3): exports of a customer's data are theirs alone (DEC-0039 h). */
+  { id: "staff-dani", name: "Dani Alves", role: "admin" },
 ];
 
 export const isSimulatedStaffId = (id: string): boolean => SIMULATED_STAFF_DIRECTORY.some((member) => member.id === id);

@@ -505,3 +505,30 @@ export const staffCaseDetailSchema = caseSummarySchema.extend({
   consultations: z.array(caseConsultationSchema),
 });
 export type StaffCaseDetail = z.infer<typeof staffCaseDetailSchema> & { record: CaseRecord | null };
+
+// ---- Exports of a customer's support data (PH-10.3, DEC-0039 h) ----
+
+export const dataExportRequestSchema = z.object({
+  /** Why the export is made — the customer's request, recorded with the export (RULE-SUP-09). */
+  reason: text(z.string().trim().min(5, "reason_too_short").max(500, "reason_too_long")),
+});
+export type DataExportRequestInput = z.infer<typeof dataExportRequestSchema>;
+
+/** The record of one export: who asked for it, for whom, why, and how much it held. */
+export interface DataExportRecord {
+  id: string;
+  customerId: string;
+  requestedById: string;
+  requestedByName: string | null;
+  reason: string;
+  caseCount: number;
+  createdAt: string;
+}
+
+/** What a customer's export contains: only what that customer can see (public messages, their cases, their preferences). */
+export interface CustomerDataExport {
+  record: DataExportRecord;
+  customerId: string;
+  preferences: CustomerPreferences;
+  cases: Array<CustomerCaseDetail & { events: CaseEvent[] }>;
+}

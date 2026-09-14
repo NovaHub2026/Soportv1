@@ -1,34 +1,4 @@
-import {
-  type AccessRecoveryOutcomeInput,
-  type AccessRecoveryRequest,
-  type AccessRecoveryStatus,
-  type AnswerConsultationInput,
-  type AssignCaseInput,
-  type CaseConsultation,
-  type CaseMessage,
-  type CaseSummary,
-  type CreateIncidentInput,
-  type Incident,
-  type IncidentNoteInput,
-  type IncidentStatus,
-  type OrbitCaseContext,
-  type PostMessageInput,
-  type PostNoteInput,
-  type RequestConsultationInput,
-  type ResolveCaseInput,
-  type SavedReply,
-  type SavedReplyInput,
-  type ServiceMetrics,
-  type SupervisionOverview,
-  type SupportSettings,
-  type SupportSettingsInput,
-  SIMULATED_IDENTITY_HEADERS,
-  type StaffCaseDetail,
-  type StaffQueueView,
-  type StaffRole,
-  type StaffStatusTarget,
-  type UpdateCaseInput,
-} from "@orbit-support/shared";
+import { type AccessRecoveryOutcomeInput, type AccessRecoveryRequest, type AccessRecoveryStatus, type AnswerConsultationInput, type AssignCaseInput, type CaseConsultation, type CaseMessage, type CaseSummary, type CreateIncidentInput, type Incident, type IncidentNoteInput, type IncidentStatus, type OrbitCaseContext, type PostMessageInput, type PostNoteInput, type RequestConsultationInput, type ResolveCaseInput, type SavedReply, type SavedReplyInput, type ServiceMetrics, type SupervisionOverview, type SupportSettings, type SupportSettingsInput, SIMULATED_IDENTITY_HEADERS, type StaffCaseDetail, type StaffQueueView, type StaffRole, type StaffStatusTarget, type UpdateCaseInput, type CustomerDataExport, type DataExportRecord, type DataExportRequestInput } from "@orbit-support/shared";
 import { apiRequest, type AttachmentClient, fetchBlob, uploadFile } from "./api";
 
 /** The staff member the browser acts as. Simulated until Orbit staff accounts exist (DEC-0003). */
@@ -111,6 +81,10 @@ export const staffApi = {
   getSettings: (identity: StaffIdentity, signal?: AbortSignal) => apiRequest<SupportSettings>("/staff/settings", staffHeaders(identity), { signal }),
   updateSettings: (identity: StaffIdentity, input: SupportSettingsInput) => apiRequest<SupportSettings>("/staff/settings", staffHeaders(identity), { method: "PUT", body: input }),
   overview: (identity: StaffIdentity, signal?: AbortSignal) => apiRequest<SupervisionOverview>("/staff/overview", staffHeaders(identity), { signal }),
+  /** Exports of a customer's support data (PH-10.3): administrators only; every export is recorded. */
+  exportCustomer: (identity: StaffIdentity, customerId: string, input: DataExportRequestInput) =>
+    apiRequest<CustomerDataExport>(`/staff/customers/${encodeURIComponent(customerId)}/export`, staffHeaders(identity), { method: "POST", body: input }),
+  listDataExports: (identity: StaffIdentity, signal?: AbortSignal) => apiRequest<DataExportRecord[]>("/staff/data-exports", staffHeaders(identity), { signal }),
   metrics: (identity: StaffIdentity, days: number, signal?: AbortSignal) => apiRequest<ServiceMetrics>(`/staff/metrics?days=${days}`, staffHeaders(identity), { signal }),
   /** Access recovery requests (PH-7.1): unverified contacts, never joined to accounts. */
   listAccessRecovery: (identity: StaffIdentity, status?: AccessRecoveryStatus, signal?: AbortSignal) =>

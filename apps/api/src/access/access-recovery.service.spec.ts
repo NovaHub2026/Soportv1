@@ -32,10 +32,10 @@ describe('AccessRecoveryService (PH-7.1, §4.5)', () => {
 
   it('answers with a reference and the next step only, the same for a retried request', async () => {
     const first = await service.create({ contact: 'alice@example.com', description: 'Não recebo o código de verificação.', clientRequestId: 'r-1' });
-    expect(first).toEqual({ reference: expect.stringMatching(/^REC-[0-9]{6}$/), receivedAt: expect.any(String), nextStep: 'orbit_verification', delivery: 'simulated' });
+    expect(first).toEqual({ reference: expect.stringMatching(/^REC-[0-9]{6}$/), receivedAt: expect.any(String), nextStep: 'orbit_verification', delivery: 'simulated', handlingTeam: 'verification' });
     const again = await service.create({ contact: 'Alice@Example.com ', description: 'Não recebo o código de verificação.', clientRequestId: 'r-1' });
     expect(again.reference).toBe(first.reference);
-    expect(Object.keys(first).sort()).toEqual(['delivery', 'nextStep', 'receivedAt', 'reference']);
+    expect(Object.keys(first).sort()).toEqual(['delivery', 'handlingTeam', 'nextStep', 'receivedAt', 'reference']);
     // The same client id from another contact is another request (the key is per contact).
     const other = await service.create({ contact: 'bob@example.com', description: 'Perdi o acesso ao e-mail cadastrado.', clientRequestId: 'r-1' });
     expect(other.reference).not.toBe(first.reference);
@@ -62,7 +62,8 @@ describe('AccessRecoveryService (PH-7.1, §4.5)', () => {
     const [received] = await service.list('received');
     expect(received).toMatchObject({ reference: expect.stringMatching(/^REC-[0-9]{6}$/), contact: 'carla@example.com', status: 'received', handledById: null });
     const forwarded = await service.handle(ana, received.id, { outcome: 'forwarded', note: 'Encaminhado ao processo de verificação.' });
-    expect(forwarded).toMatchObject({ status: 'forwarded', handledById: 'staff-ana', handledByName: 'Ana', note: 'Encaminhado ao processo de verificação.' });
+    expect(forwarded).toMatchObject({ status: 'forwarded', handledById: 'staff-ana', handledByName: 'Ana', note: 'Encaminhado ao processo de verificação.', forwardedTo: 'verification' });
+    expect(received.forwardedTo).toBeNull();
     expect(forwarded.handledAt).not.toBeNull();
     await expect(service.handle(ana, received.id, { outcome: 'closed' })).rejects.toBeInstanceOf(ConflictException);
     expect(await service.list('received')).toHaveLength(0);

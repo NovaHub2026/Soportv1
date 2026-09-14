@@ -9,7 +9,7 @@ Decided by the Owner question by question. "In the product" says whether the sof
 |---|---|---|---|
 | Service hours and time zone | Human team 24/7; internal times America/Sao_Paulo, shown to each customer in their own time zone | **Done in PH-10.1**: 24/7 is the default configuration, availability and notices carry instants shown in the customer's zone | Supervision → settings ("Dia inteiro" per day); customer availability copy |
 | First line | An AI assistant (future phase; the Owner named ChatGPT); a customer who asks for a person is transferred; disputes and security always go to a person (RULE-SUP-10) | Not built — PH-11 | — |
-| Staffing and coverage | 24/7 coverage; the people come from Orbit's staff directory | Three simulated agents | Orbit's directory (BL-001) |
+| Staffing and coverage | 24/7 coverage; the people come from Orbit's staff directory | Four simulated members (two agents, a supervisor, an administrator since PH-10.3) | Orbit's directory (BL-001) |
 | Response and follow-up targets | None yet | Metrics without targets (`targets: null`) | — |
 | Attention threshold (overdue) | 4 h without a human reply / waiting for a team | Same | Supervision → settings |
 | Follow-up window before closure | 7 days | Same | Supervision → settings (`followUpWindowDays`) |
@@ -17,8 +17,8 @@ Decided by the Owner question by question. "In the product" says whether the sof
 | Consultation teams | Finance, operations, security, verification, product | Same | `packages/shared` |
 | Roles | agent / supervisor / admin (DEC-0029) | Same | Orbit's directory (BL-001) |
 | Formal complaints | A topic the customer can choose ("Reclamação formal"), routed to a supervisor, internal deadline 5 business days, recorded; staff may reclassify | **Done in PH-10.2**: category, deadline on the case (business days of the operation's zone, no holiday calendar), agents locked out, supervision section | Customer topic chips; supervision → "Reclamações formais"; category in the case context |
-| Exports of a customer's data | An admin only, on the customer's request, recorded | No export — PH-10 | — |
-| Account recovery procedure | Forwarded to the Verification team, which uses Orbit's KYC process | Recorded and "forwarded" as a labeled simulation — PH-10 names the team; the real process needs Orbit (BL-001) | Staff recovery page |
+| Exports of a customer's data | An admin only, on the customer's request, recorded | **Done in PH-10.3**: supervision → "Exportar dados de um cliente" (administrators), the JSON goes to the administrator's browser, every export is recorded with the reason | Supervision (admin); `GET /api/staff/data-exports` |
+| Account recovery procedure | Forwarded to the Verification team, which uses Orbit's KYC process | **Done in PH-10.3** (naming): receipts and the staff page name the Verification team; the hand-off is a labeled simulation until Orbit's process exists (BL-001) | Staff recovery page |
 | Retention of closed cases | **Pending legal advice** — nothing deleted meanwhile | Nothing deleted except uploads never linked (24 h) | Policy first, then a job |
 | E-mail provider | **Decided later** (paid service) | Simulated outbox | `EmailNotifierPort` adapter |
 

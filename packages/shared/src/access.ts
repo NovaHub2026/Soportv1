@@ -9,6 +9,8 @@ import { z } from "zod";
 export const ACCESS_RECOVERY_STATUSES = ["received", "forwarded", "closed"] as const;
 export type AccessRecoveryStatus = (typeof ACCESS_RECOVERY_STATUSES)[number];
 export const ACCESS_RECOVERY_OUTCOMES = ["forwarded", "closed"] as const;
+/** Who takes a recovery request over: the Verification team, which uses Orbit's KYC process (DEC-0039 i). */
+export const RECOVERY_HANDLING_TEAM = "verification" as const;
 export type AccessRecoveryOutcome = (typeof ACCESS_RECOVERY_OUTCOMES)[number];
 
 /**
@@ -57,6 +59,8 @@ export interface AccessRecoveryReceipt {
   receivedAt: string;
   /** The only next step today: Orbit's authorized verification process (§4.5). */
   nextStep: "orbit_verification";
+  /** The team that takes the request over (DEC-0039 i, PH-10.3). */
+  handlingTeam: typeof RECOVERY_HANDLING_TEAM;
   /** The hand-off is simulated until a real process exists (DEC-0003). */
   delivery: "simulated";
 }
@@ -73,6 +77,8 @@ export interface AccessRecoveryRequest {
   handledByName: string | null;
   handledAt: string | null;
   note: string | null;
+  /** The team a forwarded request went to (DEC-0039 i); null until forwarded. */
+  forwardedTo: typeof RECOVERY_HANDLING_TEAM | null;
 }
 
 export const accessRecoveryOutcomeSchema = z.object({

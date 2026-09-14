@@ -226,6 +226,18 @@ export const savedReplies = pgTable('saved_replies', {
   updatedAt: tz('updated_at').notNull().defaultNow(),
 });
 
+/** One row per export of a customer's support data (PH-10.3, DEC-0039 h): who asked, for whom, why, how much. */
+export const dataExports = pgTable('data_exports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: text('customer_id').notNull(),
+  requestedById: text('requested_by_id').notNull(),
+  requestedByName: text('requested_by_name'),
+  reason: text('reason').notNull(),
+  caseCount: integer('case_count').notNull(),
+  createdAt: tz('created_at').notNull().defaultNow(),
+});
+export type DataExportRow = typeof dataExports.$inferSelect;
+
 /** Operating configuration (PH-5.4): one row, attributed. Absent row = working defaults (RULE-SUP-08). */
 export const supportSettings = pgTable('support_settings', {
   id: text('id').primaryKey(),

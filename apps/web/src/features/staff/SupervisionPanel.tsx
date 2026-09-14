@@ -6,6 +6,7 @@ import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes
 import { ApiError } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
+import { DataExportSection } from "./DataExportSection";
 import styles from "./staff.module.css";
 
 interface SupervisionPanelProps {
@@ -275,6 +276,7 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
         </>
       )}
 
+      {identity.role === "admin" && <DataExportSection identity={identity} />}
       {settings && numbers && (
         <form className={styles.replyForm} onSubmit={saveSettings} aria-label={s.settings}>
           <h3 className={styles.contextTitle}>{s.settings}</h3>

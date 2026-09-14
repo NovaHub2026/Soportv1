@@ -1,16 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ConflictException, HttpException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, count, desc, eq, gt } from 'drizzle-orm';
-import {
-  ACCESS_RECOVERY_LIMITS,
-  type AccessRecoveryInput,
-  type AccessRecoveryOutcomeInput,
-  type AccessRecoveryReceipt,
-  type AccessRecoveryRequest,
-  type AccessRecoveryStatus,
-  formatRecoveryReference,
-  normalizeContact,
-} from '@orbit-support/shared';
+import { ACCESS_RECOVERY_LIMITS, type AccessRecoveryInput, type AccessRecoveryOutcomeInput, type AccessRecoveryReceipt, type AccessRecoveryRequest, type AccessRecoveryStatus, formatRecoveryReference, normalizeContact, RECOVERY_HANDLING_TEAM } from '@orbit-support/shared';
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { type AccessRecoveryRow, accessRecoveryRequests } from '../database/schema.js';
@@ -125,7 +116,7 @@ export function hashContact(contact: string): string {
 }
 
 function toReceipt(row: AccessRecoveryRow): AccessRecoveryReceipt {
-  return { reference: formatRecoveryReference(row.referenceNumber), receivedAt: row.createdAt.toISOString(), nextStep: 'orbit_verification', delivery: 'simulated' };
+  return { reference: formatRecoveryReference(row.referenceNumber), receivedAt: row.createdAt.toISOString(), nextStep: 'orbit_verification', delivery: 'simulated', handlingTeam: RECOVERY_HANDLING_TEAM };
 }
 
 function toRequest(row: AccessRecoveryRow): AccessRecoveryRequest {
@@ -140,5 +131,6 @@ function toRequest(row: AccessRecoveryRow): AccessRecoveryRequest {
     handledByName: row.handledByName,
     handledAt: row.handledAt ? row.handledAt.toISOString() : null,
     note: row.note,
+    forwardedTo: row.status === 'forwarded' ? RECOVERY_HANDLING_TEAM : null,
   };
 }

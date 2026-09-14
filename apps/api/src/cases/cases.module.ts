@@ -3,6 +3,8 @@ import { CasesService } from './cases.service.js';
 import { ClosureJob } from './closure.job.js';
 import { CustomerCasesController, CustomerStagedAttachmentsController } from './customer-cases.controller.js';
 import { CustomerRecordsController } from './customer-records.controller.js';
+import { DataExportController, DataExportsController } from './data-export.controller.js';
+import { DataExportService } from './data-export.service.js';
 import { IncidentsController } from './incidents.controller.js';
 import { SavedRepliesController } from './saved-replies.controller.js';
 import { EMAIL_NOTIFIER, SimulatedEmailNotifier } from './email-notifier.js';
@@ -30,6 +32,8 @@ import { StaffCasesController } from './staff-cases.controller.js';
     SavedRepliesController,
     SettingsController,
     SupervisionController,
+    DataExportController,
+    DataExportsController,
   ],
   providers: [
     CasesService,
@@ -40,6 +44,7 @@ import { StaffCasesController } from './staff-cases.controller.js';
     NotificationsService,
     NotificationJob,
     ReminderJob,
+    DataExportService,
     { provide: EMAIL_NOTIFIER, useClass: SimulatedEmailNotifier },
   ],
   exports: [CasesService, NotificationsService],
