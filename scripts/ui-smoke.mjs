@@ -167,8 +167,8 @@ try {
     await desktop.getByText('Você ainda não falou com o suporte.').waitFor();
     await desktop.getByTestId('availability').waitFor({ timeout: 5000 });
     const availabilityText = await desktop.getByTestId('availability').textContent();
-    if (!/Atendimento (aberto|fechado) agora\./.test(availabilityText) || !/Horário padrão de trabalho/.test(availabilityText)) throw new Error(`Availability copy is not honest: ${availabilityText}`);
-    note('availability', `the customer home states availability from the configured schedule and labels it a working default: "${availabilityText.trim().slice(0, 90)}…" (PH-5.4)`);
+    if (!/Atendimento 24 horas, todos os dias\./.test(availabilityText) || !/Horários no seu fuso \(/.test(availabilityText)) throw new Error(`Availability copy is not honest: ${availabilityText}`);
+    note('availability', `the customer home states the decided 24/7 service (DEC-0039 a) and names the customer's own time zone: "${availabilityText.trim().slice(0, 90)}…" (PH-5.4, PH-10.1)`);
     note('home', 'desktop shows the side panel with "Falar com o suporte" and an honest empty history');
     await shot(desktop, '01-home-desktop');
 
@@ -474,7 +474,7 @@ try {
     // The threshold is lowered to 1 h so the overdue list is exercised on today's data if any case qualifies; then saved.
     await supPage.getByLabel('Horas sem resposta para considerar atraso').fill('1');
     await supPage.getByLabel('Minutos sem ler uma notificação antes de enviar e-mail (0 = imediato)').fill('0');
-    await supPage.getByLabel('Atende em Sábado').check();
+    await supPage.getByLabel('Dia inteiro em Sábado').uncheck(); // Saturday 09:00–18:00 from now on: the customer copy must follow
     await supPage.getByRole('button', { name: 'Salvar configuração' }).click();
     await supPage.getByText('Configuração salva.').waitFor({ timeout: 5000 });
     await supPage.getByText(/Configurado por Carla Nunes/).waitFor({ timeout: 5000 });
@@ -484,8 +484,8 @@ try {
     await desktop.reload();
     await desktop.getByText('Conversas em andamento').waitFor();
     const configured = await desktop.getByTestId('availability').textContent();
-    if (!/Horário configurado/.test(configured)) throw new Error(`Customer copy did not pick up the configured schedule: ${configured}`);
-    note('availability-configured', 'after the supervisor saved the schedule, the customer home says "Horário configurado (America/Sao_Paulo)" instead of the working-default note (RULE-SUP-08)');
+    if (/Atendimento 24 horas/.test(configured) || !/Atendimento (aberto|fechado) agora\./.test(configured)) throw new Error(`Customer copy did not pick up the configured schedule: ${configured}`);
+    note('availability-configured', `after the supervisor limited Saturday to 09:00–18:00, the customer home stopped saying 24 hours and shows the day's window in the customer's zone: "${configured.trim().slice(0, 100)}…" (RULE-SUP-08, PH-10.1)`);
 
 
     // Contextual entry from a record (PH-4.2, §4.2): "Preciso de ajuda" on a withdrawal in the host.

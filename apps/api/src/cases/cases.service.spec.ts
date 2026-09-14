@@ -59,7 +59,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     moduleRef.get(CaseEventBus).events$.subscribe((event) => published.push(event));
     // PH-6.3: the outside-hours notice depends on the wall clock; keep the schedule open so every test is deterministic.
     const settings = moduleRef.get(SettingsService);
-    await settings.update(carla, { ...(await settings.get()), schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } });
+    await settings.update(carla, { ...(await settings.get()), schedule: { mon: { open: '00:00', close: '24:00' }, tue: { open: '00:00', close: '24:00' }, wed: { open: '00:00', close: '24:00' }, thu: { open: '00:00', close: '24:00' }, fri: { open: '00:00', close: '24:00' }, sat: { open: '00:00', close: '24:00' }, sun: { open: '00:00', close: '24:00' } } });
   });
 
   afterAll(async () => {
@@ -878,7 +878,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         expect(childView.messages.filter((m) => m.authorType === 'system' && m.body.startsWith('Fora do horário'))).toHaveLength(1);
         expect(childView.messages.find((m) => m.systemKind === 'follow_up_of')?.systemData).toEqual({ reference: parent.reference });
       } finally {
-        await settings.update(carla, { ...closed, schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } });
+        await settings.update(carla, { ...closed, schedule: { mon: { open: '00:00', close: '24:00' }, tue: { open: '00:00', close: '24:00' }, wed: { open: '00:00', close: '24:00' }, thu: { open: '00:00', close: '24:00' }, fri: { open: '00:00', close: '24:00' }, sat: { open: '00:00', close: '24:00' }, sun: { open: '00:00', close: '24:00' } } });
       }
       const open = await service.createCase(alice, { category: 'other', message: 'Bom dia' });
       expect((await service.getStaffCase(open.id)).messages.some((m) => m.authorType === 'system')).toBe(false);

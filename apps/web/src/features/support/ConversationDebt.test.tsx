@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { dictionary as t } from "@/i18n";
+import { dictionary as t, localOpening } from "@/i18n";
 import { CaseConversation } from "./CaseConversation";
 import { attachment, identity, message, mockFetch, summary } from "./test-utils";
 
@@ -87,5 +87,13 @@ describe("PH-9.2 customer conversation debt", () => {
     expect(send.disabled).toBe(true);
     finish();
     await waitFor(() => expect(send.disabled).toBe(false));
+  });
+
+  test("PH-10.1: an outside-hours notice with the opening instant is worded in the customer's zone", async () => {
+    const nextOpeningAt = "2026-09-17T12:00:00.000Z";
+    mockFetch(() => ({ body: { ...detail, messages: [message({ id: "s7", authorType: "system", authorId: "system", body: "x", systemKind: "outside_hours", systemData: { weekday: "thu", open: "09:00", nextOpeningAt } })] } }));
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    const next = localOpening(nextOpeningAt);
+    expect(await screen.findByText(`${t.systemMessages.outsideHours} Próximo atendimento: ${t.support.home.weekdays[next.weekday]} às ${next.time}.`)).toBeDefined();
   });
 });

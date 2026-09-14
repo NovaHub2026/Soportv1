@@ -7,7 +7,7 @@ Verified on: 2026-09-14
 Decided by the Owner question by question. "In the product" says whether the software already follows the decision; PH-10 brings the rest in. Two items stay open: retention (legal advice) and the e-mail provider.
 | Policy | Decided | In the product today | Where it lives |
 |---|---|---|---|
-| Service hours and time zone | Human team 24/7; internal times America/Sao_Paulo, shown to each customer in their own time zone | Working default weekdays 09:00–18:00 São Paulo, shown in São Paulo time — PH-10 | Supervision → settings; customer availability copy |
+| Service hours and time zone | Human team 24/7; internal times America/Sao_Paulo, shown to each customer in their own time zone | **Done in PH-10.1**: 24/7 is the default configuration, availability and notices carry instants shown in the customer's zone | Supervision → settings ("Dia inteiro" per day); customer availability copy |
 | First line | An AI assistant (future phase; the Owner named ChatGPT); a customer who asks for a person is transferred; disputes and security always go to a person (RULE-SUP-10) | Not built — PH-11 | — |
 | Staffing and coverage | 24/7 coverage; the people come from Orbit's staff directory | Three simulated agents | Orbit's directory (BL-001) |
 | Response and follow-up targets | None yet | Metrics without targets (`targets: null`) | — |

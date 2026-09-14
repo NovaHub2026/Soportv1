@@ -1,8 +1,8 @@
 "use client";
 
-import { type Availability, type CustomerCaseSummary, type EmailNotification, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
+import { type Availability, type CustomerCaseSummary, type EmailNotification, isAllDay, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
 import { useCallback, useEffect, useState } from "react";
-import { dictionary as t, fill, formatMessageTime } from "@/i18n";
+import { customerTimeZone, dictionary as t, fill, localOpening, formatMessageTime } from "@/i18n";
 import { type CustomerIdentity, customerApi, customerIdentityHeaders } from "@/lib/api";
 import { subscribeStream } from "@/lib/sse";
 import { StatusBadge } from "./StatusBadge";
@@ -103,15 +103,24 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
       <p className={styles.availability}>{t.support.home.availability}</p>
       {availability && (
         <p className={styles.availability} data-testid="availability" data-open={availability.openNow ? "true" : "false"}>
-          {availability.openNow ? t.support.home.openNow : t.support.home.closedNow}{" "}
-          {availability.today
-            ? fill(t.support.home.todayHours, { open: availability.today.open, close: availability.today.close })
-            : t.support.home.closedToday}
-          {!availability.openNow && availability.nextOpening
-            ? ` ${fill(t.support.home.nextOpening, { day: t.support.home.weekdays[availability.nextOpening.weekday], time: availability.nextOpening.open })}`
-            : ""}
+          {/* Times are instants formatted in the customer's own zone (DEC-0039 a); 24/7 has nothing to announce. */}
+          {availability.alwaysOpen ? (
+            t.support.home.alwaysOpen
+          ) : (
+            <>
+              {availability.openNow ? t.support.home.openNow : t.support.home.closedNow}{" "}
+              {availability.todayWindow && isAllDay(availability.today)
+                ? t.support.home.todayAllDay
+                : availability.todayWindow
+                ? fill(t.support.home.todayHours, { open: localOpening(availability.todayWindow.opensAt).time, close: localOpening(availability.todayWindow.closesAt).time })
+                : t.support.home.closedToday}
+              {!availability.openNow && availability.nextOpeningAt
+                ? ` ${fill(t.support.home.nextOpening, { day: t.support.home.weekdays[localOpening(availability.nextOpeningAt).weekday], time: localOpening(availability.nextOpeningAt).time })}`
+                : ""}
+            </>
+          )}
           {" "}
-          <span className={styles.muted}>{availability.workingDefault ? t.support.home.scheduleDefault : fill(t.support.home.scheduleConfigured, { tz: availability.timezone })}</span>
+          <span className={styles.muted}>{fill(t.support.home.yourZone, { tz: customerTimeZone() })}</span>
         </p>
       )}
       <button type="button" className={styles.primaryButton} onClick={onNewRequest}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday } from "@orbit-support/shared";
+import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday, isAllDay } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes } from "@/i18n";
 import { ApiError } from "@/lib/api";
@@ -270,6 +270,14 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
                     {s.weekdays[day]}
                   </label>
                   {window && (
+                    <>
+                      <label className={styles.scheduleDay}>
+                        <input type="checkbox" checked={isAllDay(window)} onChange={(event) => setDay(day, event.target.checked ? { open: "00:00", close: "24:00" } : { open: "09:00", close: "18:00" })} aria-label={fill(s.allDayOn, { day: s.weekdays[day] })} />
+                        {s.allDay}
+                      </label>
+                    </>
+                  )}
+                  {window && !isAllDay(window) && (
                     <>
                       <input type="time" aria-label={fill(s.opensAt, { day: s.weekdays[day] })} value={window.open} onChange={(event) => setDay(day, { open: event.target.value })} />
                       <input type="time" aria-label={fill(s.closesAt, { day: s.weekdays[day] })} value={window.close} onChange={(event) => setDay(day, { close: event.target.value })} />

@@ -39,7 +39,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     // PH-6.3: the outside-hours notice depends on the wall clock; keep the schedule open so every test is deterministic.
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
     const current = (await request(app.getHttpServer()).get('/api/staff/settings').set(supervisor).expect(200)).body;
-    await request(app.getHttpServer()).put('/api/staff/settings').set(supervisor).send({ ...current, schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } }).expect(200);
+    await request(app.getHttpServer()).put('/api/staff/settings').set(supervisor).send({ ...current, schedule: { mon: { open: '00:00', close: '24:00' }, tue: { open: '00:00', close: '24:00' }, wed: { open: '00:00', close: '24:00' }, thu: { open: '00:00', close: '24:00' }, fri: { open: '00:00', close: '24:00' }, sat: { open: '00:00', close: '24:00' }, sun: { open: '00:00', close: '24:00' } } }).expect(200);
   });
 
   afterAll(async () => {
@@ -428,7 +428,8 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
     const availability = await request(server).get('/api/support/availability').set(asCustomer('cust-alice')).expect(200);
     // The e2e setup saves an always-open schedule (PH-6.3), so the working default is no longer in force here.
-    expect(availability.body).toMatchObject({ timezone: 'America/Sao_Paulo', workingDefault: false, openNow: true });
+    expect(availability.body).toMatchObject({ timezone: 'America/Sao_Paulo', workingDefault: false, openNow: true, alwaysOpen: true, nextOpeningAt: null });
+    expect(typeof availability.body.todayWindow.opensAt).toBe('string');
     expect(typeof availability.body.openNow).toBe('boolean');
     await request(server).get('/api/support/availability').set(asStaff('staff-ana', 'Ana')).expect(403);
     await request(server).get('/api/staff/overview').set(asStaff('staff-ana', 'Ana')).expect(403);

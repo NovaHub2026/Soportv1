@@ -1,3 +1,4 @@
+import type { Weekday } from "@orbit-support/shared";
 import { type Dictionary, ptBR } from "./pt-BR";
 
 export const SUPPORTED_LOCALES = ["pt-BR"] as const;
@@ -54,4 +55,21 @@ export function formatMessageTime(iso: string, now: Date = new Date()): string {
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
   return (sameDay ? timeFormat : dateTimeFormat).format(date);
+}
+
+const WEEKDAY_KEYS: readonly Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** The customer's own time zone — the browser's (DEC-0039 a). */
+export function customerTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+/** An instant as the customer's weekday key and "HH:MM" in the browser's zone (PH-10.1). */
+export function localOpening(iso: string): { weekday: Weekday; time: string } {
+  const date = new Date(iso);
+  return { weekday: WEEKDAY_KEYS[date.getDay()], time: timeFormat.format(date) };
 }

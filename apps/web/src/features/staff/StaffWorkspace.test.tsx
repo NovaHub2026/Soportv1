@@ -496,7 +496,7 @@ describe("StaffCaseView", () => {
     expect(screen.getByTestId("by-agent").textContent).toContain("Ana Ribeiro");
     expect(screen.getByTestId("metrics").textContent).toContain("mediana 12 min · p90 30 min · n=2");
     expect(screen.getByText(/Não há metas definidas/)).toBeDefined();
-    expect(screen.getByText(/ainda não os configurou/)).toBeDefined();
+    expect(screen.getByText(/nenhum supervisor os alterou ainda/)).toBeDefined();
     fireEvent.change(screen.getByLabelText("Reatribuir a"), { target: { value: "staff-bruno" } });
     await waitFor(() => expect(requests.some((r) => r.url.endsWith("/od/assign") && (r.body as { agentId: string }).agentId === "staff-bruno")).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: /SUP-000009/ }));

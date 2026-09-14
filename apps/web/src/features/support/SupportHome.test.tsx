@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type { StreamHandlers } from "@/lib/sse";
+import { customerTimeZone, dictionary as t, localOpening } from "@/i18n";
 import { SupportHome } from "./SupportHome";
 import { identity, mockFetch, summary } from "./test-utils";
 
@@ -78,18 +79,49 @@ describe("SupportHome", () => {
     await waitFor(() => expect(screen.getByText(/SUP-000001/)).toBeDefined());
   });
 
-  test("PH-5.4: shows availability from the configured schedule and says when it is still a working default", async () => {
+  test("PH-5.4 / PH-10.1: shows availability from the configured schedule in the customer's own time zone", async () => {
+    const opensAt = "2026-09-16T12:00:00.000Z";
+    const closesAt = "2026-09-16T21:00:00.000Z";
+    const nextOpeningAt = "2026-09-17T12:00:00.000Z";
     mockFetch((request) =>
       request.url === "/api/support/availability"
-        ? { body: { openNow: false, timezone: "America/Sao_Paulo", today: { open: "09:00", close: "18:00" }, nextOpening: { weekday: "thu", open: "09:00" }, workingDefault: true, checkedAt: "" } }
+        ? { body: { openNow: false, timezone: "America/Sao_Paulo", today: { open: "09:00", close: "18:00" }, nextOpening: { weekday: "thu", open: "09:00" }, alwaysOpen: false, todayWindow: { opensAt, closesAt }, nextOpeningAt, workingDefault: true, checkedAt: "" } }
         : { body: [] },
     );
     render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
     const line = await screen.findByTestId("availability");
     expect(line.textContent).toContain("Atendimento fechado agora.");
-    expect(line.textContent).toContain("Hoje: 09:00–18:00.");
-    expect(line.textContent).toContain("Próximo atendimento: quinta às 09:00.");
-    expect(line.textContent).toContain("ainda não configurado pela operação");
+    // The instants are shown as this browser's clock reads them, whatever zone the test machine is in.
+    expect(line.textContent).toContain(`Hoje: ${localOpening(opensAt).time}–${localOpening(closesAt).time}.`);
+    const next = localOpening(nextOpeningAt);
+    expect(line.textContent).toContain(`Próximo atendimento: ${t.support.home.weekdays[next.weekday]} às ${next.time}.`);
+    expect(line.textContent).toContain(`Horários no seu fuso (${customerTimeZone()}).`);
+    expect(line.textContent).not.toContain("configurado");
+  });
+
+  test("PH-10.1 (DEC-0039 a): a 24/7 schedule says so, with no opening to announce", async () => {
+    mockFetch((request) =>
+      request.url === "/api/support/availability"
+        ? { body: { openNow: true, timezone: "America/Sao_Paulo", today: { open: "00:00", close: "24:00" }, nextOpening: null, alwaysOpen: true, todayWindow: { opensAt: "2026-09-16T03:00:00.000Z", closesAt: "2026-09-17T03:00:00.000Z" }, nextOpeningAt: null, workingDefault: true, checkedAt: "" } }
+        : { body: [] },
+    );
+    render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
+    const line = await screen.findByTestId("availability");
+    expect(line.textContent).toContain("Atendimento 24 horas, todos os dias.");
+    expect(line.textContent).not.toContain("Hoje:");
+    expect(line.textContent).not.toContain("Próximo atendimento");
+  });
+
+  test("PH-10.1: a day open around the clock in a narrowed week says so instead of 00:00–00:00", async () => {
+    mockFetch((request) =>
+      request.url === "/api/support/availability"
+        ? { body: { openNow: true, timezone: "America/Sao_Paulo", today: { open: "00:00", close: "24:00" }, nextOpening: { weekday: "sat", open: "09:00" }, alwaysOpen: false, todayWindow: { opensAt: "2026-09-16T03:00:00.000Z", closesAt: "2026-09-17T03:00:00.000Z" }, nextOpeningAt: "2026-09-19T12:00:00.000Z", workingDefault: false, checkedAt: "" } }
+        : { body: [] },
+    );
+    render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
+    const line = await screen.findByTestId("availability");
+    expect(line.textContent).toContain("Atendimento aberto agora. Hoje: atendimento 24 horas.");
+    expect(line.textContent).not.toContain("00:00–00:00");
   });
 
 

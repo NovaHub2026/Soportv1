@@ -2,17 +2,19 @@ import { z } from "zod";
 import type { CaseStatus, CaseSummary } from "./cases.js";
 
 /**
- * Operating configuration (PH-5.4, context §4.4, §5.4, §13). Everything here is a working default until
- * Operations sets real values (BL-002); the customer copy says so (RULE-SUP-08).
+ * Operating configuration (PH-5.4, context §4.4, §5.4, §13). The defaults are the operating policies the Owner
+ * decided on 2026-09-14 (DEC-0039, BL-002); a supervisor may change them. The schedule is expressed in the
+ * operation's time zone (São Paulo) and shown to each customer in their own (PH-10.1).
  */
 export const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
-const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "time_hh_mm");
+/** "HH:MM"; "24:00" is allowed as a closing time so a day can be open around the clock (DEC-0039 a). */
+const timeSchema = z.string().regex(/^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/, "time_hh_mm");
 
 export const dayScheduleSchema = z
   .object({ open: timeSchema, close: timeSchema })
-  .refine((d) => d.open < d.close, "open_before_close")
+  .refine((d) => d.open !== "24:00" && d.open < d.close, "open_before_close")
   .nullable();
 export type DaySchedule = z.infer<typeof dayScheduleSchema>;
 
@@ -48,25 +50,19 @@ export const supportSettingsInputSchema = z.object({
 export type SupportSettingsInput = z.infer<typeof supportSettingsInputSchema>;
 
 export interface SupportSettings extends SupportSettingsInput {
-  /** True until a supervisor saved the settings at least once: the values are the project's working defaults. */
+  /** True until a supervisor saved the settings at least once: the values are the Owner's decided policies (DEC-0039), not a supervisor's edit. */
   workingDefault: boolean;
   updatedById: string | null;
   updatedByName: string | null;
   updatedAt: string | null;
 }
 
-/** Working defaults (context §13.1 spirit): weekdays 09:00–18:00 in São Paulo, 4 h attention, 7-day window. */
+const ALL_DAY: DaySchedule = { open: "00:00", close: "24:00" };
+
+/** The Owner's operating policies (DEC-0039): the human team 24/7 in São Paulo time, 4 h attention, 7-day window, 15 min e-mail, 48 h reminder. */
 export const DEFAULT_SUPPORT_SETTINGS: SupportSettingsInput = {
   timezone: "America/Sao_Paulo",
-  schedule: {
-    mon: { open: "09:00", close: "18:00" },
-    tue: { open: "09:00", close: "18:00" },
-    wed: { open: "09:00", close: "18:00" },
-    thu: { open: "09:00", close: "18:00" },
-    fri: { open: "09:00", close: "18:00" },
-    sat: null,
-    sun: null,
-  },
+  schedule: { mon: ALL_DAY, tue: ALL_DAY, wed: ALL_DAY, thu: ALL_DAY, fri: ALL_DAY, sat: ALL_DAY, sun: ALL_DAY },
   attentionThresholdHours: 4,
   followUpWindowDays: 7,
   emailDelayMinutes: 15,
@@ -81,40 +77,86 @@ export interface Availability {
   today: DaySchedule;
   /** The next opening as "wed 09:00" parts, or null when no day is open. */
   nextOpening: { weekday: Weekday; open: string } | null;
+  /** True when every day is open 00:00–24:00 (DEC-0039 a): nothing to announce. */
+  alwaysOpen: boolean;
+  /** Today's window and the next opening as instants, so a client shows them in the customer's own time zone (PH-10.1). */
+  todayWindow: { opensAt: string; closesAt: string } | null;
+  nextOpeningAt: string | null;
   workingDefault: boolean;
   checkedAt: string;
+}
+
+export function isAllDay(window: DaySchedule): boolean {
+  return window !== null && window.open === "00:00" && window.close === "24:00";
+}
+
+interface LocalParts {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  weekday: Weekday;
+}
+
+/** The wall clock of `date` in `timezone` (Intl says "24" for midnight in some engines: read as 0). */
+function partsIn(date: Date, timezone: string): LocalParts {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const hour = Number(get("hour")) % 24;
+  return { year: Number(get("year")), month: Number(get("month")), day: Number(get("day")), hour, minute: Number(get("minute")), weekday: (get("weekday").toLowerCase().slice(0, 3) as Weekday) || "mon" };
+}
+
+/** The instant at which the wall clock in `timezone` reads `time` ("HH:MM", "24:00" = the next midnight) on the given calendar day. */
+export function zonedInstant(day: { year: number; month: number; day: number }, time: string, timezone: string): Date {
+  const [h, m] = time.split(":").map(Number);
+  const wanted = Date.UTC(day.year, day.month - 1, day.day, h, m);
+  let guess = wanted;
+  for (let i = 0; i < 2; i += 1) {
+    const seen = partsIn(new Date(guess), timezone);
+    guess += wanted - Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute);
+  }
+  return new Date(guess);
+}
+
+function plusDays(day: { year: number; month: number; day: number }, offset: number): { year: number; month: number; day: number } {
+  const d = new Date(Date.UTC(day.year, day.month - 1, day.day + offset));
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
 }
 
 const WEEKDAY_BY_INDEX: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 /** Local weekday and "HH:MM" of `now` in `timezone`. */
 export function localClock(now: Date, timezone: string): { weekday: Weekday; time: string } {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  const weekday = (get("weekday").toLowerCase().slice(0, 3) as Weekday) || "mon";
-  const hour = get("hour") === "24" ? "00" : get("hour");
-  return { weekday, time: `${hour}:${get("minute")}` };
+  const p = partsIn(now, timezone);
+  return { weekday: p.weekday, time: `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}` };
 }
 
 export function computeAvailability(settings: SupportSettings, now: Date = new Date()): Availability {
   const base = { timezone: settings.timezone, workingDefault: settings.workingDefault, checkedAt: now.toISOString() };
   // A stored zone Intl no longer knows fails closed: "not open, no next opening" is honest; a throw took the
   // customer's availability line down with a 500 (FND-0030).
-  if (!isValidTimeZone(settings.timezone)) return { ...base, openNow: false, today: null, nextOpening: null };
+  if (!isValidTimeZone(settings.timezone)) return { ...base, openNow: false, today: null, nextOpening: null, alwaysOpen: false, todayWindow: null, nextOpeningAt: null };
+  const local = partsIn(now, settings.timezone);
   const { weekday, time } = localClock(now, settings.timezone);
   const today = settings.schedule[weekday];
   const openNow = today !== null && time >= today.open && time < today.close;
+  const alwaysOpen = WEEKDAYS.every((d) => isAllDay(settings.schedule[d]));
   let nextOpening: Availability["nextOpening"] = null;
+  let nextOpeningAt: string | null = null;
   const start = WEEKDAY_BY_INDEX.indexOf(weekday);
   // Offset 7 is today again: when today is the only open day and it already closed, next week counts (FND-0043).
-  for (let offset = 0; offset <= 7 && !nextOpening; offset += 1) {
+  // Open around the clock: there is no next opening to announce (DEC-0039 a).
+  for (let offset = 0; offset <= 7 && !nextOpening && !alwaysOpen; offset += 1) {
     const day = WEEKDAY_BY_INDEX[(start + offset) % 7];
     const window = settings.schedule[day];
     if (!window) continue;
     if (offset === 0 && (openNow || time >= window.close)) continue;
     nextOpening = { weekday: day, open: window.open };
+    nextOpeningAt = zonedInstant(plusDays(local, offset), window.open, settings.timezone).toISOString();
   }
-  return { ...base, openNow, today, nextOpening };
+  const todayWindow = today ? { opensAt: zonedInstant(local, today.open, settings.timezone).toISOString(), closesAt: zonedInstant(local, today.close, settings.timezone).toISOString() } : null;
+  return { ...base, openNow, today, nextOpening, alwaysOpen, todayWindow, nextOpeningAt };
 }
 
 // ---- Supervision (PH-5.4, context §5.4) ----
