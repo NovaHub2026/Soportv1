@@ -18,7 +18,7 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 | 8 | Full gate on the candidate | EXECUTED | `npm run gate` | see "Final gate run" |
 | 9 | CI executes the gate and the builds on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
 
-Not verified: the upload limit over HTTP (31 uploads; the limiter is unit-tested and the call site is one line); the SSE cap over HTTP (supertest cannot hold eight open streams; unit-tested on the service); the bind-address warning (reasoned from `main.ts`, exercised by the PH-8.3 rehearsal).
+Not verified: the upload limit over HTTP (31 uploads; the limiter is unit-tested and the call site is one line); the SSE cap over HTTP (supertest cannot hold eight open streams; unit-tested on the service); the bind-address warning (reasoned from `main.ts`; the PH-8.3 rehearsal that was meant to exercise it never ran — the cycle 3 audit reproduced the gaps, FND-0058 and FND-0072).
 
 ## Smoke
 54 observations, exit 0 (2026-09-14), screenshots `screenshots/ph-8.1/01`–`29`. No new observation: the controls change what is refused, and every existing journey passed unchanged under helmet's headers and the stream cap (each browser page holds at most two streams).

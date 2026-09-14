@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-ORBIT
 Lifecycle: PARTIAL (identity boundary, customer summary and record cards; real adapters pending — BL-001)
 Freshness: CURRENT
-Verified against: the Cycle Audit 2 remediation commit (child of `70630c4`) — covers PH-4.3..PH-6.3 and the audit fixes
+Verified against: the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`)
 Verified on: 2026-09-14
 Scope: `apps/api/src/identity/` (incl. `staff-directory.ts`, `orbit-records.ts`, `simulated-orbit-records.ts`), `packages/shared/src/identity.ts`, `packages/shared/src/orbit.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/features/staff/OrbitCustomerSection.tsx`, identity headers in `apps/web/src/lib/api.ts` and `apps/web/src/lib/staff-api.ts`
 
@@ -16,7 +16,7 @@ Implemented (PH-1.2, hardened in PH-1.5):
 - `OrbitIdentityPort.resolve(headers) → Actor | null` with `CustomerActor { id, source }` and `StaffActor { id, role, displayName, source }`; every actor carries `source: 'simulated'`.
 - `SimulatedOrbitIdentity`: reads `x-simulated-customer-id` or `x-simulated-staff-id` (+ `-role`, `-name`); refuses ambiguous (both), malformed ids and unknown roles.
 - Guards `CustomerGuard`, `StaffGuard`, `AnyActorGuard`, decorator `@CurrentActor()`; `GET /api/identity/me` echoes the actor.
-- Roles in use (PH-7.2, DEC-0029): `StaffActor.role` and case ownership decide every staff action through the shared `staffMay` table (owner or supervisor/admin for state changes; replies, notes and consultation answers open to any staff); the simulated identity resolves staff only from the directory and takes the role from it (`x-simulated-staff-role` cannot promote). Reassignment authority as in DEC-0012 (BL-016 closed; a non-owner may set status, resolve, close or consult on a colleague's case; attribution is kept — BL-016 records the open decision).
+- Roles in use (PH-7.2, DEC-0029): `StaffActor.role` and case ownership decide every staff action through the shared `staffMay` table (owner or supervisor/admin for state changes; replies, notes and consultation answers open to any staff); the simulated identity resolves staff only from the directory and takes the role from it (`x-simulated-staff-role` cannot promote). Reassignment authority as in DEC-0012 (BL-016 closed; a non-owner may set status, resolve, close or consult on a colleague's case; attribution is kept — BL-016 records the open decision). Display names come from the directory; `x-simulated-staff-name` is ignored, so nobody can post under a colleague's name (DEC-0034 e). "take" claims an unowned case for every role.
 - Staff directory (Cycle Audit 1, DEC-0017): `StaffDirectory.isKnownStaff(id)` is the second port of the boundary; `SimulatedStaffDirectory` answers from `SIMULATED_STAFF_DIRECTORY` in `packages/shared` (the same list the web pickers use). Transfers to unknown ids are refused (400 `unknown_agent`). A real Orbit directory adapter replaces it without touching callers.
 - Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` (any casing) unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008). Simulated display names are stripped of control characters and bounded to 80 characters (Cycle Audit 2, FND-0048); the real adapter must do the same.
 - Web: simulated customer/staff pickers persisted in `localStorage`, always labeled **Simulação**; `/api/health` reports `identity: simulated`.

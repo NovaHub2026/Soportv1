@@ -79,7 +79,7 @@ function walk(dir, out = []) {
 // ---------- 1. Links ----------
 const liveDocs = [
   ...ROOT_DOCS.filter((f) => f.endsWith('.md') && !OWNER_DOCS.has(f)).map((f) => join(ROOT, f)),
-  ...walk(join(ROOT, 'docs')).filter((p) => p.endsWith('.md') && !/\/docs\/(?:evidence|audits)\//.test(p)),
+  ...walk(join(ROOT, 'docs')).filter((p) => p.endsWith('.md') && !/[\\/]docs[\\/](?:evidence|audits)[\\/]/.test(p)),
 ].filter(existsSync);
 
 let linksChecked = 0;

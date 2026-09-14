@@ -12,16 +12,20 @@ interface AccessRecoveryPanelProps {
   onClose: () => void;
 }
 
-type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; requests: AccessRecoveryRequest[] };
+type Filter = AccessRecoveryStatus | "";
+type LoadState = { filter: Filter } & ({ status: "loading" } | { status: "error" } | { status: "ready"; requests: AccessRecoveryRequest[] });
 
 /**
  * "Recuperação de acesso" (PH-7.1, context §4.5): unverified contacts from people who cannot sign in. Staff reach
- * the person and record one attributable outcome; the panel never shows or looks up any account (RULE-SUP-01).
+ * the person and record one attributable outcome; the panel never shows or looks up any account (RULE-SUP-01),
+ * and reminds staff never to ask for a password or code.
  */
 export function AccessRecoveryPanel({ identity, onClose }: AccessRecoveryPanelProps) {
   const r = t.staff.accessRecovery;
-  const [filter, setFilter] = useState<AccessRecoveryStatus | "">("received");
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [filter, setFilter] = useState<Filter>("received");
+  const [loaded, setLoaded] = useState<LoadState>({ filter: "received", status: "loading" });
+  // Rows of another filter are never shown while the new list loads (Cycle Audit 3).
+  const state: LoadState = loaded.filter === filter ? loaded : { filter, status: "loading" };
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [status, setStatus] = useState<{ kind: "idle" } | { kind: "busy" } | { kind: "info"; text: string } | { kind: "error"; text: string }>({ kind: "idle" });
   const [attempt, setAttempt] = useState(0);
@@ -29,13 +33,14 @@ export function AccessRecoveryPanel({ identity, onClose }: AccessRecoveryPanelPr
 
   useEffect(() => {
     const controller = new AbortController();
+    const current = filter;
     staffApi
-      .listAccessRecovery(identity, filter || undefined, controller.signal)
-      .then((requests) => setState({ status: "ready", requests }))
+      .listAccessRecovery(identity, current || undefined, controller.signal)
+      .then((requests) => setLoaded({ filter: current, status: "ready", requests }))
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         console.warn("staff: could not load recovery requests", error);
-        setState({ status: "error" });
+        setLoaded({ filter: current, status: "error" });
       });
     return () => controller.abort();
   }, [identity, filter, attempt]);
@@ -49,7 +54,9 @@ export function AccessRecoveryPanel({ identity, onClose }: AccessRecoveryPanelPr
       reload();
     } catch (error) {
       console.warn("staff: could not handle recovery request", error);
-      setStatus({ kind: "error", text: error instanceof ApiError && error.status === 409 ? r.alreadyHandled : r.failed });
+      const handledElsewhere = error instanceof ApiError && error.status === 409;
+      setStatus({ kind: "error", text: handledElsewhere ? r.alreadyHandled : r.failed });
+      if (handledElsewhere) reload(); // show the request as it is now, without its buttons
     }
   }
 
@@ -62,9 +69,12 @@ export function AccessRecoveryPanel({ identity, onClose }: AccessRecoveryPanelPr
         </button>
       </header>
       <p className={styles.hint}>{r.intro}</p>
+      <p className={styles.hint} role="note">
+        {r.noSecrets}
+      </p>
       <label className={styles.composerLabel}>
         {r.filter}
-        <select className={styles.select} value={filter} onChange={(event) => setFilter(event.target.value as AccessRecoveryStatus | "")}>
+        <select className={styles.select} value={filter} onChange={(event) => setFilter(event.target.value as Filter)}>
           <option value="">{r.all}</option>
           {ACCESS_RECOVERY_STATUSES.map((s) => (
             <option key={s} value={s}>

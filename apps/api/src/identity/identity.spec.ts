@@ -30,7 +30,9 @@ describe('SimulatedOrbitIdentity', () => {
     });
     await expect(
       provider.resolve({ 'x-simulated-staff-id': 'staff-carla', 'x-simulated-staff-role': 'supervisor', 'x-simulated-staff-name': 'Carla' }),
-    ).resolves.toEqual({ kind: 'staff', id: 'staff-carla', role: 'supervisor', displayName: 'Carla', source: 'simulated' });
+    ).resolves.toEqual({ kind: 'staff', id: 'staff-carla', role: 'supervisor', displayName: 'Carla Nunes', source: 'simulated' });
+    // Cycle Audit 3: the display name comes from the directory; a header cannot impersonate a colleague.
+    await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-bruno', 'x-simulated-staff-name': 'Carla Nunes (Supervisora)' })).resolves.toMatchObject({ displayName: 'Bruno Costa' });
     // PH-7.2: the directory decides the role; a header that disagrees is ignored, an unknown id is nobody.
     await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-ana', 'x-simulated-staff-role': 'supervisor' })).resolves.toMatchObject({ role: 'agent' });
     await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-1', 'x-simulated-staff-role': 'supervisor' })).resolves.toBeNull();

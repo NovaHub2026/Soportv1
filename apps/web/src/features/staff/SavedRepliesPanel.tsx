@@ -67,6 +67,7 @@ export function SavedRepliesPanel({ identity, onClose }: SavedRepliesPanelProps)
     setStatus({ kind: "busy" });
     try {
       await staffApi.deleteSavedReply(identity, reply.id);
+      setConfirming(null);
       setStatus({ kind: "idle" });
       reload();
     } catch (error) {
@@ -156,9 +157,14 @@ export function SavedRepliesPanel({ identity, onClose }: SavedRepliesPanelProps)
                     {r.edit}
                   </button>
                   {confirming === reply.id ? (
-                    <button type="button" className={styles.linkButton} onClick={() => void handleDelete(reply)}>
-                      {r.confirmRemove}
-                    </button>
+                    <>
+                      <button type="button" className={styles.linkButton} disabled={status.kind === "busy"} onClick={() => void handleDelete(reply)}>
+                        {r.confirmRemove}
+                      </button>
+                      <button type="button" className={styles.linkButton} onClick={() => setConfirming(null)}>
+                        {r.cancel}
+                      </button>
+                    </>
                   ) : (
                     <button type="button" className={styles.linkButton} onClick={() => setConfirming(reply.id)}>
                       {r.remove}

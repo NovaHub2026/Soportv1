@@ -91,7 +91,7 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
       reload();
     } catch (error) {
       console.warn("staff: could not save settings", error);
-      const issues = error instanceof ApiError && error.status === 400 ? validationFields(error.body) : [];
+      const issues = error instanceof ApiError && error.status === 400 ? [...new Set(validationFields(error.body).map(fieldLabel))] : [];
       setStatus({
         kind: "error",
         text: error instanceof ApiError && error.status === 403 ? s.forbidden : issues.length > 0 ? fill(s.invalid, { fields: issues.join(", ") }) : s.failed,
@@ -300,4 +300,20 @@ function validationFields(body: unknown): string[] {
   if (!body || typeof body !== "object" || !Array.isArray((body as { issues?: unknown }).issues)) return [];
   const fields = (body as { issues: Array<{ path?: unknown }> }).issues.map((issue) => (typeof issue.path === "string" ? issue.path : "")).filter(Boolean);
   return [...new Set(fields)];
+}
+
+/** The form's own label for an API field path, so the supervisor reads "Fuso horário", not "timezone" (Cycle Audit 3). */
+function fieldLabel(path: string): string {
+  const s = t.staff.supervision;
+  const labels: Record<string, string> = {
+    timezone: s.timezone,
+    attentionThresholdHours: s.threshold,
+    followUpWindowDays: s.followUpWindow,
+    emailDelayMinutes: s.emailDelay,
+    reminderAfterHours: s.reminderAfter,
+  };
+  if (labels[path]) return labels[path];
+  const [head, day] = path.split(".");
+  if (head === "schedule" && day && day in s.weekdays) return s.weekdays[day as keyof typeof s.weekdays];
+  return path;
 }

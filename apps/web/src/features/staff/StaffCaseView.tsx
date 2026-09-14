@@ -220,7 +220,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
       onChanged();
     } catch (error) {
       console.warn("staff: could not update case", error);
-      setAction({ status: "error", message: t.staff.attributes.failed });
+      setAction({ status: "error", message: forbiddenOr(error, t.staff.attributes.failed) });
     }
   }
 
@@ -591,10 +591,11 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         )}
       </section>
 
-      <CaseContext detail={detail} identity={identity} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"}>
+      <CaseContext detail={detail} identity={identity} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"} mayEdit={staffMay(identity.role, "edit_attributes", ownership)}>
         <IncidentSection
           identity={identity}
           detail={detail}
+          mayLink={staffMay(identity.role, "link_incident", ownership)}
           onChanged={() => {
             void refresh();
             onChanged();
@@ -732,6 +733,7 @@ function CaseContext({
   identity,
   onAnswer,
   onAttributes,
+  mayEdit = true,
   busy,
   children,
 }: {
@@ -739,6 +741,8 @@ function CaseContext({
   identity: StaffIdentity;
   onAnswer: (c: CaseConsultation, answer: string) => void;
   onAttributes: (input: UpdateCaseInput) => void;
+  /** Role model (DEC-0029): false for a non-owner agent — category and priority are read-only (Cycle Audit 3). */
+  mayEdit?: boolean;
   busy: boolean;
   children?: React.ReactNode;
 }) {
@@ -787,7 +791,8 @@ function CaseContext({
               id="case-category"
               className={styles.inlineSelect}
               value={detail.category}
-              disabled={busy}
+              disabled={busy || !mayEdit}
+              title={mayEdit ? undefined : t.staff.actions.notOwner}
               onChange={(event) => onAttributes({ category: event.target.value as CaseCategory })}
             >
               {CASE_CATEGORIES.map((category) => (
@@ -809,7 +814,8 @@ function CaseContext({
               id="case-priority"
               className={styles.inlineSelect}
               value={detail.priority}
-              disabled={busy}
+              disabled={busy || !mayEdit}
+              title={mayEdit ? undefined : t.staff.actions.notOwner}
               onChange={(event) => onAttributes({ priority: event.target.value as CasePriority })}
             >
               {CASE_PRIORITIES.map((priority) => (

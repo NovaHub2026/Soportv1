@@ -8,10 +8,13 @@
  *   node scripts/demo-local.mjs --check    # start, run the post-release checks, print a JSON report, stop
  *
  * The web build's /api rewrite points at 127.0.0.1:3001 (API_ORIGIN at build time), so these ports are fixed.
+ * The launcher refuses to start when either port is already taken and stops as soon as one of its servers
+ * exits, so the checks can only pass against the servers it started (Cycle Audit 3).
  * Nothing here is reachable from another machine; a public deployment follows docs/runbooks/DEPLOYMENT.md.
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import net from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,18 +24,30 @@ const API = 'http://127.0.0.1:3001';
 const WEB = 'http://127.0.0.1:3000';
 const CHECK = process.argv.includes('--check');
 const DATA = process.env.DEMO_DATA_DIR ?? join(ROOT, 'apps/api/.data/demo');
+
+function portTaken(port) {
+  return new Promise((done) => {
+    const socket = net.connect({ port, host: '127.0.0.1' });
+    socket.once('connect', () => {
+      socket.destroy();
+      done(true);
+    });
+    socket.once('error', () => done(false));
+  });
+}
+for (const port of [3000, 3001]) {
+  if (await portTaken(port)) {
+    console.error(`Port ${port} on 127.0.0.1 is already in use — stop that server first; the demo and its checks must run against the servers started here.`);
+    process.exit(1);
+  }
+}
 mkdirSync(join(DATA, 'pglite'), { recursive: true });
 mkdirSync(join(DATA, 'uploads'), { recursive: true });
 
 const children = [];
-function start(name, cmd, args, cwd, env) {
-  const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: !WINDOWS });
-  child.stdout.on('data', (d) => process.stdout.write(`[${name}] ${d}`));
-  child.stderr.on('data', (d) => process.stderr.write(`[${name}] ${d}`));
-  children.push(child);
-  return child;
-}
+let stopping = false;
 function stopAll() {
+  stopping = true;
   for (const child of children) {
     if (child.exitCode !== null) continue;
     try {
@@ -43,17 +58,30 @@ function stopAll() {
     }
   }
 }
+function start(name, cmd, args, cwd, env) {
+  const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: !WINDOWS });
+  child.stdout.on('data', (d) => process.stdout.write(`[${name}] ${d}`));
+  child.stderr.on('data', (d) => process.stderr.write(`[${name}] ${d}`));
+  child.on('exit', (code) => {
+    if (stopping) return;
+    console.error(`[${name}] exited unexpectedly (code ${code}) — stopping the demo`);
+    stopAll();
+    process.exit(1);
+  });
+  children.push(child);
+  return child;
+}
 process.on('SIGINT', () => {
   stopAll();
   process.exit(0);
 });
 
-async function waitFor(url, label, timeoutMs = 90_000) {
+async function waitFor(url, label, accept, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
       const res = await fetch(url);
-      if (res.status < 500) return;
+      if (await accept(res)) return;
     } catch {
       // not up yet
     }
@@ -64,7 +92,7 @@ async function waitFor(url, label, timeoutMs = 90_000) {
 
 const json = async (res) => ({ status: res.status, body: await res.json().catch(() => null) });
 const customer = (id) => ({ 'content-type': 'application/json', 'x-simulated-customer-id': id });
-const staff = { 'content-type': 'application/json', 'x-simulated-staff-id': 'staff-ana', 'x-simulated-staff-name': 'Ana Ribeiro' };
+const staff = { 'content-type': 'application/json', 'x-simulated-staff-id': 'staff-ana' };
 
 async function postReleaseChecks() {
   const report = {};
@@ -81,13 +109,16 @@ async function postReleaseChecks() {
   report.caseReference = created.body.reference;
   const reply = await json(await fetch(`${WEB}/api/staff/cases/${created.body.id}/messages`, { method: 'POST', headers: staff, body: JSON.stringify({ body: 'Resposta da verificação pós-release.' }) }));
   if (reply.status !== 201) throw new Error(`staff reply failed: ${reply.status}`);
+  report.replyAuthor = reply.body?.authorName;
   const seen = await json(await fetch(`${WEB}/api/support/cases/${created.body.id}`, { headers: customer('cust-alice') }));
   report.customerSeesReply = seen.body?.messages?.some((m) => m.authorType === 'staff') === true;
   const notifications = await json(await fetch(`${WEB}/api/support/notifications`, { headers: customer('cust-alice') }));
   report.notified = notifications.body?.notifications?.some((n) => n.caseId === created.body.id && n.kind === 'staff_reply') === true;
   const other = await fetch(`${WEB}/api/support/cases/${created.body.id}`, { headers: customer('cust-bruno') });
   report.otherCustomerRefused = other.status === 404;
-  const ok = report.webHome === 200 && report.customerSeesReply && report.notified && report.otherCustomerRefused && report.securityHeaders.xPoweredBy === null;
+  const home = await (await fetch(`${WEB}/`)).text();
+  report.serverRenderNeutral = !home.includes('Alice Souza') && !home.includes('Sair');
+  const ok = report.webHome === 200 && report.customerSeesReply && report.notified && report.otherCustomerRefused && report.securityHeaders.xPoweredBy === null && report.serverRenderNeutral;
   return { ok, ...report };
 }
 
@@ -103,8 +134,8 @@ start('api', process.execPath, ['apps/api/dist/main.js'], ROOT, {
 start('web', process.execPath, [join(ROOT, 'node_modules/next/dist/bin/next'), 'start', '-p', '3000', '-H', '127.0.0.1'], join(ROOT, 'apps/web'), { NODE_ENV: 'production' });
 
 try {
-  await waitFor(`${API}/api/health`, 'API');
-  await waitFor(`${WEB}/`, 'web');
+  await waitFor(`${API}/api/health`, 'API', async (res) => res.status === 200 && (await res.json().catch(() => null))?.status === 'ok');
+  await waitFor(`${WEB}/`, 'web', async (res) => res.status === 200);
   console.log(`\nOrbit Support demo (simulated identity, loopback only): ${WEB}  ·  staff: ${WEB}/staff`);
   if (CHECK) {
     const report = await postReleaseChecks();

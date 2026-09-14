@@ -38,7 +38,14 @@ export class CaseStreamService {
       const current = this.open.get(key) ?? 0;
       if (current >= maxStreamsPerIdentity()) throw new HttpException({ error: 'too_many_streams', max: maxStreamsPerIdentity() }, 429);
       this.open.set(key, current + 1);
-      return source.pipe(finalize(() => this.open.set(key, Math.max(0, (this.open.get(key) ?? 1) - 1))));
+      return source.pipe(
+        finalize(() => {
+          // The key disappears with its last stream, so one-off identities do not accumulate (Cycle Audit 3).
+          const left = (this.open.get(key) ?? 1) - 1;
+          if (left <= 0) this.open.delete(key);
+          else this.open.set(key, left);
+        }),
+      );
     });
   }
 

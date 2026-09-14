@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the PH-8.1 commit — covers PH-5.4..PH-8.1
+Verified against: the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -31,6 +31,8 @@ Record cards (PH-4.2): a case opened from a record shows the card in the case he
 Orbit context (PH-4.1): the context column's "Cliente no Orbit" section (labeled Simulação) shows username, account status, environment (real/demo), verification with the next action, language · country, registration, masked e-mail and phone and when it was fetched — or "Dados do Orbit indisponíveis: <motivo>." with "Tentar novamente"; a one-line note says records are not integrated yet (PH-4.2).
 Cycle Audit 1: the transfer picker and the identity picker read the shared `SIMULATED_STAFF_DIRECTORY` (the API validates transfer targets against the same list); "Resolver caso" with a pending consultation shows "Há consulta pendente com outra equipe…" (409 `consultations_open`); roles are labeled in pt-BR. (FND-0023 / BL-011 closed by PH-5.1: every state has a view.)
 Gaps (accepted target): filters, search by reference / user id / email / operation refs, saved replies, supervision views, schedule/config, metrics (PH-5); Orbit record cards and masked identity summary (PH-4); role-based permissions beyond agent/supervisor/admin labels (PH-7); the context column is hidden below 1100 px (desktop-first).
+
+Cycle 3 out-of-band audit: the context column's category/priority and the incident link/create/unlink controls follow the role model too (disabled with the reason; no orphan incident — FND-0061); queue results belong to one agent, view, search and filter set and one extra row detects "more"; saved-reply removal has a cancel and cannot double-submit; supervision errors name the form's fields; the recovery page never shows another filter's rows.
 
 ## Dependencies and consumers
 Depends on: FEAT-CASE staff endpoints, FEAT-ORBIT identity headers (`x-simulated-staff-id`, `-name`, `-role`), shared `StatusBadge` from FEAT-CHAT (`apps/web/src/features/support/StatusBadge.tsx`).

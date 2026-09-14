@@ -6,9 +6,11 @@ describe("role model (PH-7.2, DEC-0029)", () => {
     for (const action of STAFF_ACTIONS) {
       expect(staffMay("agent", action, "own")).toBe(true);
       expect(staffMay("agent", action, "unowned")).toBe(true);
+      if (action === "take") continue; // taking claims an unowned case for everyone; reassignment is "transfer"
       expect(staffMay("supervisor", action, "other")).toBe(true);
       expect(staffMay("admin", action, "other")).toBe(true);
     }
+    expect(staffMay("supervisor", "take", "other")).toBe(false);
     for (const action of ["reply", "internal_note", "answer_consultation"] as const) expect(staffMay("agent", action, "other")).toBe(true);
     for (const action of ["set_status", "resolve", "close", "consult", "edit_attributes", "transfer", "link_incident", "take"] as const) expect(staffMay("agent", action, "other")).toBe(false);
   });

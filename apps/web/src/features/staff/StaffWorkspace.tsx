@@ -26,6 +26,14 @@ export interface CaseSignal {
  */
 export function StaffWorkspace() {
   const [staff, selectStaff, signOut] = useSimulatedStaff();
+  // Not known yet (server render, first client render): nothing identity-bound (Cycle Audit 3).
+  if (staff === undefined) {
+    return (
+      <div className={styles.workspace} data-pending="true" aria-busy="true">
+        <p className={styles.muted}>{t.staff.loading}</p>
+      </div>
+    );
+  }
   if (staff === null) return <StaffSignedOut onEnter={selectStaff} />;
   return <StaffWorkspaceFor staff={staff} selectStaff={selectStaff} signOut={signOut} />;
 }

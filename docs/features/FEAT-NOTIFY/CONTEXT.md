@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-NOTIFY
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the Cycle Audit 2 remediation commit (child of `70630c4`)
+Verified against: the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`)
 Verified on: 2026-09-14
 Scope: `apps/api/src/cases/notifications.service.ts`, `notifications.controller.ts`, `email-notifier.ts`, `notification.job.ts`, `preferences.controller.ts`; `case_notifications`, `email_outbox`, `customer_preferences` in `apps/api/src/database/schema.ts`; `apps/web/src/features/shell/NotificationsBell.tsx`; the preference and outbox section of `apps/web/src/features/support/SupportHome.tsx`; copy under `support.notifications` / `support.emails`; availability copy is owned by FEAT-CHAT (PH-5.4) and the schedule by FEAT-STAFF
 
@@ -19,6 +19,8 @@ Implemented (PH-6.1, DEC-0024):
 E-mail (PH-6.2, DEC-0025, DEC-0027 b): `NotificationJob` e-mails each unread notification at most once after `emailDelayMinutes` through `EmailNotifierPort` — claim-then-send (the row is marked `emailed_at` before the notifier is called; a failed send releases it; a row another instance claimed is skipped), one failing row never stops the batch, and an unavailable Orbit contact lookup stops the tick without marking anything (FND-0032/FND-0045); the `outside_hours` acknowledgement is e-mailed like any other unread notification ("Recebemos sua mensagem no caso …"); the simulated adapter writes `email_outbox` (masked address, subject with the reference, link `/?case=<id>`, no content); customers opt out through `PUT /api/support/preferences`; the home shows the preference and the labeled "E-mails que seriam enviados" list (`GET /api/support/emails`).
 Outside hours and reminders (PH-6.3, DEC-0026, DEC-0027 a): a case created, a follow-up opened or a customer message sent while the configured schedule says closed gets a `system` message "Fora do horário de atendimento. Registramos sua mensagem…" with the next opening (once per case per 12 h) and an `outside_hours` notification; `ReminderJob` (`apps/api/src/cases/reminder.job.ts`) sends one `reminder` notification per waiting-for-customer period after `reminderAfterHours`, recorded as `reminder_sent`; the period starts at `waiting_customer_since` (entering the status or a staff message while waiting — never an older reply, FND-0033) and a customer reply ends it. Neither counts as a human response in metrics.
 Not implemented: a real mail provider (PH-8), staff notifications beyond the workspace's own badges. PH-6 approved 2026-09-14 (`docs/evidence/PH-6-phase-approval.md`).
+
+Delivery guarantee (DEC-0027 b, DEC-0034 h, FND-0076): e-mail is at most once — a crash between claiming a row and sending it loses that e-mail (the in-product notification survives); a send that keeps failing is retried every tick without a cap until BL-028.
 
 ## Dependencies and consumers
 Depends on: FEAT-CASE transactions (notifications are recorded by `CasesService`), FEAT-CHAT streams (`/api/support/cases/stream`), the customer projection (DEC-0015). Used by: the Orbit host shell (badge), future e-mail delivery (PH-6.2 reads unread notifications older than the configured delay).

@@ -38,8 +38,9 @@ export class SimulatedOrbitIdentity implements OrbitIdentityPort {
         kind: 'staff',
         id: staffId,
         role,
-        // A header-supplied name reaches customers verbatim: strip control characters and bound it (FND-0048).
-        displayName: printable(header(headers, SIMULATED_IDENTITY_HEADERS.staffName) ?? '').trim().slice(0, 80) || staffId,
+        // The directory's name, never a header: customers read it, and a header let an agent post as someone else
+        // (Cycle Audit 3; supersedes the FND-0048 bound). `x-simulated-staff-name` is ignored.
+        displayName: member.name,
         source: 'simulated',
       };
     }
@@ -47,12 +48,3 @@ export class SimulatedOrbitIdentity implements OrbitIdentityPort {
   }
 }
 
-/** Drops ASCII control characters (0–31, 127) from a header value (FND-0048). */
-function printable(value: string): string {
-  let out = '';
-  for (const ch of value) {
-    const code = ch.charCodeAt(0);
-    if (code > 31 && code !== 127) out += ch;
-  }
-  return out;
-}

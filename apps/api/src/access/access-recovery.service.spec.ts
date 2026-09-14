@@ -44,6 +44,8 @@ describe('AccessRecoveryService (PH-7.1, §4.5)', () => {
   it('bounds repeated requests per contact per hour and answers 429 with a retry hint', async () => {
     for (let i = 0; i < 3; i += 1) await service.create({ contact: '+55 11 99999-1234', description: `Tentativa número ${i} de recuperar.` });
     await expect(service.create({ contact: '+55 11 99999-1234', description: 'Mais uma tentativa de recuperar.' })).rejects.toBeInstanceOf(HttpException);
+    // Cycle Audit 3: reformatting the same phone does not reset the limit.
+    await expect(service.create({ contact: '+55 (11) 99999 1234', description: 'Mesmo telefone, outro formato.' })).rejects.toBeInstanceOf(HttpException);
     try {
       await service.create({ contact: '+55 11 99999-1234', description: 'Mais uma tentativa de recuperar.' });
     } catch (error) {

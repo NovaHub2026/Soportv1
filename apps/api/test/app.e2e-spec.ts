@@ -42,7 +42,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const customer = await request(app.getHttpServer()).get('/api/identity/me').set(asCustomer('cust-1')).expect(200);
     expect(customer.body).toEqual({ kind: 'customer', id: 'cust-1', source: 'simulated' });
     const staff = await request(app.getHttpServer()).get('/api/identity/me').set(asStaff('staff-ana', 'Ana')).expect(200);
-    expect(staff.body).toMatchObject({ kind: 'staff', id: 'staff-ana', role: 'agent', displayName: 'Ana', source: 'simulated' });
+    expect(staff.body).toMatchObject({ kind: 'staff', id: 'staff-ana', role: 'agent', displayName: 'Ana Ribeiro', source: 'simulated' });
     await request(app.getHttpServer()).get('/api/identity/me').expect(401);
     await request(app.getHttpServer())
       .get('/api/identity/me')
@@ -203,7 +203,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
       .set(asStaff('staff-bruno', 'Bruno'))
       .send({ answer: 'Aplicado em 10/09; rollover pendente.' })
       .expect(200);
-    expect(answered.body).toMatchObject({ status: 'answered', answeredByName: 'Bruno' });
+    expect(answered.body).toMatchObject({ status: 'answered', answeredByName: 'Bruno Costa' });
     await request(server)
       .post(`/api/staff/cases/${id}/consultations/${consultation.body.id}/answer`)
       .set(asStaff('staff-bruno', 'Bruno'))
@@ -243,7 +243,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
 
     const customerView = await request(server).get(`/api/support/cases/${caseId}`).set(asCustomer('cust-alice')).expect(200);
     expect(customerView.body.messages).toHaveLength(2);
-    expect(customerView.body.messages[1]).toMatchObject({ authorType: 'staff', authorName: 'Ana' });
+    expect(customerView.body.messages[1]).toMatchObject({ authorType: 'staff', authorName: 'Ana Ribeiro' });
 
     const list = await request(server).get('/api/support/cases').set(asCustomer('cust-alice')).expect(200);
     expect(list.body.map((c: { id: string }) => c.id)).toEqual([caseId]);
@@ -397,7 +397,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
       .set(asStaff('staff-ana', 'Ana'))
       .send({ title: 'Saque em análise', body: 'Seu saque está em análise pelo time financeiro. Retornamos em breve.', category: 'deposits_withdrawals' })
       .expect(201);
-    expect(created.body).toMatchObject({ createdById: 'staff-ana', updatedByName: 'Ana', category: 'deposits_withdrawals' });
+    expect(created.body).toMatchObject({ createdById: 'staff-ana', updatedByName: 'Ana Ribeiro', category: 'deposits_withdrawals' });
     const list = await request(server).get('/api/staff/saved-replies').set(asStaff('staff-bruno', 'Bruno')).expect(200);
     expect(list.body.map((r: { id: string }) => r.id)).toContain(created.body.id);
     await request(server).patch(`/api/staff/saved-replies/${created.body.id}`).set(asStaff('staff-bruno', 'Bruno')).send({ title: 'x', body: 'y' }).expect(403);
@@ -486,6 +486,13 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const overview = await request(server).get('/api/staff/overview').set(supervisor).expect(200);
     expect(typeof overview.body.waitingInternal.count).toBe('number');
     expect('oldestSince' in overview.body.waitingInternal).toBe(true);
+    // Cycle Audit 3: refused uploads do not consume the upload quota — 30 wrong-type files, then a valid PNG is accepted.
+    const upl = await request(server).post('/api/support/cases').set(asCustomer('cust-upl')).send({ category: 'other', message: 'Quero anexar um arquivo.' }).expect(201);
+    for (let i = 0; i < 30; i += 1) {
+      await request(server).post(`/api/support/cases/${upl.body.id}/attachments`).set(asCustomer('cust-upl')).attach('file', Buffer.from('texto simples'), 'nota.txt').expect(415);
+    }
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+    await request(server).post(`/api/support/cases/${upl.body.id}/attachments`).set(asCustomer('cust-upl')).attach('file', png, 'pixel.png').expect(201);
   });
 
   it('PH-7.3 privacy re-check: internal notes, consultations and incident broadcasts never reach the customer detail, notifications or outbox under the role model', async () => {
@@ -526,7 +533,9 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).post(`/api/staff/cases/${id}/resolve`).set(bruno).send({ reason: 'solved', explanation: 'ok' }).expect(403);
     await request(server).patch(`/api/staff/cases/${id}`).set(bruno).send({ priority: 'high' }).expect(403);
     await request(server).post(`/api/staff/cases/${id}/consultations`).set(bruno).send({ team: 'finance', question: 'Pode?' }).expect(403);
-    await request(server).post(`/api/staff/cases/${id}/messages`).set(bruno).send({ body: 'Posso ajudar também.' }).expect(201);
+    // Cycle Audit 3: a header name cannot impersonate a colleague — the directory's name is what the customer reads.
+    const brunoReply = await request(server).post(`/api/staff/cases/${id}/messages`).set({ ...bruno, [SIMULATED_IDENTITY_HEADERS.staffName]: 'Carla Nunes (Supervisora)' }).send({ body: 'Posso ajudar também.' }).expect(201);
+    expect(brunoReply.body.authorName).toBe('Bruno Costa');
     const afterReply = await request(server).get(`/api/staff/cases/${id}`).set(bruno).expect(200);
     expect(afterReply.body.assignedAgentId).toBe('staff-ana');
     // A header role cannot promote an agent: the directory says Bruno is an agent.
@@ -566,7 +575,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(mine).toMatchObject({ contact: 'alice@example.com', status: 'received' });
     expect(JSON.stringify(list.body)).not.toContain('customerId');
     const handled = await request(server).post(`/api/staff/access-recovery/${mine.id}/handle`).set(asStaff('staff-ana', 'Ana')).send({ outcome: 'forwarded', note: 'Encaminhado.' }).expect(200);
-    expect(handled.body).toMatchObject({ status: 'forwarded', handledById: 'staff-ana', handledByName: 'Ana' });
+    expect(handled.body).toMatchObject({ status: 'forwarded', handledById: 'staff-ana', handledByName: 'Ana Ribeiro' });
     await request(server).post(`/api/staff/access-recovery/${mine.id}/handle`).set(asStaff('staff-ana', 'Ana')).send({ outcome: 'closed' }).expect(409);
     await request(server).get('/api/staff/access-recovery?status=bogus').set(asStaff('staff-ana', 'Ana')).expect(400);
   });

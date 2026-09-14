@@ -21,4 +21,13 @@ describe('SlidingWindowLimiter (PH-8.1, BL-012)', () => {
       expect((error as HttpException).getResponse()).toMatchObject({ error: 'too_many', retryAfterSeconds: expect.any(Number) });
     }
   });
+
+  it('sweeps keys whose attempts all left the window, so one-off identities do not accumulate (Cycle Audit 3)', () => {
+    const limiter = new SlidingWindowLimiter(3, 60_000);
+    const t0 = 5_000_000;
+    for (let i = 0; i < 300; i += 1) limiter.take(`one-off-${i}`, t0);
+    expect(limiter.size()).toBe(300);
+    for (let i = 0; i < 256; i += 1) limiter.take('steady', t0 + 61_000);
+    expect(limiter.size()).toBe(1);
+  });
 });

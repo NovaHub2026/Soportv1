@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { message, mockFetch, summary } from "@/features/support/test-utils";
 import { OrbitShell } from "./OrbitShell";
@@ -172,5 +173,46 @@ describe("OrbitShell", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+  test("Cycle Audit 3: the server render is identity-neutral — no customer name, no 'Sair', no identity-bound part", () => {
+    const html = renderToString(<OrbitShell />);
+    expect(html).not.toContain("Alice");
+    expect(html).not.toContain("Sair");
+    expect(html).toContain("data-pending");
+  });
+
+  test("Cycle Audit 3: scrolling inside the panel counts as activity for the idle sign-out", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mockFetch(() => ({ body: [] }));
+      render(<OrbitShell />);
+      await act(async () => {
+        vi.advanceTimersByTime(29 * 60_000);
+      });
+      fireEvent.scroll(screen.getByTestId("support-panel"));
+      await act(async () => {
+        vi.advanceTimersByTime(2 * 60_000);
+      });
+      expect(screen.queryByTestId("signed-out")).toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(30 * 60_000);
+      });
+      expect(screen.getByTestId("signed-out")).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("Cycle Audit 3: a sign-out in another tab also clears this tab's unsent drafts", async () => {
+    mockFetch(() => ({ body: [] }));
+    window.sessionStorage.setItem("orbit-support.pending.cust-alice.x", JSON.stringify([{ id: "p1", body: "meu segredo" }]));
+    render(<OrbitShell />);
+    await screen.findByRole("button", { name: "Sair" });
+    await act(async () => {
+      window.localStorage.setItem("orbit-support.simulated-customer:signed-out", "1");
+      window.dispatchEvent(new StorageEvent("storage"));
+    });
+    expect(await screen.findByTestId("signed-out")).toBeDefined();
+    expect(window.sessionStorage.getItem("orbit-support.pending.cust-alice.x")).toBeNull();
   });
 });

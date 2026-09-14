@@ -71,6 +71,8 @@ export function caseOwnership(assignedAgentId: string | null, staffId: string): 
 }
 
 export function staffMay(role: StaffRole, action: StaffAction, ownership: CaseOwnership): boolean {
+  // Taking claims an UNOWNED case, for every role; moving a colleague's case is "transfer" (Cycle Audit 3).
+  if (action === "take") return ownership !== "other";
   if (role !== "agent") return true;
   if (OPEN_TO_ANY_STAFF.includes(action)) return true;
   return ownership !== "other";

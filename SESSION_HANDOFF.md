@@ -1,26 +1,24 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the demo release commit (tag `v0.1.0-demo`): release record, `scripts/demo-local.mjs`, runbook updates. No intended local delta after it.
-Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
+Checkpoint: branch `main`; the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`): 24 findings addressed (deployment files, test-database guard, identity-neutral render, role-model mirror, gate staging, recovery limits and characters, migration lock, web minors), migration `0018`, PH-8 reopened, corrected demo record. No intended local delta after it.
+Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`; read `CLAUDE.md` from disk (an injected copy may be stale — FND-0081).
 
 ## Running now
-None. The UI smoke stops its own servers (API 3001, web 3150). Other Node processes on this machine belong to other projects — do not touch them.
+None. The UI smoke and `scripts/demo-local.mjs` stop their own servers (3001, 3000, 3150). Reviewer instances of the audit (3041–3044) were stopped. Other Node processes on this machine belong to other projects — do not touch them.
 
 ## Unfinished work
-Owner instruction (2026-09-14): «Ejecuta todo en orden» — (1) container rehearsal: BLOCKED by Docker Desktop on this host (stale sockets in %LOCALAPPDATA%\Docker\run need elevation; Owner action in `docs/evidence/RELEASE-2026-09-14.md` "Blocked"); (2) restricted demo release: DONE, `v0.1.0-demo` (new phases for real Orbit adapters or a mail provider were not opened — Orbit does not exist, a provider is a paid decision); (3) out-of-band Cycle Audit 3: next (see `CURRENT_STATE.md`). Commits go only through `npm run gate <message-file>`.
+Owner instruction (2026-09-14): «Ejecuta todo en orden» — (1) container rehearsal: BLOCKED by Docker Desktop on this host (stale sockets in `%LOCALAPPDATA%\Docker\run` need elevation; Owner action in `docs/evidence/RELEASE-2026-09-14.md` "Blocked"), which keeps PH-8.3 and PH-8 ACTIVE; (2) internal demo: `v0.1.0-demo` released, superseded by `v0.1.1-demo` (`docs/evidence/RELEASE-2026-09-14b.md`, tagged after CI); (3) out-of-band audit: remediation committed, closure next (see `CURRENT_STATE.md`). Pending the Owner's word: the demo's gate #5 reading (operating policies). Commits only through `bash scripts/gate-commit.sh <message-file> --include <new paths>`.
 
 ## Evidence and limits
-- `docs/audits/CYCLE-2.md` (closed) and `docs/evidence/CYCLE-2-verification.md` (suites, builds, smoke, CI run 34822158367).
-- Concurrency and claim-then-send delivery are verified on PGlite's single connection and by structure; BL-019 asks for the same suites against a server PostgreSQL before PH-8.
-- The api suites' always-open schedule has one closed minute a day (23:59 local, FND-0051): a failure exactly then is a rerun, not a defect.
+- `docs/audits/CYCLE-3-OOB.md`, `docs/evidence/CYCLE-3-verification.md`, `docs/evidence/RELEASE-2026-09-14b.md`.
+- Container images never built on this host; PostgreSQL verified in CI only; carried items BL-012 done, BL-022..BL-024 and BL-026..BL-030 with their revisit events.
 
 ## Resume here
-1. `git status -sb`; `gh run list --limit 2` — the release commit must be green.
-2. Validate `CURRENT_STATE.md`; run Cycle Audit 3 (reviewer brief pattern in `docs/audits/CYCLE-2.md` "Scope, methods and limits").
+1. `git status -sb`; `gh run list --limit 2` — the remediation commit must be green on both jobs.
+2. Tag it `v0.1.1-demo`, record the CI verdict, close the audit (one gate commit); then report to the Owner.
 
 ## Temporary environment notes
-- Host observed 2026-09-14: Windows 11 native (Git Bash for the agent's shell; PowerShell forms in the runbook). Paths in env vars are Windows-style (`C:/…`).
-- Git author is repo-local and must be set on a fresh clone (DEC-0002); enable the hook with `git config core.hooksPath scripts/git-hooks`.
-- Dev database: `apps/api/.data/pglite`; dev uploads: `apps/api/.data/uploads` (gitignored). The UI smoke refuses to run without `SUPPORT_DB_DIR` and `SUPPORT_UPLOADS_DIR`.
-- Playwright 1.63 / Chromium installed with `npx playwright install chromium`; on Windows no system-library workaround is needed (BL-007 applies to WSL2 only).
+- Host: Windows 11 native (Git Bash for the agent's shell; PowerShell forms in the runbook). Paths in env vars are Windows-style (`C:/…`).
+- Git author is repo-local (DEC-0002); hook: `git config core.hooksPath scripts/git-hooks`.
+- Dev database `apps/api/.data/pglite`, demo database `apps/api/.data/demo`, uploads under `apps/api/.data/` (gitignored). The UI smoke refuses to run without `SUPPORT_DB_DIR` and `SUPPORT_UPLOADS_DIR`.

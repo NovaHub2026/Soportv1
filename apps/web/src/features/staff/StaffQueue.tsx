@@ -29,16 +29,16 @@ interface StaffQueueProps {
   live?: boolean;
 }
 
-type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; cases: CaseSummary[]; more: boolean };
+type LoadState = ({ status: "loading" } | { status: "error" } | { status: "ready"; cases: CaseSummary[]; more: boolean }) & { key?: string };
 
 const PAGE = STAFF_LIST_LIMITS.default;
 /** "Carregar mais" stops where the API's page limit ends; beyond that the search narrows the list (FND-0036). */
 export const MAX_PAGES = Math.floor(STAFF_LIST_LIMITS.max / PAGE);
 
 export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSelectCase, refreshToken, live = false }: StaffQueueProps) {
-  const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [loaded, setState] = useState<LoadState>({ status: "loading" });
   // A refresh that failed after the list was shown: the list stays, but it is flagged as possibly outdated (FND-0036).
-  const [stale, setStale] = useState(false);
+  const [staleFlag, setStale] = useState(false);
   const [attempt, setAttempt] = useState(0);
   // How many pages the user asked for on this view; a refresh re-reads all of them so nothing vanishes. Another view starts at one page.
   const [paging, setPaging] = useState<{ view: StaffQueueView; pages: number }>({ view, pages: 1 });
@@ -55,21 +55,29 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
   const loadMore = () => setPaging({ view, pages: Math.min(MAX_PAGES, pages + 1) });
   // Monotonic request counter: a poll that started before an action must not overwrite the refreshed list.
   const requestSeq = useRef(0);
+  // Results belong to one agent, view, search and filter set; another combination never shows them (Cycle Audit 3).
+  const loadKey = JSON.stringify([identity.staffId, view, q, filters]);
+  const state: LoadState = loaded.key === loadKey ? loaded : { status: "loading" };
+  const stale = staleFlag && loaded.key === loadKey;
 
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
       const id = ++requestSeq.current;
+      const key = loadKey;
+      // One row beyond the page says whether more exist; at the API cap the page itself is the limit (Cycle Audit 3).
+      const shownCount = PAGE * pages;
+      const limit = Math.min(shownCount + 1, STAFF_LIST_LIMITS.max);
       try {
-        const cases = await staffApi.listCases(identity, view, controller.signal, { limit: PAGE * pages, offset: 0 }, active);
+        const cases = await staffApi.listCases(identity, view, controller.signal, { limit, offset: 0 }, active);
         if (id !== requestSeq.current) return;
         setStale(false);
-        setState({ status: "ready", cases, more: cases.length >= PAGE * pages });
+        setState({ status: "ready", cases: cases.slice(0, shownCount), more: limit > shownCount ? cases.length > shownCount : cases.length >= shownCount, key });
       } catch (error: unknown) {
         if (controller.signal.aborted || id !== requestSeq.current) return;
         console.warn("staff: could not load queue", error);
         setStale(true);
-        setState((current) => (current.status === "ready" ? current : { status: "error" }));
+        setState((current) => (current.status === "ready" && current.key === key ? current : { status: "error", key }));
       }
     };
     void load();

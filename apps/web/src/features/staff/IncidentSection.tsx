@@ -11,6 +11,8 @@ interface IncidentSectionProps {
   detail: StaffCaseDetail;
   /** Called after any change so the case view re-reads. */
   onChanged: () => void;
+  /** Role model (DEC-0029): false for a non-owner agent — linking, creating-and-linking and unlinking are refused (Cycle Audit 3). */
+  mayLink?: boolean;
 }
 
 type Mode = "idle" | "link" | "create";
@@ -19,7 +21,7 @@ type Mode = "idle" | "link" | "create";
  * Shared incidents (context §5.4): associate this case with an open incident, send one internal note to all
  * linked cases, mark the incident resolved. Conversations stay separate; nothing here resolves a case.
  */
-export function IncidentSection({ identity, detail, onChanged }: IncidentSectionProps) {
+export function IncidentSection({ identity, detail, onChanged, mayLink = true }: IncidentSectionProps) {
   const c = t.staff.incidents;
   const [mode, setMode] = useState<Mode>("idle");
   const [openIncidents, setOpenIncidents] = useState<Incident[]>([]);
@@ -60,7 +62,7 @@ export function IncidentSection({ identity, detail, onChanged }: IncidentSection
   function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = newTitle.trim();
-    if (title.length < 3) return;
+    if (title.length < 3 || !mayLink) return; // never create an incident that could not be linked
     void run(async () => {
       const incident = await staffApi.createIncident(identity, { title });
       await staffApi.linkIncident(identity, detail.id, incident.id);
@@ -70,7 +72,7 @@ export function IncidentSection({ identity, detail, onChanged }: IncidentSection
 
   function handleLink(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!chosen) return;
+    if (!chosen || !mayLink) return;
     void run(() => staffApi.linkIncident(identity, detail.id, chosen));
   }
 
@@ -119,7 +121,7 @@ export function IncidentSection({ identity, detail, onChanged }: IncidentSection
                 {c.resolve}
               </button>
             )}
-            <button type="button" className={styles.linkButton} disabled={busy} onClick={() => void run(() => staffApi.linkIncident(identity, detail.id, null))}>
+            <button type="button" className={styles.linkButton} disabled={busy || !mayLink} title={mayLink ? undefined : t.staff.actions.notOwner} onClick={() => void run(() => staffApi.linkIncident(identity, detail.id, null))}>
               {c.unlink}
             </button>
           </div>
@@ -130,10 +132,10 @@ export function IncidentSection({ identity, detail, onChanged }: IncidentSection
           <p className={styles.consultationMeta}>{c.none}</p>
           {mode === "idle" && (
             <div className={styles.actions}>
-              <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => setMode("link")}>
+              <button type="button" className={styles.secondaryButton} disabled={busy || !mayLink} title={mayLink ? undefined : t.staff.actions.notOwner} onClick={() => setMode("link")}>
                 {c.link}
               </button>
-              <button type="button" className={styles.secondaryButton} disabled={busy} onClick={() => setMode("create")}>
+              <button type="button" className={styles.secondaryButton} disabled={busy || !mayLink} title={mayLink ? undefined : t.staff.actions.notOwner} onClick={() => setMode("create")}>
                 {c.create}
               </button>
             </div>

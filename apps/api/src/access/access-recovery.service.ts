@@ -9,6 +9,7 @@ import {
   type AccessRecoveryRequest,
   type AccessRecoveryStatus,
   formatRecoveryReference,
+  normalizeContact,
 } from '@orbit-support/shared';
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
@@ -22,8 +23,10 @@ const BURST_WINDOW_MS = 10 * 60_000;
  * "Não consigo acessar minha conta" (PH-7.1, context §4.5, §14 item 8). This service knows nothing about cases,
  * customers or Orbit records on purpose: a recovery request is an unverified contact plus a description, and
  * the answer is the same whether or not the contact belongs to an account (RULE-SUP-01). Abuse limits are
- * working defaults (ACCESS_RECOVERY_LIMITS); the "forwarded" outcome records a hand-off to Orbit's verification
- * process that is simulated until one exists (DEC-0003, BL-002).
+ * working defaults (ACCESS_RECOVERY_LIMITS): per contact (normalized — Cycle Audit 3) with 429 `too_many_requests`,
+ * and an instance-wide ceiling with 429 `service_busy` so the page never blames a person's own contact for
+ * other people's traffic. The "forwarded" outcome records a hand-off to Orbit's verification process that is
+ * simulated until one exists (DEC-0003, BL-002).
  */
 @Injectable()
 export class AccessRecoveryService {
@@ -43,7 +46,7 @@ export class AccessRecoveryService {
       .select({ recent: count() })
       .from(accessRecoveryRequests)
       .where(and(eq(accessRecoveryRequests.contactHash, contactHash), gt(accessRecoveryRequests.createdAt, new Date(now.getTime() - HOUR_MS))));
-    if (Number(recent) >= ACCESS_RECOVERY_LIMITS.perContactPerHour) throw tooMany(HOUR_MS / 1000);
+    if (Number(recent) >= ACCESS_RECOVERY_LIMITS.perContactPerHour) throw tooMany('too_many_requests', HOUR_MS / 1000);
     try {
       const [row] = await this.db
         .insert(accessRecoveryRequests)
@@ -97,16 +100,19 @@ export class AccessRecoveryService {
   private assertBurst(now: Date): void {
     const floor = now.getTime() - BURST_WINDOW_MS;
     while (this.accepted.length > 0 && this.accepted[0] < floor) this.accepted.shift();
-    if (this.accepted.length >= ACCESS_RECOVERY_LIMITS.perInstancePer10Minutes) throw tooMany(Math.ceil((this.accepted[0] + BURST_WINDOW_MS - now.getTime()) / 1000));
+    if (this.accepted.length >= ACCESS_RECOVERY_LIMITS.perInstancePer10Minutes) {
+      throw tooMany('service_busy', Math.ceil((this.accepted[0] + BURST_WINDOW_MS - now.getTime()) / 1000));
+    }
   }
 }
 
-function tooMany(retryAfterSeconds: number): HttpException {
-  return new HttpException({ error: 'too_many_requests', retryAfterSeconds: Math.max(1, retryAfterSeconds) }, 429);
+function tooMany(error: 'too_many_requests' | 'service_busy', retryAfterSeconds: number): HttpException {
+  return new HttpException({ error, retryAfterSeconds: Math.max(1, retryAfterSeconds) }, 429);
 }
 
+/** sha256 of the normalized contact: the limit and the idempotency key, without indexing the raw value. */
 export function hashContact(contact: string): string {
-  return createHash('sha256').update(contact.trim().toLowerCase()).digest('hex');
+  return createHash('sha256').update(normalizeContact(contact)).digest('hex');
 }
 
 function toReceipt(row: AccessRecoveryRow): AccessRecoveryReceipt {

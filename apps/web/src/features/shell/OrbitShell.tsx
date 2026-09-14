@@ -32,7 +32,9 @@ export function OrbitShell() {
     [signOut],
   );
   const onIdle = useCallback(() => leave("idle"), [leave]);
-  useIdleSignOut(customer !== null, onIdle);
+  useIdleSignOut(Boolean(customer), onIdle);
+  // Not known yet (server render, first client render): nothing identity-bound is rendered, fetched or streamed.
+  if (customer === undefined) return <PendingShell />;
   if (customer === null) {
     return (
       <SignedOutShell
@@ -57,6 +59,23 @@ interface SignedInShellProps {
   recoveryOpen: boolean;
   setRecoveryOpen: (open: boolean) => void;
   onSignOut: () => void;
+}
+
+/** Before the browser's identity is known: an identity-neutral frame (Cycle Audit 3). */
+function PendingShell() {
+  return (
+    <div className={styles.shell} data-panel-open="false" data-pending="true">
+      <header className={styles.topbar}>
+        <div className={styles.brand}>
+          <span className={styles.brandMark} aria-hidden="true" />
+          {t.shell.brand}
+        </div>
+      </header>
+      <main className={styles.trading} aria-busy="true">
+        <p className={styles.tradingHint}>{t.shell.loading}</p>
+      </main>
+    </div>
+  );
 }
 
 /** The neutral state of a shared device (PH-7.3): nothing identity-bound is mounted until someone chooses who they are. */

@@ -11,17 +11,43 @@ export type AccessRecoveryStatus = (typeof ACCESS_RECOVERY_STATUSES)[number];
 export const ACCESS_RECOVERY_OUTCOMES = ["forwarded", "closed"] as const;
 export type AccessRecoveryOutcome = (typeof ACCESS_RECOVERY_OUTCOMES)[number];
 
-const noNul = <T extends z.ZodString>(schema: T) => schema.refine((value) => !value.includes("\u0000"), "invalid_characters");
+/**
+ * Characters refused because they can spoof what staff read (Cycle Audit 3): every control and invisible format
+ * character in a contact; in free text, control characters other than tab and line breaks, and bidi controls.
+ */
+const CONTACT_FORBIDDEN = /[\p{Cc}\p{Cf}]/u;
+const TEXT_FORBIDDEN = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/u;
+const without = (forbidden: RegExp) => <T extends z.ZodString>(schema: T) => schema.refine((value) => !forbidden.test(value), "invalid_characters");
+const contactText = without(CONTACT_FORBIDDEN);
+const freeText = without(TEXT_FORBIDDEN);
+
 const EMAIL_LIKE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_LIKE = /^\+?[\d\s().-]{8,20}$/;
 /** An e-mail or a phone number — the only two ways Orbit's verification process can reach someone. */
 export const looksLikeContact = (value: string): boolean => EMAIL_LIKE.test(value) || PHONE_LIKE.test(value);
 
+/**
+ * The form of a contact used for the per-contact limit and idempotency (Cycle Audit 3): compatibility-normalized,
+ * lower case, invisible format characters removed; e-mails without a "+tag" and without trailing dots on the
+ * domain; phones as digits only. So "Alice+x@Example.com." and "alice@example.com", or "+55 (11) 99999-1234" and
+ * "5511999991234", count as one contact.
+ */
+export function normalizeContact(contact: string): string {
+  const value = contact.normalize("NFKC").replace(/\p{Cf}/gu, "").trim().toLowerCase();
+  const at = value.lastIndexOf("@");
+  if (at > 0) {
+    const local = value.slice(0, at).split("+")[0];
+    const domain = value.slice(at + 1).replace(/\.+$/, "");
+    return `${local}@${domain}`;
+  }
+  return value.replace(/\D/g, "");
+}
+
 export const accessRecoveryInputSchema = z.object({
-  contact: noNul(z.string().trim().min(5).max(120)).refine(looksLikeContact, "contact_invalid"),
-  description: noNul(z.string().trim().min(10, "description_too_short").max(1000, "description_too_long")),
+  contact: contactText(z.string().trim().min(5).max(120)).refine(looksLikeContact, "contact_invalid"),
+  description: freeText(z.string().trim().min(10, "description_too_short").max(1000, "description_too_long")),
   /** Kept across retries so a flaky network never creates two requests (RULE-SUP-03). */
-  clientRequestId: noNul(z.string().trim().min(1).max(100)).optional(),
+  clientRequestId: contactText(z.string().trim().min(1).max(100)).optional(),
 });
 export type AccessRecoveryInput = z.infer<typeof accessRecoveryInputSchema>;
 
@@ -51,15 +77,19 @@ export interface AccessRecoveryRequest {
 
 export const accessRecoveryOutcomeSchema = z.object({
   outcome: z.enum(ACCESS_RECOVERY_OUTCOMES),
-  note: noNul(z.string().trim().max(500)).optional(),
+  note: freeText(z.string().trim().max(500)).optional(),
 });
 export type AccessRecoveryOutcomeInput = z.infer<typeof accessRecoveryOutcomeSchema>;
 
 export const accessRecoveryListQuerySchema = z.object({ status: z.enum(ACCESS_RECOVERY_STATUSES).optional() });
 export type AccessRecoveryListQuery = z.infer<typeof accessRecoveryListQuerySchema>;
 
-/** Working defaults against abuse of an unauthenticated route (§13.1 spirit). */
-export const ACCESS_RECOVERY_LIMITS = { perContactPerHour: 3, perInstancePer10Minutes: 30 } as const;
+/**
+ * Working defaults against abuse of an unauthenticated route (§13.1 spirit). The instance-wide ceiling is a
+ * safety net against floods; Cycle Audit 3 raised it from 30 so a handful of anonymous requests cannot close the
+ * route for everyone. A proxy-aware per-client limit belongs to the hosted topology (BL-026).
+ */
+export const ACCESS_RECOVERY_LIMITS = { perContactPerHour: 3, perInstancePer10Minutes: 120 } as const;
 
 export function formatRecoveryReference(referenceNumber: number): string {
   if (!Number.isInteger(referenceNumber) || referenceNumber < 1) throw new RangeError(`Recovery reference number must be a positive integer, got ${referenceNumber}`);

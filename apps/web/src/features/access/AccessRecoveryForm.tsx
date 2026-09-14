@@ -23,10 +23,16 @@ export function AccessRecoveryForm({ onClose }: AccessRecoveryFormProps) {
   const [contact, setContact] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
-  // One id per form: a retry after a network failure never creates a second request (RULE-SUP-03).
-  const [clientRequestId] = useState(() => newClientMessageId());
+  // One id per request content: a retry of the same text never creates a second request (RULE-SUP-03); editing
+  // after a failure makes it a new request, so the edit is not silently replaced by the first receipt (Cycle Audit 3).
+  const [clientRequestId, setClientRequestId] = useState(() => newClientMessageId());
 
   const parsed = accessRecoveryInputSchema.safeParse({ contact, description, clientRequestId });
+
+  const edit = (apply: () => void) => {
+    apply();
+    if (status.kind === "error") setClientRequestId(newClientMessageId());
+  };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,9 +44,10 @@ export function AccessRecoveryForm({ onClose }: AccessRecoveryFormProps) {
     } catch (error) {
       console.warn("access: could not send the recovery request", error);
       if (error instanceof ApiError && error.status === 429) {
-        const body = error.body as { retryAfterSeconds?: number } | null;
-        const minutes = Math.max(1, Math.ceil((body?.retryAfterSeconds ?? 60) / 60));
-        setStatus({ kind: "error", text: fill(a.tooMany, { minutes: String(minutes) }) });
+        const body = error.body as { error?: string; retryAfterSeconds?: number } | null;
+        const minutes = String(Math.max(1, Math.ceil((body?.retryAfterSeconds ?? 60) / 60)));
+        // "service_busy" is other people's traffic; only "too_many_requests" is about this contact (Cycle Audit 3).
+        setStatus({ kind: "error", text: fill(body?.error === "service_busy" ? a.busy : a.tooMany, { minutes }) });
       } else {
         setStatus({ kind: "error", text: a.failed });
       }
@@ -79,27 +86,50 @@ export function AccessRecoveryForm({ onClose }: AccessRecoveryFormProps) {
       </p>
       <label className={styles.label} htmlFor="recovery-contact">
         {a.contact}
-        <input id="recovery-contact" className={styles.input} value={contact} onChange={(event) => setContact(event.target.value)} autoComplete="off" inputMode="email" maxLength={120} />
-        <span className={styles.hint}>{a.contactHint}</span>
       </label>
+      <input
+        id="recovery-contact"
+        className={styles.input}
+        value={contact}
+        onChange={(event) => edit(() => setContact(event.target.value))}
+        autoComplete="off"
+        inputMode="email"
+        maxLength={120}
+        aria-describedby="recovery-contact-hint"
+      />
+      <span id="recovery-contact-hint" className={styles.hint}>
+        {a.contactHint}
+      </span>
       <label className={styles.label} htmlFor="recovery-description">
         {a.description}
-        <textarea id="recovery-description" className={styles.textarea} value={description} onChange={(event) => setDescription(event.target.value)} maxLength={1000} />
-        <span className={styles.hint}>{a.descriptionHint}</span>
       </label>
+      <textarea
+        id="recovery-description"
+        className={styles.textarea}
+        value={description}
+        onChange={(event) => edit(() => setDescription(event.target.value))}
+        maxLength={1000}
+        aria-describedby="recovery-description-hint"
+      />
+      <span id="recovery-description-hint" className={styles.hint}>
+        {a.descriptionHint}
+      </span>
       {status.kind === "error" && (
         <p className={styles.error} role="alert">
           {status.text}
         </p>
       )}
       <div className={styles.actions}>
-        <button type="submit" className={shellStyles.supportButton} disabled={!parsed.success || status.kind === "busy"}>
+        <button type="submit" className={shellStyles.supportButton} disabled={!parsed.success || status.kind === "busy"} aria-describedby="recovery-rules">
           {status.kind === "busy" ? a.sending : a.submit}
         </button>
         <button type="button" className={shellStyles.helpButton} onClick={onClose}>
           {a.cancel}
         </button>
       </div>
+      <p id="recovery-rules" className={styles.hint}>
+        {a.rules}
+      </p>
       <p className={styles.hint}>
         <span className={shellStyles.simBadge}>{t.app.simulationBadge}</span> {a.simulation}
       </p>

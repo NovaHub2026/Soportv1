@@ -59,8 +59,6 @@ export class AttachmentsService {
   async upload(actor: Actor, caseRow: SupportCaseRow, file: UploadedFileLike | undefined): Promise<CaseAttachment> {
     if (caseRow.status === 'closed') throw new ConflictException('case_closed');
     if (!file) throw new BadRequestException({ error: 'file_required' });
-    // PH-8.1 (BL-012): one identity cannot flood the storage — working default 30 uploads per 10 minutes.
-    this.uploads.assert(`${actor.kind}:${actor.id}`, 'too_many_uploads');
     if (file.size > ATTACHMENT_LIMITS.maxBytes || file.buffer.length > ATTACHMENT_LIMITS.maxBytes) {
       throw new PayloadTooLargeException({ error: 'file_too_large', maxBytes: ATTACHMENT_LIMITS.maxBytes });
     }
@@ -68,6 +66,9 @@ export class AttachmentsService {
     if (!mimeType) {
       throw new UnsupportedMediaTypeException({ error: 'unsupported_file_type', allowed: ATTACHMENT_LIMITS.allowedMimeTypes });
     }
+    // PH-8.1 (BL-012): one identity cannot flood the storage — 30 accepted uploads per 10 minutes. Counted only
+    // after the size and type checks, so a refused file never locks the person out (Cycle Audit 3).
+    this.uploads.assert(`${actor.kind}:${actor.id}`, 'too_many_uploads');
     const id = randomUUID();
     const storageKey = `${caseRow.id}/${id}`;
     await this.storage.put(storageKey, file.buffer);

@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the PH-8.1 commit — covers PH-5.4..PH-8.1
+Verified against: the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
@@ -32,6 +32,8 @@ Access recovery (PH-7.1, FEAT-ACCESS): the host topbar link "Não consigo acessa
 Accessibility (PH-8.1, BL-024 partial): "Voltar" moves focus to the panel title instead of dropping it to the document body.
 Sign-out (PH-7.3, DEC-0030): "Sair" in the topbar leaves the neutral "Quem está usando este dispositivo?" picker — no panel, bell, records or drafts; the host signs out after 30 min idle with "Sua sessão foi encerrada por inatividade."; the simulated hooks return `null` while signed out so nothing identity-bound mounts.
 Gaps (accepted target): attachments on the first message of a new case (BL-010); Spanish locale (structure ready, content later).
+
+Identity-neutral first render (cycle 3 out-of-band audit, FND-0060): the server render and the first client render show only a neutral frame ("Carregando…"); the host then renders the signed-in or signed-out shell from the browser's own value, so nothing of the default customer is shown, fetched or streamed.
 
 ## Dependencies and consumers
 Depends on: FEAT-CASE endpoints and contracts (`@orbit-support/shared`), FEAT-ORBIT identity (simulated header `x-simulated-customer-id`), Next rewrites `/api/*` → `API_ORIGIN`.

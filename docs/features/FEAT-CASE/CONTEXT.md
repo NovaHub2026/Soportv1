@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the PH-8.2 commit — covers PH-5.1..PH-8.2
+Verified against: the cycle 3 out-of-band audit remediation commit (child of `dcc76e4`)
 Verified on: 2026-09-14
 Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/attachments/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
@@ -55,7 +55,7 @@ Used by / affects: FEAT-CHAT (customer endpoints `/api/support/cases*`), FEAT-ST
 Customer access is ownership: another customer's case answers 404, never 403 (RULE-SUP-01). Staff endpoints require a staff actor; only reassignment is role-checked (DEC-0012; the rest is BL-016 / PH-7). Multi-row writes run in one transaction under the case row lock; a unique violation on a key is caught and the existing record returned. Validation failures are 400 with `validation_failed` and per-field issues; numeric env values fall back to defaults when invalid.
 
 ## Decisions and assumptions
-ADR-0003 (PostgreSQL via Drizzle, PGlite for dev/tests), DEC-0005 (shared zod contracts), DEC-0015 (customer projection), DEC-0016 (idempotency scope), DEC-0017 (lock-in-transaction rule; exception in DEC-0027 f), DEC-0026/DEC-0027 (automated notices and the reminder period). Assumptions: the reference is an identifier, not a credential (context §6.1); the reactivation rule and the closure window are reversible working defaults (context §13.1) — revisit when Operations defines policy (BL-002).
+ADR-0003 (PostgreSQL via Drizzle, PGlite for dev/tests), DEC-0005 (shared zod contracts), DEC-0015 (customer projection), DEC-0016 (idempotency scope), DEC-0017 (lock-in-transaction rule; exception in DEC-0027 f), DEC-0026/DEC-0027 (automated notices and the reminder period), DEC-0032/DEC-0033 (database drivers, deployment shape), DEC-0034 (cycle 3 audit rules: migration lock, test-database guard). Assumptions: the reference is an identifier, not a credential (context §6.1); the reactivation rule and the closure window are reversible working defaults (context §13.1) — revisit when Operations defines policy (BL-002).
 
 ## Verification and change checklist
 Behavior change → `npm test -w api` and `npm run test:e2e -w api` (both in `verify`); schema change → regenerate migration, rerun both; contract change → `npm run build:shared`, `npm test -w web`; any new write to `support_cases` must go through `mutate()`. Phase-level journey → `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5.1-verification.md`, `docs/evidence/PH-4.2-verification.md`.

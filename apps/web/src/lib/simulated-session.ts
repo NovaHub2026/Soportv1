@@ -1,13 +1,17 @@
 "use client";
 
 import { SIMULATED_STAFF_DIRECTORY, type SimulatedStaffMember } from "@orbit-support/shared";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 /**
  * SIMULATED sessions. Orbit has no accounts yet (DEC-0003); the UI lets a developer pick which fictional
  * customer or staff member the browser acts as. Choices are remembered per browser and always labeled.
  * "Sair" (PH-7.3, context §10.2) forgets the choice and every per-session buffer so the next person on a shared
  * device starts from a neutral picker with nothing of the previous identity on screen or in storage.
+ *
+ * Three states (Cycle Audit 3): `undefined` — not known yet (the server render and the first client render, which
+ * must be identity-neutral: nothing identity-bound is rendered, fetched or streamed); `null` — signed out; a value —
+ * signed in.
  */
 export interface SimulatedCustomer {
   id: string;
@@ -47,7 +51,6 @@ interface SessionStore<T> {
   subscribe(onChange: () => void): () => void;
   select(id: string): void;
   signOut(): void;
-  fallback: T;
 }
 
 function createStore<T extends { id: string }>(storageKey: string, options: readonly T[]): SessionStore<T> {
@@ -94,22 +97,34 @@ function createStore<T extends { id: string }>(storageKey: string, options: read
     window.dispatchEvent(new Event(changeEvent));
   }
 
-  return { read, subscribe, select, signOut, fallback: options[0] };
+  return { read, subscribe, select, signOut };
 }
 
 const customerStore = createStore("orbit-support.simulated-customer", SIMULATED_CUSTOMERS);
 const staffStore = createStore("orbit-support.simulated-staff", SIMULATED_STAFF);
 
-/** `null` while signed out (PH-7.3): the shell shows the neutral picker and mounts nothing identity-bound. */
-export function useSimulatedCustomer(): [SimulatedCustomer | null, (id: string) => void, () => void] {
-  const customer = useSyncExternalStore(customerStore.subscribe, customerStore.read, () => customerStore.fallback);
+/** The server does not know who uses the browser: its snapshot is "not known yet" (Cycle Audit 3). */
+const unknownOnServer = () => undefined;
+
+/** Signing out in another tab arrives as a storage event: this tab clears its own buffers too (Cycle Audit 3). */
+function useClearBuffersWhenSignedOut(value: unknown): void {
+  useEffect(() => {
+    if (value === null) clearSessionBuffers();
+  }, [value]);
+}
+
+/** `undefined` until the browser value is read, `null` while signed out (PH-7.3), else the customer. */
+export function useSimulatedCustomer(): [SimulatedCustomer | null | undefined, (id: string) => void, () => void] {
+  const customer = useSyncExternalStore<SimulatedCustomer | null | undefined>(customerStore.subscribe, customerStore.read, unknownOnServer);
+  useClearBuffersWhenSignedOut(customer);
   const select = useCallback((id: string) => customerStore.select(id), []);
   const signOut = useCallback(() => customerStore.signOut(), []);
   return [customer, select, signOut];
 }
 
-export function useSimulatedStaff(): [SimulatedStaff | null, (id: string) => void, () => void] {
-  const staff = useSyncExternalStore(staffStore.subscribe, staffStore.read, () => staffStore.fallback);
+export function useSimulatedStaff(): [SimulatedStaff | null | undefined, (id: string) => void, () => void] {
+  const staff = useSyncExternalStore<SimulatedStaff | null | undefined>(staffStore.subscribe, staffStore.read, unknownOnServer);
+  useClearBuffersWhenSignedOut(staff);
   const select = useCallback((id: string) => staffStore.select(id), []);
   const signOut = useCallback(() => staffStore.signOut(), []);
   return [staff, select, signOut];

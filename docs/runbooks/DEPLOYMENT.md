@@ -8,12 +8,12 @@ Verified on: 2026-09-14 (PH-8.3 — see `../evidence/PH-8.3-verification.md` for
 |---|---|---|---|
 | PostgreSQL 16 | `postgres:16-alpine` | 5432 (internal) | volume `postgres-data` — the only durable state besides uploads |
 | API (NestJS) | `docker/api.Dockerfile` → `node apps/api/dist/main.js` | 3001 (internal; `SUPPORT_BIND=0.0.0.0`) | volume `uploads` (`SUPPORT_UPLOADS_DIR=/data/uploads`); runs the three background jobs — exactly ONE instance (in-process event bus and in-memory limits, ADR-0004, DEC-0031) |
-| Web (Next.js) | `docker/web.Dockerfile` → `next start` | 3000 (published) | none; `/api/*` is rewritten to `API_ORIGIN` |
+| Web (Next.js) | `docker/web.Dockerfile` → `next start` | 3000 (published on 127.0.0.1 only) | none; `/api/*` is rewritten to `API_ORIGIN`, fixed at BUILD time (build argument, compose passes `http://api:3001`) |
 
 The browser only ever talks to the web origin. TLS termination, the public domain and any proxy in front of port 3000 are the hosting decisions of the Owner (§1.1) and are not described here.
 
 ## First start
-1. `cp .env.example .env`; set `POSTGRES_PASSWORD` (required) and `WEB_ORIGIN` (the public web origin). Keep `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` ONLY for an isolated demo: it makes the API trust `x-simulated-*` headers (DEC-0008, BL-001). A real deployment needs a real identity provider first — none exists today, so a production release is not possible yet (see `RELEASE.md`).
+1. `cp .env.example .env`; set `POSTGRES_PASSWORD` (required — compose refuses an empty value) and `WEB_ORIGIN`. `SUPPORT_ALLOW_SIMULATED_IDENTITY` defaults to `false`, so the API refuses to start in production mode: set it to `true` only for a demo on this machine — it makes the API trust `x-simulated-*` headers (DEC-0008, BL-001). The web is published on 127.0.0.1 only and the API is not published (DEC-0034 a). A real deployment needs a real identity provider first — none exists today, so a production release is not possible yet (see `RELEASE.md`).
 2. `docker compose -f docker/compose.yml up -d --build` — the API applies the committed migrations on start (`apps/api/drizzle/`), so an upgrade is "pull, build, up".
 3. Check: `curl -s http://localhost:3000/api/health` → `{"status":"ok","database":"postgres (server)","identity":"simulated","orbitRecords":"simulated",…}`. `database` must say `postgres (server)`; `identity: simulated` is the honest label of the demo switch.
 4. Open `http://localhost:3000` (customer host, labeled Simulação) and `http://localhost:3000/staff`.
@@ -41,6 +41,11 @@ Every variable with its default is listed in `.env.example`. Rules that matter i
 
 ## Single-host demo without containers
 When no Docker engine is available, `npm run build` then `node scripts/demo-local.mjs` starts the same two servers on loopback with PGlite (`apps/api/.data/demo`); `--check` verifies health, headers, a case round-trip, the notification and customer isolation, then stops. Used for the internal demo `v0.1.0-demo` (`../evidence/RELEASE-2026-09-14.md`).
+
+## Safe defaults (cycle 3 out-of-band audit, DEC-0034 a)
+- Nothing is reachable from another machine unless you change `docker/compose.yml`'s `127.0.0.1:` port binding — and with the simulated identity you must not.
+- The API announces every non-loopback bind; inside compose it binds `0.0.0.0` on the private network only.
+- Before this audit the files would not have worked: the web image copied a public directory that does not exist and read `API_ORIGIN` too late (FND-0058). They have still not been built on this host (no Docker engine).
 
 ## Known limits of this shape
 - One API instance (event bus, limits and jobs are in-process). Scaling out needs a shared channel and a shared limit store — a later decision.

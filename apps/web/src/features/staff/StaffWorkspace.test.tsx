@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { message, mockFetch, summary } from "@/features/support/test-utils";
 import type { StaffIdentity } from "@/lib/staff-api";
@@ -76,7 +77,7 @@ describe("StaffQueue", () => {
     );
     expect(await screen.findByText("Saque pendente")).toBeDefined();
     expect(screen.getByText("Novo")).toBeDefined();
-    expect(requests[0].url).toBe("/api/staff/cases?view=unassigned&limit=50&offset=0");
+    expect(requests[0].url).toBe("/api/staff/cases?view=unassigned&limit=51&offset=0");
     expect(requests[0].headers["x-simulated-staff-id"]).toBe("staff-ana");
     expect(requests[0].headers["x-simulated-staff-role"]).toBe("agent");
 
@@ -100,10 +101,10 @@ describe("StaffQueue", () => {
     for (const name of ["Aguardando cliente", "Aguardando equipe", "Resolvidos", "Encerrados"]) expect(screen.getByRole("tab", { name })).toBeDefined();
     fireEvent.click(screen.getByRole("tab", { name: "Resolvidos" }));
     expect(onViewChange).toHaveBeenCalledWith("resolved");
-    expect(requests[0].url).toBe("/api/staff/cases?view=active&limit=50&offset=0");
+    expect(requests[0].url).toBe("/api/staff/cases?view=active&limit=51&offset=0");
   });
 
-  test("FND-0036: 'Carregar mais' stops at the API page limit and a failed refresh flags the list instead of freezing it silently", async () => {
+  test("FND-0036: 'Carregar mais' stops at the API page limit and a failed refresh flags the list instead of freezing it silently", { timeout: 20_000 }, async () => {
     let fail = false;
     const { requests } = mockFetch((request) => {
       if (fail) return { status: 500, body: { error: "boom" } };
@@ -114,7 +115,7 @@ describe("StaffQueue", () => {
     await screen.findByText("Caso 0");
     for (let i = 0; i < 3; i += 1) {
       fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
-      await waitFor(() => expect(requests.at(-1)?.url).toContain(`limit=${50 * (i + 2)}`));
+      await waitFor(() => expect(requests.at(-1)?.url).toContain(`limit=${Math.min(50 * (i + 2) + 1, 200)}`));
       await screen.findByText(`Caso ${50 * (i + 2) - 1}`);
     }
     expect(screen.queryByRole("button", { name: "Carregar mais" })).toBeNull();
@@ -139,7 +140,7 @@ describe("StaffQueue", () => {
     await waitFor(() => expect(requests.at(-1)?.url).toContain("q=WD-48213"));
     expect(requests.at(-1)?.url).toContain("priority=high");
     fireEvent.click(screen.getByRole("button", { name: "Limpar" }));
-    await waitFor(() => expect(requests.at(-1)?.url).toBe("/api/staff/cases?view=active&limit=50&offset=0"));
+    await waitFor(() => expect(requests.at(-1)?.url).toBe("/api/staff/cases?view=active&limit=51&offset=0"));
   });
 
   test("explains an empty queue per view", async () => {
@@ -355,6 +356,9 @@ describe("StaffCaseView", () => {
       expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
     }
     expect(screen.getByLabelText("Resposta ao cliente")).toBeDefined();
+    // Cycle Audit 3: the context column mirrors the role model too.
+    expect((screen.getByLabelText("Prioridade") as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Vincular a incidente" }) as HTMLButtonElement).disabled).toBe(true);
     unmount();
 
     const carla = { staffId: "staff-carla", displayName: "Carla Nunes", role: "supervisor" as const };
@@ -532,5 +536,21 @@ describe("StaffCaseView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByRole("tab", { name: "Não atribuídos" })).toBeDefined();
     expect(screen.getByRole("button", { name: "Supervisão" })).toBeDefined(); // Carla is a supervisor
+  });
+  test("Cycle Audit 3: a failed load after switching the view never shows the previous view's cases", async () => {
+    let fail = false;
+    mockFetch(() => (fail ? { status: 500, body: { error: "boom" } } : { body: [summary({ subject: "Caso da fila anterior" })] }));
+    const { rerender } = render(<StaffQueue identity={ana} view="unassigned" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    await screen.findByText("Caso da fila anterior");
+    fail = true;
+    rerender(<StaffQueue identity={ana} view="mine" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Caso da fila anterior")).toBeNull();
+  });
+
+  test("Cycle Audit 3: the server render of the workspace names no agent", () => {
+    const html = renderToString(<StaffWorkspace />);
+    expect(html).not.toContain("Ana Ribeiro");
+    expect(html).toContain("data-pending");
   });
 });
