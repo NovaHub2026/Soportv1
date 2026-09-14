@@ -1,7 +1,7 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the PH-4.2 commit (child of `0d8dcc9`): records through the boundary, migration `0008`, contextual entry "Preciso de ajuda" with record cards on both sides and the continue-existing-case suggestion; PH-4.2 approved. No intended local delta after it.
+Checkpoint: branch `main`; `4e77a99` (PH-4.2: records through the boundary, migration `0008`, contextual entry "Preciso de ajuda" with record cards on both sides and the continue-existing-case suggestion; PH-4.2 approved) plus the CI-verdict commit that follows it. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
@@ -16,7 +16,7 @@ PH-4 is `ACTIVE` with PH-4.1 and PH-4.2 approved; PH-4.3 (unavailable/not-found 
 - The Owner instruction «Continua hasta el final sin parar» (2026-09-13) remains in force: continue autonomously into PH-4.
 
 ## Resume here
-1. `git status -sb`; `gh run list --limit 3` — record the PH-4.2 commit's CI verdict in `docs/evidence/PH-4.2-verification.md` if missing.
+1. `git status -sb`; `gh run list --limit 3` (`4e77a99` is green: run 34812497217; the CI-verdict commit's own run is documentation only).
 2. Validate `CURRENT_STATE.md`; plan `docs/phases/PH-4.3.md` (to be created) and start it.
 
 ## Temporary environment notes

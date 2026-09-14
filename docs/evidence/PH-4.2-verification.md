@@ -13,7 +13,7 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 | 3 | Web: the form shows the record card, preselects the topic, sends `record` and lets the customer remove it; an active case on the record shows the continue notice, disables sending until "É outro problema", and "Continuar conversa" opens it; the host lists records and "Preciso de ajuda" opens the request about that record; the conversation shows the card or the not-found reason; staff see the detailed card and the current state | EXECUTED | `npm test -w web` (5 new tests) | 8 files, 53 tests passed; `lint` and `typecheck` exit 0 |
 | 4 | Integrated behavior in Chromium (scenarios c–e of `PH-4.md`) | OBSERVED | `npm run build`; `SUPPORT_DB_DIR=<scratch> SUPPORT_UPLOADS_DIR=<scratch> node scripts/ui-smoke.mjs docs/evidence/screenshots/ph-4.2` | see "Smoke" |
 | 5 | Full gate on the candidate | EXECUTED | `npm run verify` | see "Final gate run" |
-| 6 | CI executes the gate on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
+| 6 | CI executes the gate on the pushed commit | EXECUTED (post-integration) | `.github/workflows/ci.yml` | see "CI" |
 
 Not verified: scenario (f) end to end in a browser (the not-found card is covered by unit, e2e and jsdom tests; PH-4.3 adds it to the smoke); a real Orbit adapter (none exists).
 
@@ -24,4 +24,4 @@ Not verified: scenario (f) end to end in a browser (the not-found card is covere
 `npm run verify`, 2026-09-14, on the completed PH-4.2 tree: exit 0 — `check-context: 57 documents, 617 links (6 gitignored skipped), 8 phases, 17 subphases, active: PH-4 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 11/11, api 49/49, web 53/53, api e2e 23/23. `npm run build` (shared, nest, next) exit 0 before the smoke.
 
 ## CI
-Pending push.
+Commit `4e77a99`: run 34812497217 — **success**, 2026-09-14T06:13:55Z. Claim 6 is therefore EXECUTED post-integration.
