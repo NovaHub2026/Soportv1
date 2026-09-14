@@ -77,6 +77,10 @@ export const supportCases = pgTable(
     recordSnapshot: jsonb('record_snapshot').$type<Record<string, unknown>>(),
     /** Why the snapshot is null: the adapter could not answer when the case was opened (RULE-SUP-07). */
     recordLookupReason: text('record_lookup_reason'),
+    /** Last outside-hours system notice (PH-6.3): at most one per case per 12 h. */
+    outsideHoursNotifiedAt: tz('outside_hours_notified_at'),
+    /** Reminder sent for the current waiting-for-customer period; cleared when the customer replies (PH-6.3). */
+    reminderSentAt: tz('reminder_sent_at'),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),
@@ -217,6 +221,7 @@ export const supportSettings = pgTable('support_settings', {
   attentionThresholdHours: integer('attention_threshold_hours').notNull(),
   followUpWindowDays: integer('follow_up_window_days').notNull(),
   emailDelayMinutes: integer('email_delay_minutes').notNull().default(15),
+  reminderAfterHours: integer('reminder_after_hours').notNull().default(48),
   updatedById: text('updated_by_id').notNull(),
   updatedByName: text('updated_by_name'),
   updatedAt: tz('updated_at').notNull().defaultNow(),

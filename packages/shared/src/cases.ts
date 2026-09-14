@@ -54,6 +54,8 @@ export const CASE_EVENT_TYPES = [
   "consultation_answered",
   "follow_up_created",
   "incident_linked",
+  // PH-6.3: an automated reminder is attributable history, never a staff action
+  "reminder_sent",
 ] as const;
 export type CaseEventType = (typeof CASE_EVENT_TYPES)[number];
 

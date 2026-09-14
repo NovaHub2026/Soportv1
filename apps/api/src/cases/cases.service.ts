@@ -59,6 +59,7 @@ import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-directory.js';
 import { NotificationsService } from './notifications.service.js';
+import { SettingsService } from './settings.service.js';
 
 const OPEN = [...OPEN_CASE_STATUSES];
 
@@ -82,6 +83,7 @@ export class CasesService {
     @Inject(STAFF_DIRECTORY) private readonly staffDirectory: StaffDirectory,
     @Inject(ORBIT_RECORDS) private readonly orbit: OrbitRecordsPort,
     private readonly notifications: NotificationsService,
+    private readonly settings: SettingsService,
   ) {}
 
   // ---------- Customer ----------
@@ -150,6 +152,7 @@ export class CasesService {
       });
       this.publishCaseUpdated(row);
       this.publishMessage(row, toMessage(message));
+      await this.noticeOutsideHours(row.id);
       return this.customerDetail(row);
     } catch (error) {
       // Two retries raced past the lookup: the unique index kept one case; return it (RULE-SUP-03).
@@ -300,7 +303,7 @@ export class CasesService {
         .returning();
       const linkedRows = await this.attachments.linkToMessage(tx, customer, row.id, inserted.id, input.attachmentIds ?? []);
 
-      const patch: Partial<SupportCaseRow> = { updatedAt: now, lastMessageAt: now, lastCustomerMessageAt: now };
+      const patch: Partial<SupportCaseRow> = { updatedAt: now, lastMessageAt: now, lastCustomerMessageAt: now, reminderSentAt: null };
       if (row.status === 'resolved') {
         // §7.2 simple rule: any customer message reactivates a resolved case, whatever it says.
         Object.assign(patch, await this.exitResolved(tx, row, 'in_progress', { actorType: 'customer', actorId: customer.id }, now));
@@ -314,7 +317,38 @@ export class CasesService {
     const dto = toMessage(message, linked.map(toAttachment));
     this.publishMessage(updated, dto);
     this.publishCaseUpdated(updated);
+    await this.noticeOutsideHours(updated.id);
     return dto;
+  }
+
+  /**
+   * Outside the configured schedule the conversation says so (context §4.4, RULE-SUP-08): a system message with
+   * the next attention period, at most once per case per 12 h, plus an `outside_hours` notification. Never a
+   * staff reply, so it does not count as a human response (§14). Errors here never fail the customer's message.
+   */
+  private async noticeOutsideHours(caseId: string): Promise<void> {
+    try {
+      const availability = await this.settings.availability();
+      if (availability.openNow) return;
+      const result = await this.mutate(caseId, async (tx, row) => {
+        const now = new Date();
+        if (row.outsideHoursNotifiedAt && now.getTime() - row.outsideHoursNotifiedAt.getTime() < 12 * 3_600_000) return null;
+        const next = availability.nextOpening ? ` Próximo atendimento: ${WEEKDAY_PT[availability.nextOpening.weekday]} às ${availability.nextOpening.open}.` : '';
+        const [notice] = await tx
+          .insert(caseMessages)
+          .values({ caseId: row.id, authorType: 'system', authorId: 'system', body: `Fora do horário de atendimento. Registramos sua mensagem; ela será atendida por uma pessoa.${next}`, createdAt: now })
+          .returning();
+        const [changed] = await tx.update(supportCases).set({ outsideHoursNotifiedAt: now, lastMessageAt: now }).where(eq(supportCases.id, row.id)).returning();
+        await this.notifications.record(tx, row.customerId, row.id, 'outside_hours', now);
+        return { notice, changed };
+      });
+      if (result) {
+        this.publishMessage(result.changed, toMessage(result.notice));
+        this.publishCaseUpdated(result.changed);
+      }
+    } catch (error) {
+      console.warn('outside-hours notice skipped', error instanceof Error ? error.message : error);
+    }
   }
 
   // ---------- Staff ----------
@@ -1207,6 +1241,8 @@ export class CasesService {
     return existing;
   }
 }
+
+const WEEKDAY_PT: Record<string, string> = { mon: 'segunda-feira', tue: 'terça-feira', wed: 'quarta-feira', thu: 'quinta-feira', fri: 'sexta-feira', sat: 'sábado', sun: 'domingo' };
 
 function statusChange(
   row: SupportCaseRow,

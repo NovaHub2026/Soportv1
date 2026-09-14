@@ -15,6 +15,7 @@ import { CasesService } from './cases.service.js';
 import { EMAIL_NOTIFIER, SimulatedEmailNotifier } from './email-notifier.js';
 import { NotificationJob } from './notification.job.js';
 import { NotificationsService } from './notifications.service.js';
+import { ReminderJob } from './reminder.job.js';
 import { SettingsService } from './settings.service.js';
 import { SupervisionService } from './supervision.service.js';
 
@@ -42,6 +43,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         SupervisionService,
         NotificationsService,
         NotificationJob,
+        ReminderJob,
         { provide: EMAIL_NOTIFIER, useClass: SimulatedEmailNotifier },
       ],
     }).compile();
@@ -49,6 +51,9 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     service = moduleRef.get(CasesService);
     db = moduleRef.get(DB);
     moduleRef.get(CaseEventBus).events$.subscribe((event) => published.push(event));
+    // PH-6.3: the outside-hours notice depends on the wall clock; keep the schedule open so every test is deterministic.
+    const settings = moduleRef.get(SettingsService);
+    await settings.update(carla, { ...(await settings.get()), schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } });
   });
 
   afterAll(async () => {
@@ -783,6 +788,58 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       await service.postStaffMessage(ana, ghostCase.id, { body: 'Olá' });
       expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0);
       expect(await job.outbox(ghost)).toHaveLength(0);
+    });
+  });
+
+
+  describe('outside-hours notice and reminders (PH-6.3, §4.4, §7.4)', () => {
+    it('posts one system notice per case per 12 h while support is closed, notifies, and never counts as a human reply', async () => {
+      const settings = moduleRef.get(SettingsService);
+      const supervision = moduleRef.get(SupervisionService);
+      const notifications = moduleRef.get(NotificationsService);
+      const closed = { ...(await settings.get()), schedule: { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null } };
+      await settings.update(carla, closed);
+      try {
+        const created = await service.createCase(alice, { category: 'other', message: 'Boa noite' });
+        await service.postCustomerMessage(alice, created.id, { body: 'Ainda aí?' });
+        const view = await service.getStaffCase(created.id);
+        const notices = view.messages.filter((m) => m.authorType === 'system' && m.body.startsWith('Fora do horário'));
+        expect(notices).toHaveLength(1);
+        expect((await notifications.list(alice)).map((n) => n.kind)).toEqual(['outside_hours']);
+        const metrics = await supervision.metrics(carla, 7);
+        expect(metrics.firstResponse.count).toBe(0); // the notice is not a human response
+        expect(view.awaitingReplySince).not.toBeNull();
+      } finally {
+        await settings.update(carla, { ...closed, schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } });
+      }
+      const open = await service.createCase(alice, { category: 'other', message: 'Bom dia' });
+      expect((await service.getStaffCase(open.id)).messages.some((m) => m.authorType === 'system')).toBe(false);
+    });
+
+    it('reminds a case waiting for the customer once per period, records the event, and resets when the customer replies', async () => {
+      const job = moduleRef.get(ReminderJob);
+      const notifications = moduleRef.get(NotificationsService);
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, created.id, { body: 'Pode enviar o comprovante?' });
+      await service.setStatus(ana, created.id, 'waiting_customer');
+      expect(await job.remindDue(new Date())).toBe(0); // 48 h not elapsed
+      const later = new Date(Date.now() + 49 * 3_600_000);
+      expect(await job.remindDue(later)).toBe(1);
+      expect(await job.remindDue(later)).toBe(0); // once per period
+      let view = await service.getStaffCase(created.id);
+      expect(view.status).toBe('waiting_customer');
+      expect(view.events.at(-1)).toMatchObject({ type: 'reminder_sent', actorType: 'system' });
+      expect((await notifications.list(alice)).map((n) => n.kind)).toContain('reminder');
+      await service.postCustomerMessage(alice, created.id, { body: 'Segue' });
+      await service.setStatus(ana, created.id, 'waiting_customer');
+      expect(await job.remindDue(new Date(Date.now() + 100 * 3_600_000))).toBe(1); // a new waiting period reminds again
+      // Closed cases are never reminded.
+      const done = await service.createCase(bob, { category: 'other', message: 'x' });
+      await service.resolve(ana, done.id, { reason: 'solved', explanation: 'ok' });
+      await service.closeCase(ana, done.id);
+      expect(await job.remindDue(new Date(Date.now() + 100 * 3_600_000))).toBe(0);
+      view = await service.getStaffCase(done.id);
+      expect(view.events.some((e) => e.type === 'reminder_sent')).toBe(false);
     });
   });
 

@@ -1,6 +1,6 @@
 # PH-6.3 — Outside-hours notice, reminders, phase closure
 Type: SUBPHASE TECHNICAL PLAN
-Status: PLANNED
+Status: APPROVED
 Parent: `PH-6.md`
 Feature context: `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`
 
@@ -16,11 +16,15 @@ A customer who writes while support is closed is told so in the conversation, wi
 ## Required behavior, failures and acceptance evidence
 - Notice posted exactly once for consecutive customer messages within 12 h; not posted when support is open; visible to staff as a system message, never as a staff reply.
 - Reminder sent once per waiting period; a customer reply resets it; closed parents of follow-ups get none.
-Acceptance evidence: `../evidence/PH-6.3-verification.md` (to be created); phase evidence `../evidence/PH-6-phase-approval.md` (to be created).
+Acceptance evidence: `../evidence/PH-6.3-verification.md`; phase evidence `../evidence/PH-6-phase-approval.md`.
 
 ## Work performed and important decisions
-Filled at approval.
+- Settings `reminderAfterHours` (default 48); `support_cases.outside_hours_notified_at` / `reminder_sent_at`; event `reminder_sent`; migration `0014`.
+- `CasesService.noticeOutsideHours` after a case is created or a customer message committed (system message with the next opening, `outside_hours` notification, once per case per 12 h; never a staff reply); a customer message clears `reminder_sent_at`.
+- `ReminderJob` (`SUPPORT_REMINDER_INTERVAL_MS`, `SUPPORT_REMINDER_JOB=off`): one reminder per waiting period, attributable event, notification (e-mailed by the existing job while unread).
+- DEC-0026: automated notices are `system` messages and notifications, never staff replies; the outside-hours window is 12 h per case; reminders never change status.
 
 ## Verification, limitations and context updates
-Evidence: `../evidence/PH-6.3-verification.md` (to be created). Limitations: the reminder is exercised at unit/e2e level (hours cannot elapse in the smoke); the 12 h notice window is a working default.
-Context updated at approval: `PH-6.md`, `ROADMAP.md` (ledger 3/3, Cycle Audit 2 opened), `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../runbooks/VERIFICATION.md`, `../audits/CYCLE-2.md` (to be created).
+Evidence: `../evidence/PH-6.3-verification.md`. Limitations: the reminder is exercised at unit/e2e level (hours cannot elapse in the smoke); the 12 h notice window is a working default.
+Context updated: `PH-6.md`, `ROADMAP.md` (ledger 3/3, Cycle Audit 2 opened), `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-CASE/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../runbooks/VERIFICATION.md`, `../audits/CYCLE-2.md`.
+Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review).

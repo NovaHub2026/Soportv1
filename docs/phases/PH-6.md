@@ -1,6 +1,6 @@
 # PH-6 — Notifications and availability
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-04; FEAT-NOTIFY (new), FEAT-CHAT, FEAT-CASE
 Cycle: 2 (see `ROADMAP.md`; PH-4 and PH-5 counted, 2/3 — this phase's approval triggers Cycle Audit 2)
 
@@ -28,10 +28,13 @@ Scenarios: (a) staff reply → badge "1" on the host's "Suporte" button and a no
 |---|---|---|
 | PH-6.1 | In-product notifications: table, creation on customer-facing events, read state, endpoints, host badge and list, live refresh — `PH-6.1.md`, approved 2026-09-14 | APPROVED |
 | PH-6.2 | E-mail through a boundary port with a simulated labeled outbox, delay job, per-customer preference — `PH-6.2.md`, approved 2026-09-14 | APPROVED |
-| PH-6.3 | Outside-hours notice from the schedule, waiting-for-customer reminders, metrics exclusion check; phase closure | PLANNED |
+| PH-6.3 | Outside-hours notice from the schedule, waiting-for-customer reminders, metrics exclusion check; phase closure — `PH-6.3.md`, approved 2026-09-14 | APPROVED |
 
 ## Verification and operational readiness
 Per subphase: service and e2e tests (creation exactly once, read state, customer isolation, e-mail content negatives, outside-hours notice, reminder idempotence, metrics exclusion), web tests (badge, list, preference), browser smoke extended with the badge and the outbox. `npm run verify` before each commit; `npm run verify:full` and the smoke on the phase candidate. Jobs run in the single API instance until PH-8.
 
 ## Completion evidence, findings and context updated
-Pending — filled at phase approval.
+Approved 2026-09-14 — `../evidence/PH-6-phase-approval.md`: scenarios (a)–(e) mapped to executed tests and browser observations on the phase candidate (screenshots `../evidence/screenshots/ph-6/`). Subphase evidence: `../evidence/PH-6.1-verification.md`, `../evidence/PH-6.2-verification.md`, `../evidence/PH-6.3-verification.md`.
+Findings: FND-0029 (contextual entry carried over between simulated customers — fixed in PH-6.2 with a regression test). No open findings.
+Context updated: FEAT-NOTIFY / FEAT-CHAT / FEAT-CASE / FEAT-ORBIT contexts; `ROADMAP.md` ledger (cycle 2, 3/3 — **Cycle Audit 2 due, record `../audits/CYCLE-2.md`**); `../../CURRENT_STATE.md`; DEC-0024–DEC-0026.
+Simulated identity, records, roles and e-mail delivery (DEC-0003, DEC-0025).

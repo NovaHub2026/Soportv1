@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-NOTIFY
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `4136176` plus the PH-6.2 change (e-mail port, simulated outbox, preferences)
+Verified against: the PH-6.2 commit plus the PH-6.3 change (outside-hours notice, reminders)
 Verified on: 2026-09-14
 Scope: `apps/api/src/cases/notifications.service.ts`, `notifications.controller.ts`, `email-notifier.ts`, `notification.job.ts`, `preferences.controller.ts`; `case_notifications`, `email_outbox`, `customer_preferences` in `apps/api/src/database/schema.ts`; `apps/web/src/features/shell/NotificationsBell.tsx`; the preference and outbox section of `apps/web/src/features/support/SupportHome.tsx`; copy under `support.notifications` / `support.emails`; availability copy is owned by FEAT-CHAT (PH-5.4) and the schedule by FEAT-STAFF
 
@@ -17,7 +17,8 @@ Implemented (PH-6.1, DEC-0024):
 - `GET /api/support/notifications?limit=` → `{ notifications (unread first, newest first), unread }`; `POST /api/support/notifications/read` `{ ids? | caseId? }` or everything; own rows only (another customer's ids mark nothing). Opening a conversation (`POST /support/cases/:id/read`) marks that case's notifications read.
 - Host: "Notificações" button with an unread badge and a list ("Nova resposta em SUP-…", "Precisamos da sua resposta…", "… foi marcado como resolvido", "… foi encerrado"); clicking opens the panel on the case; the count refreshes live over the customer-wide stream.
 E-mail (PH-6.2, DEC-0025): `NotificationJob` e-mails each unread notification once after `emailDelayMinutes` through `EmailNotifierPort`; the simulated adapter writes `email_outbox` (masked address, subject with the reference, link `/?case=<id>`, no content); customers opt out through `PUT /api/support/preferences`; the home shows the preference and the labeled "E-mails que seriam enviados" list (`GET /api/support/emails`).
-Not implemented: outside-hours notice and reminders (PH-6.3 — kinds `outside_hours` and `reminder` are reserved), a real mail provider (PH-8), staff notifications beyond the workspace's own badges.
+Outside hours and reminders (PH-6.3, DEC-0026): a case created or a customer message sent while the configured schedule says closed gets a `system` message "Fora do horário de atendimento. Registramos sua mensagem…" with the next opening (once per case per 12 h) and an `outside_hours` notification; `ReminderJob` (`apps/api/src/cases/reminder.job.ts`) sends one `reminder` notification per waiting-for-customer period after `reminderAfterHours`, recorded as `reminder_sent`; a customer reply resets the period. Neither counts as a human response in metrics.
+Not implemented: a real mail provider (PH-8), staff notifications beyond the workspace's own badges. PH-6 approved 2026-09-14 (`docs/evidence/PH-6-phase-approval.md`).
 
 ## Dependencies and consumers
 Depends on: FEAT-CASE transactions (notifications are recorded by `CasesService`), FEAT-CHAT streams (`/api/support/cases/stream`), the customer projection (DEC-0015). Used by: the Orbit host shell (badge), future e-mail delivery (PH-6.2 reads unread notifications older than the configured delay).
@@ -35,4 +36,4 @@ Staff → 403 on the customer notification routes; a customer sees and marks onl
 DEC-0024 (notification kinds and transactional recording). Assumption: the host hosts the bell; when Orbit hosts the panel for real, the same endpoints feed Orbit's own notification surface.
 
 ## Verification and change checklist
-Any new customer-facing change in `CasesService` → decide whether it notifies (add a `record` call inside the transaction and a test); copy → dictionary under `support.notifications`. Last scoped evidence: `docs/evidence/PH-6.2-verification.md`, `docs/evidence/PH-6.1-verification.md`.
+Any new customer-facing change in `CasesService` → decide whether it notifies (add a `record` call inside the transaction and a test); copy → dictionary under `support.notifications`. Last scoped evidence: `docs/evidence/PH-6-phase-approval.md`, `docs/evidence/PH-6.3-verification.md`.

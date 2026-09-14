@@ -19,6 +19,10 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = configureApp(moduleFixture.createNestApplication());
     await app.init();
+    // PH-6.3: the outside-hours notice depends on the wall clock; keep the schedule open so every test is deterministic.
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const current = (await request(app.getHttpServer()).get('/api/staff/settings').set(supervisor).expect(200)).body;
+    await request(app.getHttpServer()).put('/api/staff/settings').set(supervisor).send({ ...current, schedule: { mon: { open: '00:00', close: '23:59' }, tue: { open: '00:00', close: '23:59' }, wed: { open: '00:00', close: '23:59' }, thu: { open: '00:00', close: '23:59' }, fri: { open: '00:00', close: '23:59' }, sat: { open: '00:00', close: '23:59' }, sun: { open: '00:00', close: '23:59' } } }).expect(200);
   });
 
   afterAll(async () => {
@@ -406,7 +410,8 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const server = app.getHttpServer();
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
     const availability = await request(server).get('/api/support/availability').set(asCustomer('cust-alice')).expect(200);
-    expect(availability.body).toMatchObject({ timezone: 'America/Sao_Paulo', workingDefault: true });
+    // The e2e setup saves an always-open schedule (PH-6.3), so the working default is no longer in force here.
+    expect(availability.body).toMatchObject({ timezone: 'America/Sao_Paulo', workingDefault: false, openNow: true });
     expect(typeof availability.body.openNow).toBe('boolean');
     await request(server).get('/api/support/availability').set(asStaff('staff-ana', 'Ana')).expect(403);
     await request(server).get('/api/staff/overview').set(asStaff('staff-ana', 'Ana')).expect(403);
@@ -458,6 +463,26 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(outbox.body).toMatchObject({ delivery: 'simulated' });
     expect(Array.isArray(outbox.body.emails)).toBe(true);
     expect(outbox.text).not.toContain('alice.souza@');
+  });
+
+
+  it('PH-6.3: a message outside the configured hours gets an honest system notice; settings validate the reminder delay', async () => {
+    const server = app.getHttpServer();
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const current = (await request(server).get('/api/staff/settings').set(supervisor).expect(200)).body;
+    const allClosed = { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
+    await request(server).put('/api/staff/settings').set(supervisor).send({ ...current, reminderAfterHours: 0 }).expect(400);
+    await request(server).put('/api/staff/settings').set(supervisor).send({ ...current, schedule: allClosed }).expect(200);
+    try {
+      const created = await request(server).post('/api/support/cases').set(asCustomer('cust-night')).send({ category: 'other', message: 'Boa noite' }).expect(201);
+      const detail = await request(server).get(`/api/support/cases/${created.body.id}`).set(asCustomer('cust-night')).expect(200);
+      const notice = detail.body.messages.find((m: { authorType: string }) => m.authorType === 'system');
+      expect(notice.body).toContain('Fora do horário de atendimento');
+      const notifications = await request(server).get('/api/support/notifications').set(asCustomer('cust-night')).expect(200);
+      expect(notifications.body.notifications.map((n: { kind: string }) => n.kind)).toEqual(['outside_hours']);
+    } finally {
+      await request(server).put('/api/staff/settings').set(supervisor).send(current).expect(200);
+    }
   });
 
 });

@@ -13,14 +13,14 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 | PH-3 | Case lifecycle and staff collaboration: statuses, assignment/transfer, priority/categories, internal notes, specialist consultation, resolve/reopen/close, linked follow-up, attributable history. | OBJ-SUP-03; RULE-SUP-02, -04, -05, -06, -09 | `APPROVED` | PH-1 |
 | PH-4 | Orbit context integration: identity summary, record cards, contextual entry ("Preciso de ajuda"), masking, visibly unavailable data; real adapter or labeled simulation. | OBJ-SUP-02; RULE-SUP-01, -07 | `APPROVED` | PH-1, ADR-0002, BL-001 |
 | PH-5 | Staff workspace completeness and supervision: essential views, filters/search, saved replies, schedule/config, queue oversight, service metrics. | OBJ-SUP-03; RULE-SUP-02, -08 | `APPROVED` | PH-3 |
-| PH-6 | Notifications and availability: in-product notifications, email notifications linking back, outside-hours behavior. | OBJ-SUP-04; RULE-SUP-08 | `ACTIVE` | PH-2 |
+| PH-6 | Notifications and availability: in-product notifications, email notifications linking back, outside-hours behavior. | OBJ-SUP-04; RULE-SUP-08 | `APPROVED` | PH-2 |
 | PH-7 | Access recovery and privacy hardening: "Não consigo acessar minha conta" route, roles/permissions review, shared-device sign-out, shared incidents. | OBJ-SUP-04; RULE-SUP-01, -04 | `PLANNED` | PH-3, PH-4 |
 | PH-8 | Production readiness: operating policies (retention, complaints), deployment, release runbook. The release itself needs Owner authorization (§1.1). | all | `PLANNED` | PH-1..7, BL-002 |
 
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-6 `ACTIVE` since 2026-09-14 (`PH-6.md`) — PH-6.1 and PH-6.2 `APPROVED` 2026-09-14 (`PH-6.1.md`, `PH-6.2.md`; evidence `../evidence/PH-6.1-verification.md`, `../evidence/PH-6.2-verification.md`); next PH-6.3 (outside-hours notice, reminders, phase closure). PH-1..PH-5 `APPROVED`. Cycle 2 ledger: 2/3 — PH-6's approval triggers Cycle Audit 2. PH-1..PH-4 `APPROVED` (PH-4 evidence `../evidence/PH-4-phase-approval.md`). Cycle 2 ledger: 1/3. PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`, `../evidence/PH-3-phase-approval.md`). Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`).
+Phase: none active — PH-6 `APPROVED` 2026-09-14 (`PH-6.md`, evidence `../evidence/PH-6-phase-approval.md`); PH-1..PH-5 `APPROVED`. **Cycle 2 ledger: 3/3 — Cycle Audit 2 is OPEN (`../audits/CYCLE-2.md`); ordinary development is paused until it closes (§6.4).** Next after closure: PH-7. PH-1..PH-5 `APPROVED`. Cycle 2 ledger: 2/3 — PH-6's approval triggers Cycle Audit 2. PH-1..PH-4 `APPROVED` (PH-4 evidence `../evidence/PH-4-phase-approval.md`). Cycle 2 ledger: 1/3. PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`, `../evidence/PH-3-phase-approval.md`). Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`).
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.
@@ -28,4 +28,4 @@ Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt:
 | Cycle | Counted phase (first approval) | Approved on | Audit record | Status |
 |---|---|---|---|---|
 | 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit CLOSED 2026-09-14 |
-| 2 | PH-4, PH-5 | 2026-09-14 | — | 2/3, open cycle |
+| 2 | PH-4, PH-5, PH-6 | 2026-09-14 | `../audits/CYCLE-2.md` | 3/3, audit OPEN |

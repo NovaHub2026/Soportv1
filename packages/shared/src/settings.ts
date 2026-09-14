@@ -26,6 +26,8 @@ export const supportSettingsInputSchema = z.object({
   followUpWindowDays: z.coerce.number().int().min(1).max(90),
   /** Minutes a notification stays unread before an e-mail brings the customer back (PH-6.2); 0 = at once. */
   emailDelayMinutes: z.coerce.number().int().min(0).max(1440).default(15),
+  /** Hours a case may wait for the customer before one reminder is sent (PH-6.3, §7.4). */
+  reminderAfterHours: z.coerce.number().int().min(1).max(720).default(48),
 });
 export type SupportSettingsInput = z.infer<typeof supportSettingsInputSchema>;
 
@@ -52,6 +54,7 @@ export const DEFAULT_SUPPORT_SETTINGS: SupportSettingsInput = {
   attentionThresholdHours: 4,
   followUpWindowDays: 7,
   emailDelayMinutes: 15,
+  reminderAfterHours: 48,
 };
 
 /** What the customer panel says about availability — computed from the schedule, never a promise (§4.4). */

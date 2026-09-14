@@ -9,6 +9,7 @@ import { EMAIL_NOTIFIER, SimulatedEmailNotifier } from './email-notifier.js';
 import { NotificationJob } from './notification.job.js';
 import { NotificationsController } from './notifications.controller.js';
 import { PreferencesController } from './preferences.controller.js';
+import { ReminderJob } from './reminder.job.js';
 import { NotificationsService } from './notifications.service.js';
 import { SavedRepliesService } from './saved-replies.service.js';
 import { SettingsService } from './settings.service.js';
@@ -37,6 +38,7 @@ import { StaffCasesController } from './staff-cases.controller.js';
     SupervisionService,
     NotificationsService,
     NotificationJob,
+    ReminderJob,
     { provide: EMAIL_NOTIFIER, useClass: SimulatedEmailNotifier },
   ],
   exports: [CasesService, NotificationsService],

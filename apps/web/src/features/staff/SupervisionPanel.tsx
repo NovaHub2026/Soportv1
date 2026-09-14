@@ -69,6 +69,7 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
         attentionThresholdHours: settings.attentionThresholdHours,
         followUpWindowDays: settings.followUpWindowDays,
         emailDelayMinutes: settings.emailDelayMinutes,
+        reminderAfterHours: settings.reminderAfterHours,
       });
       setSettings(saved);
       setStatus({ kind: "info", text: s.settingsSaved });
@@ -250,6 +251,10 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
             {s.emailDelay}
           </label>
           <input id="settings-email-delay" type="number" min={0} max={1440} className={styles.searchInput} value={settings.emailDelayMinutes} onChange={(event) => setSettings({ ...settings, emailDelayMinutes: Number(event.target.value) })} />
+          <label className={styles.composerLabel} htmlFor="settings-reminder">
+            {s.reminderAfter}
+          </label>
+          <input id="settings-reminder" type="number" min={1} max={720} className={styles.searchInput} value={settings.reminderAfterHours} onChange={(event) => setSettings({ ...settings, reminderAfterHours: Number(event.target.value) })} />
           <div className={styles.composerActions}>
             <button type="submit" className={styles.primaryButton} disabled={status.kind === "busy"}>
               {s.saveSettings}

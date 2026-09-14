@@ -516,7 +516,8 @@ try {
     let outbox = [];
     while (Date.now() < outboxDeadline) {
       const res = await fetch(`${API}/api/support/emails`, { headers: { 'x-simulated-customer-id': 'cust-bruno' } });
-      outbox = (await res.json()).emails;
+      // Outside the schedule the case also gets an outside-hours acknowledgement e-mail (PH-6.3); count only the reply.
+      outbox = (await res.json()).emails.filter((e) => e.kind === 'staff_reply');
       if (outbox.length > 0) break;
       await new Promise((r) => setTimeout(r, 1000));
     }
@@ -527,6 +528,23 @@ try {
     await desktop.getByTestId('notifications-badge').waitFor({ timeout: 5000 });
     note('email-simulated', `a staff reply to Bruno (panel closed) stayed unread; within seconds the notification job produced the simulated e-mail "Nova resposta no seu caso ${brunoCaseBody.reference}" to b***@e***.com with a link and no reply text; Bruno's home lists it under "E-mails que seriam enviados" (Simulação) and the host shows the unread badge (PH-6.1/6.2)`);
     await shot(desktop, '24-customer-email-outbox');
+    await desktop.getByLabel('Conta simulada').selectOption('cust-alice');
+    await desktop.getByText('Conversas em andamento').waitFor();
+    // PH-6.3: with every day closed, a customer who writes gets the honest outside-hours notice in the conversation.
+    const supervisorHeaders = { 'content-type': 'application/json', 'x-simulated-staff-id': 'staff-carla', 'x-simulated-staff-role': 'supervisor', 'x-simulated-staff-name': 'Carla Nunes' };
+    const settingsNow = await (await fetch(`${API}/api/staff/settings`, { headers: supervisorHeaders })).json();
+    const closedSchedule = { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
+    if ((await fetch(`${API}/api/staff/settings`, { method: 'PUT', headers: supervisorHeaders, body: JSON.stringify({ ...settingsNow, schedule: closedSchedule }) })).status !== 200) throw new Error('Could not close the schedule');
+    await desktop.getByLabel('Conta simulada').selectOption('cust-carla');
+    await desktop.getByText(/Atendimento fechado agora\./).waitFor({ timeout: 5000 });
+    await desktop.getByRole('button', { name: 'Falar com o suporte' }).click();
+    await desktop.getByText('Outro assunto', { exact: true }).click();
+    await desktop.getByLabel('Conte o que está acontecendo').fill('Escrevo fora do horário.');
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    await desktop.getByText(/Fora do horário de atendimento\. Registramos sua mensagem/).waitFor({ timeout: 10_000 });
+    note('outside-hours', 'with the schedule closed on every day, Carla\'s new case received the system notice "Fora do horário de atendimento. Registramos sua mensagem…" as an "Aviso" (never a staff reply), and her home said "Atendimento fechado agora." (PH-6.3)');
+    await shot(desktop, '25-customer-outside-hours');
+    if ((await fetch(`${API}/api/staff/settings`, { method: 'PUT', headers: supervisorHeaders, body: JSON.stringify(settingsNow) })).status !== 200) throw new Error('Could not restore the schedule');
     await desktop.getByLabel('Conta simulada').selectOption('cust-alice');
     await desktop.getByText('Conversas em andamento').waitFor();
 
