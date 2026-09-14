@@ -9,10 +9,14 @@ import {
   type CaseStatus,
   type CaseSummary,
   type CreateCaseInput,
+  type CreateIncidentInput,
   type CustomerCaseDetail,
   deriveSubject,
   type FollowUpInput,
   formatCaseReference,
+  type Incident,
+  type IncidentNoteInput,
+  type IncidentStatus,
   OPEN_CASE_STATUSES,
   type PostMessageInput,
   type PostNoteInput,
@@ -35,6 +39,8 @@ import {
   caseEvents,
   type CaseMessageRow,
   caseMessages,
+  type IncidentRow,
+  incidents,
   type SupportCaseRow,
   supportCases,
 } from '../database/schema.js';
@@ -537,6 +543,121 @@ export class CasesService {
     }
   }
 
+  // ---------- Shared incidents (PH-3.5, §5.4): association + coordinated internal notes; never auto-resolution ----------
+
+  async createIncident(staff: StaffActor, input: CreateIncidentInput): Promise<Incident> {
+    const [row] = await this.db
+      .insert(incidents)
+      .values({ title: input.title, description: input.description ?? null, createdById: staff.id, createdByName: staff.displayName })
+      .returning();
+    return toIncident(row, 0);
+  }
+
+  async listIncidents(status?: IncidentStatus): Promise<Incident[]> {
+    const rows = await this.db
+      .select()
+      .from(incidents)
+      .where(status ? eq(incidents.status, status) : undefined)
+      .orderBy(desc(incidents.createdAt));
+    const counts = await this.linkedCaseCounts(rows.map((r) => r.id));
+    return rows.map((row) => toIncident(row, counts.get(row.id) ?? 0));
+  }
+
+  /** Associate a case with an open incident, or unlink it (`incidentId: null`). Conversations stay separate. */
+  async linkIncident(staff: StaffActor, caseId: string, incidentId: string | null): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    let incident: IncidentRow | null = null;
+    if (incidentId) {
+      incident = await this.requireIncident(incidentId);
+      if (incident.status !== 'open') throw new ConflictException('incident_resolved');
+    }
+    if (row.incidentId === incidentId) return this.summaryOf(row);
+    const updated = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      await tx.insert(caseEvents).values({
+        caseId: row.id,
+        type: 'incident_linked',
+        actorType: 'staff',
+        actorId: staff.id,
+        data: incident
+          ? { incidentId: incident.id, title: incident.title, previousIncidentId: row.incidentId }
+          : { incidentId: null, unlinked: true, previousIncidentId: row.incidentId },
+        createdAt: now,
+      });
+      const [changed] = await tx.update(supportCases).set({ incidentId, updatedAt: now }).where(eq(supportCases.id, row.id)).returning();
+      return changed;
+    });
+    this.publishCaseUpdated(updated);
+    return this.summaryOf(updated);
+  }
+
+  /** One internal note delivered to every linked open case — the "coordinated update" of §5.4. */
+  async broadcastIncidentNote(staff: StaffActor, incidentId: string, input: IncidentNoteInput): Promise<{ delivered: number }> {
+    const incident = await this.requireIncident(incidentId);
+    const linked = await this.db
+      .select()
+      .from(supportCases)
+      .where(and(eq(supportCases.incidentId, incident.id), inArray(supportCases.status, OPEN)));
+    for (const row of linked) {
+      await this.postInternalNote(staff, row.id, { body: `[Incidente “${incident.title}”] ${input.body}` });
+    }
+    return { delivered: linked.length };
+  }
+
+  /** Marks the incident resolved and tells every linked open case's team — without touching any case status. */
+  async resolveIncident(staff: StaffActor, incidentId: string): Promise<Incident> {
+    const incident = await this.requireIncident(incidentId);
+    if (incident.status === 'resolved') throw new ConflictException('incident_already_resolved');
+    const now = new Date();
+    const [updated] = await this.db
+      .update(incidents)
+      .set({ status: 'resolved', resolvedAt: now, resolvedById: staff.id })
+      .where(eq(incidents.id, incident.id))
+      .returning();
+    const linked = await this.db
+      .select()
+      .from(supportCases)
+      .where(and(eq(supportCases.incidentId, incident.id), inArray(supportCases.status, OPEN)));
+    for (const row of linked) {
+      await this.postInternalNote(staff, row.id, {
+        body: `[Incidente “${incident.title}”] Incidente marcado como resolvido por ${staff.displayName}. Confirme se o caso deste cliente está de fato resolvido antes de encerrá-lo.`,
+      });
+    }
+    const counts = await this.linkedCaseCounts([incident.id]);
+    return toIncident(updated, counts.get(incident.id) ?? 0);
+  }
+
+  private async requireIncident(incidentId: string): Promise<IncidentRow> {
+    const [row] = await this.db.select().from(incidents).where(eq(incidents.id, incidentId)).limit(1);
+    if (!row) throw new NotFoundException('incident_not_found');
+    return row;
+  }
+
+  private async linkedCaseCounts(incidentIds: string[]): Promise<Map<string, number>> {
+    if (incidentIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ incidentId: supportCases.incidentId, linked: count() })
+      .from(supportCases)
+      .where(inArray(supportCases.incidentId, incidentIds))
+      .groupBy(supportCases.incidentId);
+    return new Map(rows.filter((r) => r.incidentId !== null).map((r) => [r.incidentId as string, Number(r.linked)]));
+  }
+
+  /** Incident titles keyed by case id, for summaries. */
+  private async incidentTitles(rows: SupportCaseRow[]): Promise<Map<string, string>> {
+    const ids = [...new Set(rows.map((r) => r.incidentId).filter((id): id is string => id !== null))];
+    if (ids.length === 0) return new Map();
+    const found = await this.db.select({ id: incidents.id, title: incidents.title }).from(incidents).where(inArray(incidents.id, ids));
+    const byId = new Map(found.map((i) => [i.id, i.title]));
+    const result = new Map<string, string>();
+    for (const row of rows) {
+      const title = row.incidentId ? byId.get(row.incidentId) : undefined;
+      if (title) result.set(row.id, title);
+    }
+    return result;
+  }
+
   // ---------- Assignment and attributes (PH-3.3): ownership changes keep everything else (RULE-SUP-02) ----------
 
   /**
@@ -767,10 +888,14 @@ export class CasesService {
     return { ...summary, messages };
   }
 
-  /** Summaries with viewer-dependent unread counts and the parent reference for follow-ups. */
+  /** Summaries with viewer-dependent unread counts, the parent reference for follow-ups and the incident title. */
   private async withUnread(rows: SupportCaseRow[], viewer: 'customer' | 'staff'): Promise<CaseSummary[]> {
-    const [unread, parents] = await Promise.all([this.unreadCounts(rows.map((r) => r.id), viewer), this.parentReferences(rows)]);
-    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0, parents.get(row.id) ?? null));
+    const [unread, parents, incidentTitles] = await Promise.all([
+      this.unreadCounts(rows.map((r) => r.id), viewer),
+      this.parentReferences(rows),
+      this.incidentTitles(rows),
+    ]);
+    return rows.map((row) => toSummary(row, unread.get(row.id) ?? 0, parents.get(row.id) ?? null, incidentTitles.get(row.id) ?? null));
   }
 
   private async summaryOf(row: SupportCaseRow, viewer: 'customer' | 'staff' = 'staff'): Promise<CaseSummary> {
@@ -868,7 +993,22 @@ export function followUpWindowDays(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
 }
 
-function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string | null = null): CaseSummary {
+function toIncident(row: IncidentRow, linkedCaseCount: number): Incident {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    createdById: row.createdById,
+    createdByName: row.createdByName,
+    createdAt: row.createdAt.toISOString(),
+    resolvedAt: iso(row.resolvedAt),
+    resolvedById: row.resolvedById,
+    linkedCaseCount,
+  };
+}
+
+function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string | null = null, incidentTitle: string | null = null): CaseSummary {
   return {
     id: row.id,
     reference: formatCaseReference(row.referenceNumber),
@@ -891,6 +1031,8 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     closedAt: iso(row.closedAt),
     parentCaseId: row.parentCaseId,
     parentReference,
+    incidentId: row.incidentId,
+    incidentTitle,
   };
 }
 

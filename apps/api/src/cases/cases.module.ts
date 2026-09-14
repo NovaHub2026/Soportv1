@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { CasesService } from './cases.service.js';
 import { ClosureJob } from './closure.job.js';
 import { CustomerCasesController } from './customer-cases.controller.js';
+import { IncidentsController } from './incidents.controller.js';
 import { StaffCasesController } from './staff-cases.controller.js';
 
 @Module({
-  controllers: [CustomerCasesController, StaffCasesController],
+  controllers: [CustomerCasesController, StaffCasesController, IncidentsController],
   providers: [CasesService, ClosureJob],
   exports: [CasesService],
 })

@@ -24,4 +24,4 @@ Not verified: the job under real elapsed time (unit test drives `closeExpired(no
 `npm run verify`, 2026-09-14 02:05 UTC, on the completed PH-3.4 tree: `check-context: 32 documents, 438 links (2 gitignored skipped), 8 phases, 14 subphases, active: PH-3 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 36/36, web 40/40; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34798042328` on `426678a` (PH-3.4 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 02:11 UTC. Claim 6 is EXECUTED for `426678a`.

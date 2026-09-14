@@ -24,6 +24,7 @@ import { dictionary as t, fill, formatMessageTime } from "@/i18n";
 import { ApiError, type AttachmentClient, newClientMessageId } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
+import { IncidentSection } from "./IncidentSection";
 import styles from "./staff.module.css";
 
 /** Safety-net refresh while the staff stream is down (ADR-0004). */
@@ -536,7 +537,16 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         )}
       </section>
 
-      <CaseContext detail={detail} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"} />
+      <CaseContext detail={detail} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"}>
+        <IncidentSection
+          identity={identity}
+          detail={detail}
+          onChanged={() => {
+            void refresh();
+            onChanged();
+          }}
+        />
+      </CaseContext>
     </>
   );
 }
@@ -639,6 +649,10 @@ function describeEvent(event: CaseEvent): string {
     }
     case "follow_up_created":
       return fill(t.staff.events.follow_up_created, { reference: str("followUpReference") || str("parentReference") });
+    case "incident_linked":
+      return fill(t.staff.events.incident_linked, {
+        change: data.unlinked === true ? t.staff.incidents.unlinkedEvent : fill(t.staff.incidents.linkedEvent, { incident: str("title") }),
+      });
     case "priority_changed": {
       const from = str("from") as CasePriority;
       const to = str("to") as CasePriority;
@@ -664,11 +678,13 @@ function CaseContext({
   onAnswer,
   onAttributes,
   busy,
+  children,
 }: {
   detail: StaffCaseDetail;
   onAnswer: (c: CaseConsultation, answer: string) => void;
   onAttributes: (input: UpdateCaseInput) => void;
   busy: boolean;
+  children?: React.ReactNode;
 }) {
   const c = t.staff.context;
   const dash = c.none;
@@ -691,6 +707,7 @@ function CaseContext({
         </ul>
       )}
 
+      {children}
       <h3 className={`${styles.contextTitle} ${styles.contextTitleSpaced}`}>{c.customer}</h3>
       <dl className={styles.facts}>
         <dt>{c.customerId}</dt>

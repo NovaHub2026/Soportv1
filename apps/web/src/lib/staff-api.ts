@@ -4,6 +4,10 @@ import {
   type CaseConsultation,
   type CaseMessage,
   type CaseSummary,
+  type CreateIncidentInput,
+  type Incident,
+  type IncidentNoteInput,
+  type IncidentStatus,
   type PostMessageInput,
   type PostNoteInput,
   type RequestConsultationInput,
@@ -46,6 +50,16 @@ export const staffApi = {
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/status`, staffHeaders(identity), { method: "POST", body: { status } }),
   resolve: (identity: StaffIdentity, caseId: string, input: ResolveCaseInput) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/resolve`, staffHeaders(identity), { method: "POST", body: input }),
+  listIncidents: (identity: StaffIdentity, status?: IncidentStatus, signal?: AbortSignal) =>
+    apiRequest<Incident[]>(`/staff/incidents${status ? `?status=${status}` : ""}`, staffHeaders(identity), { signal }),
+  createIncident: (identity: StaffIdentity, input: CreateIncidentInput) =>
+    apiRequest<Incident>("/staff/incidents", staffHeaders(identity), { method: "POST", body: input }),
+  linkIncident: (identity: StaffIdentity, caseId: string, incidentId: string | null) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}/incident`, staffHeaders(identity), { method: "POST", body: { incidentId } }),
+  resolveIncident: (identity: StaffIdentity, incidentId: string) =>
+    apiRequest<Incident>(`/staff/incidents/${incidentId}/resolve`, staffHeaders(identity), { method: "POST" }),
+  broadcastIncidentNote: (identity: StaffIdentity, incidentId: string, input: IncidentNoteInput) =>
+    apiRequest<{ delivered: number }>(`/staff/incidents/${incidentId}/notes`, staffHeaders(identity), { method: "POST", body: input }),
   close: (identity: StaffIdentity, caseId: string) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/close`, staffHeaders(identity), { method: "POST" }),
   assign: (identity: StaffIdentity, caseId: string, input: AssignCaseInput) =>

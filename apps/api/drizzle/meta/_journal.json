@@ -43,6 +43,13 @@
       "when": 1789351070438,
       "tag": "0005_groovy_blue_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789351627881,
+      "tag": "0006_foamy_texas_twister",
+      "breakpoints": true
     }
   ]
 }

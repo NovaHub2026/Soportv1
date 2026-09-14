@@ -27,6 +27,8 @@ import {
   type CaseConsultation,
   type CaseMessage,
   type CaseSummary,
+  linkIncidentSchema,
+  type LinkIncidentInput,
   postMessageSchema,
   type PostMessageInput,
   postNoteSchema,
@@ -151,6 +153,17 @@ export class StaffCasesController {
     @Body(new ZodValidationPipe(resolveCaseSchema)) input: ResolveCaseInput,
   ): Promise<CaseSummary> {
     return this.cases.resolve(actor, id, input);
+  }
+
+  /** Associate with / detach from a shared incident (PH-3.5). */
+  @Post(':id/incident')
+  @HttpCode(200)
+  linkIncident(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(linkIncidentSchema)) input: LinkIncidentInput,
+  ): Promise<CaseSummary> {
+    return this.cases.linkIncident(actor, id, input.incidentId);
   }
 
   /** Close a resolved case explicitly (PH-3.4); the follow-up window job does the same automatically. */

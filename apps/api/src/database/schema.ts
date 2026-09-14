@@ -15,6 +15,7 @@ import {
   CASE_CATEGORIES,
   CONSULTATION_STATUSES,
   CONSULTATION_TEAMS,
+  INCIDENT_STATUSES,
   CASE_EVENT_TYPES,
   CASE_PRIORITIES,
   CASE_STATUSES,
@@ -32,6 +33,7 @@ export const caseEventTypeEnum = pgEnum('case_event_type', CASE_EVENT_TYPES);
 export const attachmentStatusEnum = pgEnum('attachment_status', ATTACHMENT_STATUSES);
 export const consultationTeamEnum = pgEnum('consultation_team', CONSULTATION_TEAMS);
 export const consultationStatusEnum = pgEnum('consultation_status', CONSULTATION_STATUSES);
+export const incidentStatusEnum = pgEnum('incident_status', INCIDENT_STATUSES);
 
 const tz = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -63,6 +65,8 @@ export const supportCases = pgTable(
     closedReason: text('closed_reason'),
     /** The closed case this one continues (PH-3.4); self-reference kept nullable and non-cascading. */
     parentCaseId: uuid('parent_case_id'),
+    /** Shared incident association (PH-3.5); unlinking sets null, deleting an incident is not supported. */
+    incidentId: uuid('incident_id').references(() => incidents.id, { onDelete: 'set null' }),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),
@@ -162,8 +166,22 @@ export const caseConsultations = pgTable(
   (t) => [index('case_consultations_case_idx').on(t.caseId, t.status)],
 );
 
+/** A shared incident several cases refer to (PH-3.5, context §5.4). Resolving it never resolves the cases. */
+export const incidents = pgTable('incidents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: incidentStatusEnum('status').notNull().default('open'),
+  createdById: text('created_by_id').notNull(),
+  createdByName: text('created_by_name'),
+  createdAt: tz('created_at').notNull().defaultNow(),
+  resolvedAt: tz('resolved_at'),
+  resolvedById: text('resolved_by_id'),
+});
+
 export type SupportCaseRow = typeof supportCases.$inferSelect;
 export type CaseAttachmentRow = typeof caseAttachments.$inferSelect;
 export type CaseConsultationRow = typeof caseConsultations.$inferSelect;
+export type IncidentRow = typeof incidents.$inferSelect;
 export type CaseMessageRow = typeof caseMessages.$inferSelect;
 export type CaseEventRow = typeof caseEvents.$inferSelect;

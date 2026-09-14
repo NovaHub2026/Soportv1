@@ -357,6 +357,24 @@ try {
     await staffPage.getByRole('button', { name: /SUP-000002/ }).click();
     await staffPage.getByText(/Continuação do caso SUP-000001/).first().waitFor({ timeout: 5000 });
     note('follow-up-staff', 'the continuation reached the staff queue with the link to the previous case');
+
+    // Shared incidents (PH-3.5): create and link, broadcast an internal note, mark resolved without touching the case.
+    await staffPage.getByRole('button', { name: 'Criar incidente' }).click();
+    await staffPage.getByLabel('Título do incidente').fill('Atraso no provedor Pix');
+    await staffPage.getByRole('button', { name: 'Criar e vincular' }).click();
+    await staffPage.getByText('Atraso no provedor Pix').first().waitFor({ timeout: 5000 });
+    await staffPage.getByText('Incidente: Vinculado ao incidente “Atraso no provedor Pix”').waitFor({ timeout: 5000 });
+    await staffPage.getByLabel('Nota interna para todos os casos vinculados').fill('Provedor confirmou normalização às 11:20.');
+    await staffPage.getByRole('button', { name: 'Enviar nota a todos' }).click();
+    await staffPage.getByText('Nota enviada a 1 caso(s) vinculado(s).').waitFor({ timeout: 5000 });
+    await staffPage.getByText(/Provedor confirmou normalização/).waitFor({ timeout: 5000 });
+    await desktop.waitForTimeout(1500);
+    if ((await desktop.getByText(/Provedor confirmou normalização/).count()) !== 0) throw new Error('Incident note leaked to the customer');
+    await staffPage.getByRole('button', { name: 'Marcar incidente como resolvido' }).click();
+    await staffPage.getByText(/marcado como resolvido por Ana Ribeiro/).waitFor({ timeout: 5000 });
+    await staffPage.getByText('Novo').first().waitFor();
+    note('incident', 'created and linked an incident from SUP-000002, broadcast an internal note (not visible to the customer), marked the incident resolved — the case stayed "Novo"');
+    await shot(staffPage, '17-staff-incident');
     await staffPage.close();
 
     // Continuity: reload, history still there.

@@ -102,6 +102,11 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                   <span className={styles.caseReference}>{c.reference}</span>
                   <span className={styles.caseItemBadges}>
                     <UnreadBadge count={c.unreadCount} one={t.staff.unreadOne} many={t.staff.unreadMany} />
+                    {c.incidentId && (
+                      <span className={styles.incidentTag} title={c.incidentTitle ?? undefined}>
+                        {t.staff.incidents.tag}
+                      </span>
+                    )}
                     <StatusBadge status={c.status} labels={t.staff.status} />
                   </span>
                 </span>

@@ -113,6 +113,43 @@ export const answerConsultationSchema = z.object({
 });
 export type AnswerConsultationInput = z.infer<typeof answerConsultationSchema>;
 
+// ---- Shared incidents (PH-3.5, context §5.4) ----
+
+export const INCIDENT_STATUSES = ["open", "resolved"] as const;
+export type IncidentStatus = (typeof INCIDENT_STATUSES)[number];
+
+export const incidentSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().nullable(),
+  status: z.enum(INCIDENT_STATUSES),
+  createdById: z.string(),
+  createdByName: z.string().nullable(),
+  createdAt: z.string(),
+  resolvedAt: z.string().nullable(),
+  resolvedById: z.string().nullable(),
+  /** Cases currently linked (all statuses). */
+  linkedCaseCount: z.number().int().nonnegative(),
+});
+export type Incident = z.infer<typeof incidentSchema>;
+
+export const createIncidentSchema = z.object({
+  title: z.string().trim().min(3, "title_too_short").max(200, "title_too_long"),
+  description: z.string().trim().max(5000).optional(),
+});
+export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;
+
+/** `incidentId: null` unlinks the case. */
+export const linkIncidentSchema = z.object({
+  incidentId: z.uuid().nullable(),
+});
+export type LinkIncidentInput = z.infer<typeof linkIncidentSchema>;
+
+export const incidentNoteSchema = z.object({
+  body: z.string().trim().min(1, "note_required").max(5000, "note_too_long"),
+});
+export type IncidentNoteInput = z.infer<typeof incidentNoteSchema>;
+
 // ---- Closure and follow-up (PH-3.4, context §7.3) ----
 
 export const CLOSED_REASONS = ["auto_window", "staff"] as const;
@@ -271,6 +308,9 @@ export const caseSummarySchema = z.object({
   /** The case this one continues (set on a follow-up opened from a closed case — §7.3). */
   parentCaseId: z.string().nullable(),
   parentReference: z.string().nullable(),
+  /** Shared incident this case is associated with, if any (§5.4). Staff-only information in practice. */
+  incidentId: z.string().nullable(),
+  incidentTitle: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
 

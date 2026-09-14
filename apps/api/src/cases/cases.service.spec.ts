@@ -90,6 +90,42 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     });
   });
 
+  describe('shared incidents (PH-3.5, §5.4)', () => {
+    it('links cases to an open incident, broadcasts internal notes to linked open cases only, and resolving the incident leaves case statuses alone', async () => {
+      const a = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Pix não caiu' });
+      const b = await service.createCase(bob, { category: 'deposits_withdrawals', message: 'Depósito sumiu' });
+      const unrelated = await service.createCase(alice, { category: 'other', message: 'Outra coisa' });
+
+      const incident = await service.createIncident(ana, { title: 'Atraso no provedor Pix', description: 'Desde 10:00' });
+      expect(incident).toMatchObject({ status: 'open', linkedCaseCount: 0, createdByName: 'Ana' });
+
+      const linkedA = await service.linkIncident(ana, a.id, incident.id);
+      await service.linkIncident(ana, b.id, incident.id);
+      expect(linkedA).toMatchObject({ incidentId: incident.id, incidentTitle: 'Atraso no provedor Pix' });
+      expect((await service.listIncidents('open'))[0].linkedCaseCount).toBe(2);
+      expect((await service.getStaffCase(a.id)).events.at(-1)).toMatchObject({ type: 'incident_linked', data: { incidentId: incident.id, title: 'Atraso no provedor Pix' } });
+
+      const { delivered } = await service.broadcastIncidentNote(ana, incident.id, { body: 'Provedor confirmou normalização às 11:20.' });
+      expect(delivered).toBe(2);
+      const noteOnA = (await service.getStaffCase(a.id)).messages.at(-1);
+      expect(noteOnA).toMatchObject({ visibility: 'internal', authorId: ana.id });
+      expect(noteOnA?.body).toContain('normalização');
+      expect((await service.getCustomerCase(alice, a.id)).messages.some((m) => m.body.includes('normalização'))).toBe(false);
+      expect((await service.getStaffCase(unrelated.id)).messages).toHaveLength(1);
+
+      const resolved = await service.resolveIncident(ana, incident.id);
+      expect(resolved.status).toBe('resolved');
+      expect((await service.getStaffCase(a.id)).status).toBe('new'); // untouched
+      expect((await service.getStaffCase(a.id)).messages.at(-1)?.body).toContain('marcado como resolvido');
+      await expect(service.resolveIncident(ana, incident.id)).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.linkIncident(ana, unrelated.id, incident.id)).rejects.toBeInstanceOf(ConflictException); // resolved incident
+
+      const unlinked = await service.linkIncident(ana, b.id, null);
+      expect(unlinked.incidentId).toBeNull();
+      await expect(service.linkIncident(ana, b.id, '00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   describe('closure and linked follow-up (PH-3.4, RULE-SUP-06)', () => {
     it('only resolved cases close; the job closes those past the window and leaves recent ones; staff can close explicitly', async () => {
       const recent = await service.createCase(alice, { category: 'other', message: 'Recente' });

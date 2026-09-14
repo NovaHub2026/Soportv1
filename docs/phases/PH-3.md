@@ -1,6 +1,6 @@
 # PH-3 — Case lifecycle and staff collaboration
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-03, OBJ-SUP-04; FEAT-CASE, FEAT-STAFF, FEAT-CHAT
 Cycle: 1 (see `ROADMAP.md`; PH-1 and PH-2 counted, 2/3 — this phase's approval triggers the Cycle Audit)
 
@@ -32,10 +32,13 @@ Scenarios (context §14 items 3, 5, 9): (a) agent asks for information → "Agua
 | PH-3.2 | Internal notes composer and specialist consultation (team, question, pending indicator, answer) — `PH-3.2.md`, approved 2026-09-13 | APPROVED |
 | PH-3.3 | Assignment: transfer, release to queue, supervisor reassignment; priority and category edits — `PH-3.3.md`, approved 2026-09-13 | APPROVED |
 | PH-3.4 | Closure after the follow-up window (scheduled job) and linked follow-up from a closed case — `PH-3.4.md`, approved 2026-09-13 | APPROVED |
-| PH-3.5 | Shared incidents (simple association, coordinated notes) and phase closure | PLANNED |
+| PH-3.5 | Shared incidents (simple association, coordinated notes) and phase closure — `PH-3.5.md`, approved 2026-09-13 | APPROVED |
 
 ## Verification and operational readiness
 Unit + e2e per subphase with negatives (customer cannot call staff transitions; notes never leak); browser smoke extended with resolve → "Ainda preciso de ajuda" and consultation; `npm run verify` and `npm run build` on the phase candidate. Operational note: the closure job runs inside the API process (single instance until PH-8).
 
 ## Completion evidence, findings and context updated
-Pending.
+Approved 2026-09-13 — `../evidence/PH-3-phase-approval.md`: scenarios (a)–(f) mapped to executed tests and browser observations on the phase candidate (screenshots `../evidence/screenshots/ph-3/`). Subphase evidence: `../evidence/PH-3.1-verification.md` … `../evidence/PH-3.5-verification.md`.
+Findings: none open from this phase (smoke-locator ambiguities were harness-only). Backlog unchanged.
+Context updated: feature contexts FEAT-CASE / FEAT-STAFF / FEAT-CHAT / FEAT-ORBIT; `ROADMAP.md` ledger (cycle 1, 3/3 — **Cycle Audit due, record `../audits/CYCLE-1.md`**); `../../CURRENT_STATE.md`; DEC-0010–DEC-0014.
+Everything runs on simulated identity and no Orbit records (DEC-0003).

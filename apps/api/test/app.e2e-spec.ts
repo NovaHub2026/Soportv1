@@ -91,6 +91,31 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(customerView.body.messages.at(-1).body).toContain('liquidada às 10:31');
   });
 
+  it('incident endpoints are staff-only and validated (PH-3.5)', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-rui'))
+      .send({ category: 'deposits_withdrawals', message: 'Pix não caiu' })
+      .expect(201);
+
+    await request(server).post('/api/staff/incidents').set(asCustomer('cust-rui')).send({ title: 'x' }).expect(403);
+    await request(server).post('/api/staff/incidents').set(asStaff('staff-ana', 'Ana')).send({ title: 'ab' }).expect(400);
+    const incident = await request(server).post('/api/staff/incidents').set(asStaff('staff-ana', 'Ana')).send({ title: 'Atraso Pix' }).expect(201);
+    const linked = await request(server).post(`/api/staff/cases/${created.body.id}/incident`).set(asStaff('staff-ana', 'Ana')).send({ incidentId: incident.body.id }).expect(200);
+    expect(linked.body).toMatchObject({ incidentId: incident.body.id, incidentTitle: 'Atraso Pix' });
+    await request(server).get('/api/staff/incidents?status=bogus').set(asStaff('staff-ana', 'Ana')).expect(400);
+    const list = await request(server).get('/api/staff/incidents?status=open').set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(list.body[0]).toMatchObject({ id: incident.body.id, linkedCaseCount: 1 });
+    const broadcast = await request(server).post(`/api/staff/incidents/${incident.body.id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: 'Normalizado.' }).expect(200);
+    expect(broadcast.body).toEqual({ delivered: 1 });
+    const customerView = await request(server).get(`/api/support/cases/${created.body.id}`).set(asCustomer('cust-rui')).expect(200);
+    expect(JSON.stringify(customerView.body.messages)).not.toContain('Normalizado');
+    const resolved = await request(server).post(`/api/staff/incidents/${incident.body.id}/resolve`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(resolved.body.status).toBe('resolved');
+    expect((await request(server).get(`/api/support/cases/${created.body.id}`).set(asCustomer('cust-rui')).expect(200)).body.status).toBe('new');
+  });
+
   it('closure and follow-up endpoints (PH-3.4): close needs resolved; follow-up needs closed and ownership', async () => {
     const server = app.getHttpServer();
     const created = await request(server)

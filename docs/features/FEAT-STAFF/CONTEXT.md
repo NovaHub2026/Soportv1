@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `637af01` plus the PH-3.4 change ("Encerrar caso", continuation link)
+Verified against: `426678a` plus the PH-3.5 change (incident section and queue tag)
 Verified on: 2026-09-13
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -17,6 +17,7 @@ Case actions (PH-3.1): "Aguardar cliente", "Aguardar equipe interna", "Retomar a
 Internal collaboration (PH-3.2): the composer has two visibly different modes — "Responder ao cliente" and "Nota interna" (dashed amber field, "Salvar nota"); "Consultar equipe" opens a form (team + question); the context column lists consultations with a pending count and an inline "Responder consulta" form; history shows "Consulta enviada para <equipe>" / "Consulta respondida por <agente>".
 Ownership and attributes (PH-3.3): "Transferir" (picker of simulated agents) and "Devolver à fila" in the action bar — a 403 shows "Só o responsável ou um supervisor pode transferir este caso."; priority and category are editable selects in the context column; history shows "Transferido para … por …", "Devolvido à fila por …", "Prioridade: … → …", "Assunto: … → …".
 Closure (PH-3.4): "Encerrar caso" on resolved cases; continuations show "Continuação do caso SUP-…" with "Abrir caso anterior"; history shows "Encerrado pela equipe / após o prazo de acompanhamento" and "Continuação aberta: SUP-…".
+Shared incidents (PH-3.5): the context column's "Incidente compartilhado" section links to an open incident or creates one, sends a note to all linked cases, marks the incident resolved (with the hint that cases need individual confirmation) and unlinks; queue items carry an "Incidente" tag.
 Gaps (accepted target): filters, search by reference / user id / email / operation refs, saved replies, supervision views, schedule/config, metrics (PH-5); Orbit record cards and masked identity summary (PH-4); role-based permissions beyond agent/supervisor/admin labels (PH-7); the context column is hidden below 1100 px (desktop-first).
 
 ## Dependencies and consumers

@@ -259,6 +259,45 @@ describe("StaffCaseView", () => {
     expect(screen.queryByLabelText("Resposta ao cliente")).toBeNull();
   });
 
+  test("shared incidents: create-and-link, broadcast a note to linked cases, resolve without touching the case (PH-3.5)", async () => {
+    let incident: Record<string, unknown> | null = null;
+    let linkedId: string | null = null;
+    const { requests } = mockFetch((request) => {
+      if (request.url === "/api/staff/incidents" && request.method === "GET") return { body: incident ? [incident] : [] };
+      if (request.url === "/api/staff/incidents" && request.method === "POST") {
+        incident = { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", title: (request.body as { title: string }).title, description: null, status: "open", createdById: "staff-ana", createdByName: "Ana Ribeiro", createdAt: new Date().toISOString(), resolvedAt: null, resolvedById: null, linkedCaseCount: 1 };
+        return { status: 201, body: incident };
+      }
+      if (request.url.endsWith("/incident")) {
+        linkedId = (request.body as { incidentId: string | null }).incidentId;
+        return { body: summary({ incidentId: linkedId, incidentTitle: linkedId ? "Atraso Pix" : null }) };
+      }
+      if (request.url.endsWith("/notes") && request.url.includes("/incidents/")) return { body: { delivered: 2 } };
+      if (request.url.endsWith("/resolve") && request.url.includes("/incidents/")) {
+        incident = { ...incident!, status: "resolved" };
+        return { body: incident };
+      }
+      return { body: { ...detail, incidentId: linkedId, incidentTitle: linkedId ? "Atraso Pix" : null } };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Criar incidente" }));
+    fireEvent.change(screen.getByLabelText("Título do incidente"), { target: { value: "Atraso Pix" } });
+    fireEvent.click(screen.getByRole("button", { name: "Criar e vincular" }));
+    await waitFor(() => expect(linkedId).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"));
+    expect(requests.find((r) => r.url === "/api/staff/incidents" && r.method === "POST")?.body).toEqual({ title: "Atraso Pix" });
+    expect(await screen.findByText("Atraso Pix")).toBeDefined();
+
+    fireEvent.change(await screen.findByLabelText("Nota interna para todos os casos vinculados"), { target: { value: "Provedor normalizado." } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar nota a todos" }));
+    expect(await screen.findByText("Nota enviada a 2 caso(s) vinculado(s).")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Marcar incidente como resolvido" }));
+    await waitFor(() => expect(requests.some((r) => r.url.endsWith("/resolve") && r.url.includes("/incidents/"))).toBe(true));
+    expect(screen.getByText("Novo")).toBeDefined(); // the case status did not change
+  });
+
   test("a public reply is posted and then shown in the conversation", async () => {
     let replied = false;
     mockFetch((request) => {
