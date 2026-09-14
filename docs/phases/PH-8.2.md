@@ -25,4 +25,4 @@ Acceptance evidence: `../evidence/PH-8.2-verification.md`.
 ## Verification, limitations and context updates
 Evidence: `../evidence/PH-8.2-verification.md`. Limitations: the local Docker run depends on Docker Desktop's engine being up (see the evidence for what ran where); the CI job is the required verdict for BL-019.
 Context updated: `PH-8.md`, `ROADMAP.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-CASE/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../BACKLOG.md`, `../runbooks/VERIFICATION.md`, `CLAUDE.md`.
-Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review) — conditional on the CI PostgreSQL job being green on the pushed commit (recorded in the next record).
+Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review) — the CI PostgreSQL job is green on `22cdb72` (run 34827685994, `../evidence/PH-8.3-verification.md`).

@@ -22,5 +22,5 @@ Environment: as in `PH-4.1-verification.md`.
 - Scenario (c) was not rehearsed: the Docker engine on this host never became reachable; the first `docker compose up` on a host with a working engine is the outstanding check, listed in the release gate (RELEASE.md #7) and in the handoff.
 - The product remains a labeled simulation for identity, records and e-mail delivery (BL-001, DEC-0003, DEC-0025); a production release is not possible until Orbit's adapters exist and the Owner authorizes it (§1.1).
 
-Implemented and locally verified: yes (except the container rehearsal as stated). Integrated: `main` (PH-8.3 commit). CI verified: recorded in `PH-8.3-verification.md` when known. Released: no — not authorized, and not possible without BL-001.
+Implemented and locally verified: yes (except the container rehearsal as stated). Integrated: `main` (PH-8.3 commit). CI verified: run 34827685994 on `22cdb72` — both jobs **success** (`PH-8.3-verification.md`). Released: no — not authorized, and not possible without BL-001.
 Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review). Ledger: cycle 3 → 2/3.

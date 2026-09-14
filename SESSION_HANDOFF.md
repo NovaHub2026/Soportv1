@@ -17,7 +17,7 @@ No phase is active or planned. Outstanding: the container rehearsal (`docker com
 
 ## Resume here
 1. `git status -sb`; `gh run list --limit 2` — HEAD must be green.
-2. Validate `CURRENT_STATE.md`; record both CI verdicts of the PH-8.3 commit in `docs/evidence/PH-8.3-verification.md`; run the container rehearsal if an engine is available; otherwise wait for the Owner.
+2. Validate `CURRENT_STATE.md`; run the container rehearsal if an engine is available (record it in `docs/evidence/PH-8.3-verification.md`); otherwise wait for the Owner.
 
 ## Temporary environment notes
 - Host observed 2026-09-14: Windows 11 native (Git Bash for the agent's shell; PowerShell forms in the runbook). Paths in env vars are Windows-style (`C:/…`).
