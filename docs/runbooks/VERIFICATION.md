@@ -29,7 +29,7 @@ Exit codes propagate: the `verify` chain stops at the first failing layer. Vites
 | App | Command | URL |
 |---|---|---|
 | API (NestJS) | `npm run dev:api` | http://localhost:3001/api/health (`PORT` overrides; CORS allows `WEB_ORIGIN`, default http://localhost:3000) |
-| Web (Next.js) | `npm run dev:web` | http://localhost:3000 — simulated Orbit shell with the customer "Suporte" panel; the browser calls `/api/*`, rewritten to `API_ORIGIN` (default http://localhost:3001) |
+| Web (Next.js) | `npm run dev:web` | http://localhost:3000 — simulated Orbit shell with the customer "Suporte" panel; http://localhost:3000/staff — staff workspace. The browser calls `/api/*`, rewritten to `API_ORIGIN` (default http://localhost:3001) |
 
 Simulated identity (DEC-0003): the API resolves the caller from headers `x-simulated-customer-id`, or `x-simulated-staff-id` (+ optional `x-simulated-staff-role`, `x-simulated-staff-name`). Example: `curl -H 'x-simulated-customer-id: cust-1' http://localhost:3001/api/support/cases`.
 

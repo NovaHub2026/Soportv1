@@ -28,12 +28,15 @@ describe("CaseConversation", () => {
 
   test("a failed send is marked as not sent and can be retried with the same client message id", async () => {
     let posts = 0;
+    let stored: ReturnType<typeof message> | null = null;
     const { requests } = mockFetch((request) => {
-      if (request.method === "GET") return { body: detail };
+      // GET reflects what the server stored so far; the component re-reads after a successful send.
+      if (request.method === "GET") return { body: stored ? { ...detail, messages: [...detail.messages, stored] } : detail };
       posts += 1;
       if (posts === 1) return { status: 503, body: { error: "unavailable" } };
       const body = request.body as { body: string; clientMessageId: string };
-      return { status: 201, body: message({ id: "m3", body: body.body, clientMessageId: body.clientMessageId }) };
+      stored = message({ id: "m3", body: body.body, clientMessageId: body.clientMessageId });
+      return { status: 201, body: stored };
     });
     render(<CaseConversation identity={identity} caseId={detail.id} />);
     await screen.findByText(/SUP-000001/);

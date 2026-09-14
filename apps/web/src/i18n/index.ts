@@ -21,6 +21,11 @@ const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
+/** Replaces `{name}` placeholders in a dictionary string. */
+export function fill(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? `{${key}}`);
+}
+
 /** `14:05` when today, `13/09 14:05` otherwise. */
 export function formatMessageTime(iso: string, now: Date = new Date()): string {
   const date = new Date(iso);

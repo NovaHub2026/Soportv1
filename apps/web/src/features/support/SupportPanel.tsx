@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { dictionary as t } from "@/i18n";
 import type { CustomerIdentity } from "@/lib/api";
 import type { SimulatedCustomer } from "@/lib/simulated-session";
@@ -22,7 +22,7 @@ interface SupportPanelProps {
  */
 export function SupportPanel({ customer, onClose }: SupportPanelProps) {
   const [view, setView] = useState<View>({ name: "home" });
-  const identity: CustomerIdentity = { customerId: customer.id };
+  const identity = useMemo<CustomerIdentity>(() => ({ customerId: customer.id }), [customer.id]);
 
   return (
     <section className={styles.panel} data-testid="support-panel">

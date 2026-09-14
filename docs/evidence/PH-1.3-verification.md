@@ -24,4 +24,4 @@ Limitations / reuse boundary: valid for this tree. Changes under `apps/web/src/*
 `npm run verify`, 2026-09-14 00:37 UTC, on the completed PH-1.3 tree: `check-context: 15 documents, 154 links (2 gitignored skipped), 8 phases, 5 subphases, active: PH-1 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 15/15, web 13/13; overall exit 0. (A first attempt failed on five documentation paths written relative to `apps/web`; corrected to repository paths.)
 
 ## CI
-Pending push.
+Run `34793326034` on `5053df4` (PH-1.3 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 00:45 UTC. Claim 7 is EXECUTED for `5053df4`.

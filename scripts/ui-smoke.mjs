@@ -22,7 +22,7 @@ const API_PORT = 3001;
 const WEB_PORT = Number(process.env.UI_WEB_PORT ?? 3150);
 const WEB = `http://localhost:${WEB_PORT}`;
 const API = `http://localhost:${API_PORT}`;
-const OUT = resolve(process.argv[2] ?? `${ROOT}/docs/evidence/screenshots/ph-1.3`);
+const OUT = resolve(process.argv[2] ?? `${ROOT}/docs/evidence/screenshots/latest`);
 mkdirSync(OUT, { recursive: true });
 
 if (!process.env.SUPPORT_DB_DIR) {
@@ -87,12 +87,6 @@ async function shot(page, name) {
   console.log(`screenshot ${path}`);
 }
 
-const staffHeaders = {
-  'content-type': 'application/json',
-  'x-simulated-staff-id': 'staff-ana',
-  'x-simulated-staff-name': 'Ana',
-};
-
 let exitCode = 0;
 try {
   await assertPortFree(API_PORT);
@@ -130,29 +124,52 @@ try {
     note('created', `case created from the panel with reference ${reference}, status "Recebido"`);
     await shot(desktop, '03-conversation-new');
 
-    // Staff side through the API (the staff UI is PH-1.4): take the case and reply.
-    const queue = await (await fetch(`${API}/api/staff/cases?view=unassigned`, { headers: staffHeaders })).json();
-    const created = queue.find((c) => c.reference === reference);
-    if (!created) throw new Error(`Case ${reference} not in the unassigned queue`);
-    await fetch(`${API}/api/staff/cases/${created.id}/take`, { method: 'POST', headers: staffHeaders });
+    // Staff side in the real workspace (PH-1.4): queue → open → take → reply.
+    const staffPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await staffPage.goto(`${WEB}/staff`);
+    await staffPage.getByRole('tab', { name: 'Não atribuídos' }).waitFor();
+    const queueItem = staffPage.getByRole('button', { name: new RegExp(reference) });
+    await queueItem.waitFor({ timeout: 15_000 });
+    note('staff-queue', `the unassigned queue lists ${reference} for the simulated agent Ana Ribeiro`);
+    await shot(staffPage, '08-staff-queue');
+
+    await queueItem.click();
+    await staffPage.getByRole('button', { name: 'Assumir caso' }).click();
+    await staffPage.getByText('staff-ana').first().waitFor();
+    await staffPage.getByText('Em atendimento').first().waitFor();
+    note('staff-take', 'taking the case shows Ana as responsible and moves the status to "Em atendimento"');
+
     const replyText = 'Olá! Aqui é a Ana, do suporte. Já estou verificando o seu saque.';
-    const reply = await fetch(`${API}/api/staff/cases/${created.id}/messages`, {
-      method: 'POST',
-      headers: staffHeaders,
-      body: JSON.stringify({ body: replyText }),
-    });
-    if (reply.status !== 201) throw new Error(`staff reply failed: ${reply.status}`);
+    await staffPage.getByLabel('Resposta ao cliente').fill(replyText);
+    await staffPage.getByRole('button', { name: 'Responder ao cliente' }).click();
+    await staffPage.getByText(replyText).waitFor();
+    await staffPage.getByText(/integração com o Orbit ainda não foi construída/).waitFor();
+    // A poll that raced the reply must not make the message vanish (regression found in PH-1.4).
+    await staffPage.waitForTimeout(2500);
+    if (!(await staffPage.getByText(replyText).isVisible())) throw new Error('Staff reply disappeared after a refresh');
+    await staffPage.getByText('Atribuído a Ana Ribeiro').waitFor();
+    note('staff-reply', 'the public reply stays visible across refreshes; the context column shows Orbit data as unavailable and the assignment in the history');
+    await shot(staffPage, '09-staff-case-reply');
+
+    await staffPage.getByRole('tab', { name: 'Meus casos' }).click();
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).waitFor();
+    await staffPage.getByRole('tab', { name: 'Não atribuídos' }).click();
+    await staffPage.getByText('Nenhum caso aguardando atribuição.').waitFor();
+    note('staff-queues', 'after taking, the case is under "Meus casos" and the unassigned queue is empty');
+    await staffPage.close();
 
     await desktop.getByText(replyText).waitFor({ timeout: 15_000 });
     await desktop.getByText('Em atendimento').waitFor();
-    note('reply', 'staff reply attributed to "Ana" reached the customer panel by refresh within 15 s; status "Em atendimento"');
+    note('reply', 'staff reply attributed to "Ana Ribeiro" reached the customer panel by refresh within 15 s; status "Em atendimento"');
     await shot(desktop, '04-conversation-reply');
 
     // Customer follow-up from the composer.
     await desktop.getByLabel('Sua mensagem').fill('Obrigada! Fico no aguardo.');
     await desktop.getByRole('button', { name: 'Enviar' }).click();
     await desktop.getByText('Obrigada! Fico no aguardo.').waitFor();
-    note('follow-up', 'customer follow-up sent from the composer and shown as own message');
+    await desktop.waitForTimeout(2500);
+    if (!(await desktop.getByText('Obrigada! Fico no aguardo.').isVisible())) throw new Error('Customer message disappeared after a refresh');
+    note('follow-up', 'customer follow-up sent from the composer, shown as own message and still there after a refresh');
 
     // Continuity: reload, history still there.
     await desktop.reload();

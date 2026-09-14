@@ -11,6 +11,9 @@ coverage/
 # local development data (embedded database files)
 .data/
 
+# ad-hoc UI smoke output (evidence runs are written to a named folder per work item)
+docs/evidence/screenshots/latest/
+
 # environment (never commit secrets — GOVERNANCE.md §11)
 .env
 .env.*

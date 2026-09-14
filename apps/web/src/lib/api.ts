@@ -22,19 +22,20 @@ export class ApiError extends Error {
   }
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: "GET" | "POST";
   body?: unknown;
   signal?: AbortSignal;
 }
 
-async function apiFetch<T>(path: string, identity: CustomerIdentity, options: RequestOptions = {}): Promise<T> {
+/** Same-origin call to `/api/*` (rewritten to the API server); identity travels in the given headers. */
+export async function apiRequest<T>(path: string, identityHeaders: Record<string, string>, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method: options.method ?? "GET",
     headers: {
       accept: "application/json",
       ...(options.body !== undefined ? { "content-type": "application/json" } : {}),
-      [SIMULATED_IDENTITY_HEADERS.customerId]: identity.customerId,
+      ...identityHeaders,
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     signal: options.signal,
@@ -46,15 +47,17 @@ async function apiFetch<T>(path: string, identity: CustomerIdentity, options: Re
   return data as T;
 }
 
+const customerHeaders = (identity: CustomerIdentity) => ({ [SIMULATED_IDENTITY_HEADERS.customerId]: identity.customerId });
+
 export const customerApi = {
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
-    apiFetch<CaseSummary[]>("/support/cases", identity, { signal }),
+    apiRequest<CaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
   getCase: (identity: CustomerIdentity, caseId: string, signal?: AbortSignal) =>
-    apiFetch<CustomerCaseDetail>(`/support/cases/${caseId}`, identity, { signal }),
+    apiRequest<CustomerCaseDetail>(`/support/cases/${caseId}`, customerHeaders(identity), { signal }),
   createCase: (identity: CustomerIdentity, input: CreateCaseInput) =>
-    apiFetch<CustomerCaseDetail>("/support/cases", identity, { method: "POST", body: input }),
+    apiRequest<CustomerCaseDetail>("/support/cases", customerHeaders(identity), { method: "POST", body: input }),
   postMessage: (identity: CustomerIdentity, caseId: string, input: PostMessageInput) =>
-    apiFetch<CaseMessage>(`/support/cases/${caseId}/messages`, identity, { method: "POST", body: input }),
+    apiRequest<CaseMessage>(`/support/cases/${caseId}/messages`, customerHeaders(identity), { method: "POST", body: input }),
 };
 
 /** Stable per-attempt id so a retried send is stored once (RULE-SUP-03). */

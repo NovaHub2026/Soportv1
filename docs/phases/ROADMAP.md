@@ -20,7 +20,7 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-1 `ACTIVE` (since 2026-09-13). Subphase: none active — PH-1.1, PH-1.2 and PH-1.3 `APPROVED` 2026-09-13; next PH-1.4 (see `PH-1.md` and `CURRENT_STATE.md`).
+Phase: PH-1 `ACTIVE` (since 2026-09-13). Subphase: none active — PH-1.1 to PH-1.4 `APPROVED` 2026-09-13; next PH-1.5 (see `PH-1.md` and `CURRENT_STATE.md`).
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.

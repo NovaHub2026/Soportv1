@@ -1,7 +1,7 @@
 "use client";
 
 import type { CaseMessage, CustomerCaseDetail } from "@orbit-support/shared";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { type CustomerIdentity, customerApi, newClientMessageId } from "@/lib/api";
 import { StatusBadge } from "./StatusBadge";
@@ -30,30 +30,39 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [draft, setDraft] = useState("");
   const logRef = useRef<HTMLOListElement>(null);
+  // Monotonic request counter: a poll that started before a send must not overwrite the sent message.
+  const requestSeq = useRef(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const refresh = async () => {
+  const refresh = useCallback(
+    async (signal?: AbortSignal) => {
+      const id = ++requestSeq.current;
       try {
-        const detail = await customerApi.getCase(identity, caseId, controller.signal);
+        const detail = await customerApi.getCase(identity, caseId, signal);
+        if (id !== requestSeq.current) return; // superseded by a newer request
         setLoad({ status: "ready", detail });
         // Anything the server now knows about is no longer pending.
         setPending((current) =>
           current.filter((p) => !detail.messages.some((m) => m.clientMessageId === p.clientMessageId)),
         );
       } catch (error: unknown) {
-        if (controller.signal.aborted) return;
+        if (signal?.aborted || id !== requestSeq.current) return;
         console.warn("support: could not load case", error);
         setLoad((current) => (current.status === "ready" ? current : { status: "error" }));
       }
-    };
-    void refresh();
-    const timer = setInterval(refresh, REFRESH_INTERVAL_MS);
+    },
+    [identity, caseId],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // The effect only subscribes: the first read and every tick run as callbacks, never synchronously here.
+    queueMicrotask(() => void refresh(controller.signal));
+    const timer = setInterval(() => void refresh(controller.signal), REFRESH_INTERVAL_MS);
     return () => {
       controller.abort();
       clearInterval(timer);
     };
-  }, [identity.customerId, caseId]); // eslint-disable-line react-hooks/exhaustive-deps -- identity is keyed by customerId
+  }, [refresh]);
 
   useEffect(() => {
     // Keep the newest entry in view; jsdom has no scrollIntoView, hence the optional call.
@@ -67,12 +76,14 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
         body: message.body,
         clientMessageId: message.clientMessageId,
       });
-      setPending((current) => current.filter((p) => p.clientMessageId !== message.clientMessageId));
       setLoad((current) =>
         current.status === "ready" && !current.detail.messages.some((m) => m.id === saved.id)
           ? { status: "ready", detail: { ...current.detail, messages: [...current.detail.messages, saved] } }
           : current,
       );
+      setPending((current) => current.filter((p) => p.clientMessageId !== message.clientMessageId));
+      // Re-read so status changes made by the server (e.g. reopening) show up and stale polls are superseded.
+      await refresh();
     } catch (error) {
       console.warn("support: could not send message", error);
       setPending((current) =>

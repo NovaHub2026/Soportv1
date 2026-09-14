@@ -34,7 +34,7 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
         setState({ status: "error" });
       });
     return () => controller.abort();
-  }, [identity.customerId, attempt]); // eslint-disable-line react-hooks/exhaustive-deps -- identity is keyed by customerId
+  }, [identity, attempt]);
 
   const active = state.status === "ready" ? state.cases.filter((c) => OPEN_CASE_STATUSES.includes(c.status)) : [];
   const previous = state.status === "ready" ? state.cases.filter((c) => !OPEN_CASE_STATUSES.includes(c.status)) : [];
