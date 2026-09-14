@@ -21,15 +21,15 @@ Scenarios: (a) a visitor with no session uses "Não consigo acessar minha conta"
 
 ## Important uncertainties and decision references
 - Orbit's real recovery/verification process is unknown (BL-002): the route records and forwards; nothing here verifies identity.
-- Role model details are decided in PH-7.2 (BL-016 → DEC-0028).
+- Role model decided in PH-7.2 (BL-016 → DEC-0029).
 - Abuse limits and the idle timeout are working defaults (§13.1 spirit) recorded in the decision log.
 
 ## Planned subphases, adjusted as evidence arrives
 | ID | Block | Status |
 |---|---|---|
 | PH-7.1 | "Não consigo acessar minha conta": shared contracts, `access_recovery_requests` (migration `0016`), public endpoint with abuse limit, staff view and outcomes, host link and form — `PH-7.1.md`, approved 2026-09-14 | APPROVED |
-| PH-7.2 | Roles and permissions: permission table, API enforcement, directory-validated staff identity, workspace mirroring, BL-016 decision — `PH-7.2.md` | ACTIVE |
-| PH-7.3 | Shared-device sign-out (customer and staff), idle sign-out, privacy re-check of incidents/consultations/attachments; phase closure — `PH-7.3.md` (to be created) | PLANNED |
+| PH-7.2 | Roles and permissions: permission table, API enforcement, directory-validated staff identity, workspace mirroring, BL-016 decision — `PH-7.2.md`, approved 2026-09-14 | APPROVED |
+| PH-7.3 | Shared-device sign-out (customer and staff), idle sign-out, privacy re-check of incidents/consultations/attachments; phase closure — `PH-7.3.md` | ACTIVE |
 
 ## Verification and operational readiness
 Per subphase: api unit and e2e tests (no data in recovery responses, abuse limit, permission matrix negatives per role and ownership, unknown staff id), web tests (form, sign-out clearing state, disabled actions with reasons), browser smoke extended with the recovery route and the sign-out. `npm run gate` for every commit; `npm run verify:full` and the smoke on the phase candidate.

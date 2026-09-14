@@ -24,5 +24,8 @@ Not verified: the per-instance burst limit (30 per 10 minutes) over HTTP (unit-t
 ## Final gate run
 `npm run build` (shared, nest, next) exit 0 before the smoke; `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (check-context OK; lint/typecheck exit 0; Vitest shared 19/19, api 62/62, web 69/69, api e2e 31/31).
 
+## Corrections during verification
+- **FND-0057 (MINOR, process guard).** The audit-closure commit `9b4e193` (documentation only) was red in CI: `check-context` failed on two planned directories (`apps/api/src/access/`, `apps/web/src/features/access/`) that did not exist yet, while the same check passed locally before the commit. Cause: on this Windows host `git check-ignore -q` answers "ignored" for any non-existent path ending in a slash (it matches a blank `.gitignore` line), so the local checker skipped the links as git-ignored. The checker now strips the trailing slash and requires a non-empty matching pattern (fixed in the PH-7.2 commit); the paths exist since this commit, so its own CI is green. Gate discipline held (the commit passed the gate as configured) — the guard, not the discipline, was wrong.
+
 ## CI
-Pending push. Previous commit `9b4e193` (audit closure, docs only): see `gh run list` at the next record.
+Commit `968ae88`: run 34823601278 — **success** (verify + builds). Previous commit `9b4e193` (audit closure, docs only): run 34822550972 — **failure** at `check-context` (FND-0057 above).

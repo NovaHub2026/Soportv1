@@ -339,6 +339,24 @@ describe("StaffCaseView", () => {
     expect(patch?.body).toEqual({ priority: "high" });
   });
 
+  test("PH-7.2: an agent viewing a colleague's case sees the state actions disabled with the reason, while replying stays possible; a supervisor sees them enabled", async () => {
+    mockFetch(() => ({ body: { ...detail, assignedAgentId: "staff-bruno", status: "in_progress" } }));
+    const { unmount } = render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    expect(screen.getByTestId("not-owner-hint").textContent).toContain("Só o responsável ou um supervisor");
+    for (const name of ["Aguardar cliente", "Aguardar equipe interna", "Consultar equipe", "Transferir", "Devolver à fila", "Resolver caso"]) {
+      expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(screen.getByLabelText("Resposta ao cliente")).toBeDefined();
+    unmount();
+
+    const carla = { staffId: "staff-carla", displayName: "Carla Nunes", role: "supervisor" as const };
+    render(<StaffCaseView identity={carla} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    expect(screen.queryByTestId("not-owner-hint")).toBeNull();
+    expect((screen.getByRole("button", { name: "Resolver caso" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   test("a resolved case offers 'Encerrar caso' which posts to /close and shows the closure (PH-3.4)", async () => {
     let status: "resolved" | "closed" = "resolved";
     const { requests } = mockFetch((request) => {

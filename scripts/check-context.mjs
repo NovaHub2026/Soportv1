@@ -48,11 +48,19 @@ const fail = (doc, msg) => findings.push(`${rel(doc)}: ${msg}`);
 const strip = (cell) => cell.replace(/`/g, '').trim();
 const read = (p) => readFileSync(p, 'utf8').split('\n');
 
-// True when Git would ignore the path (exit 0 from `git check-ignore`). Without Git, nothing is ignored.
+// True when a NON-EMPTY ignore pattern matches the path. `git check-ignore -q` on a non-existent path with a
+// trailing slash "matches" a blank .gitignore line on Windows, which hid missing planned directories from the
+// local run while CI failed (FND-0057); the pattern is therefore parsed from `-v` and must be non-empty.
 function gitIgnored(relPath) {
+  // The trailing slash is kept: directory-only patterns such as `dist/` match only when Git sees a directory.
+  const path = relPath;
+  if (!path) return false;
   try {
-    execFileSync('git', ['check-ignore', '-q', relPath], { cwd: ROOT, stdio: 'ignore' });
-    return true;
+    const out = execFileSync('git', ['check-ignore', '-v', '--', path], { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    return out.split('\n').some((line) => {
+      const m = line.match(/^(.*?):(\d+):(.*?)\t/);
+      return Boolean(m && m[3].trim());
+    });
   } catch {
     return false;
   }

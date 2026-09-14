@@ -29,14 +29,17 @@ describe('SimulatedOrbitIdentity', () => {
       source: 'simulated',
     });
     await expect(
-      provider.resolve({ 'x-simulated-staff-id': 'staff-1', 'x-simulated-staff-role': 'supervisor', 'x-simulated-staff-name': 'Ana' }),
-    ).resolves.toEqual({ kind: 'staff', id: 'staff-1', role: 'supervisor', displayName: 'Ana', source: 'simulated' });
+      provider.resolve({ 'x-simulated-staff-id': 'staff-carla', 'x-simulated-staff-role': 'supervisor', 'x-simulated-staff-name': 'Carla' }),
+    ).resolves.toEqual({ kind: 'staff', id: 'staff-carla', role: 'supervisor', displayName: 'Carla', source: 'simulated' });
+    // PH-7.2: the directory decides the role; a header that disagrees is ignored, an unknown id is nobody.
+    await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-ana', 'x-simulated-staff-role': 'supervisor' })).resolves.toMatchObject({ role: 'agent' });
+    await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-1', 'x-simulated-staff-role': 'supervisor' })).resolves.toBeNull();
   });
 
   it('returns no actor for missing, ambiguous, malformed or unknown-role headers (negative cases)', async () => {
     await expect(provider.resolve({})).resolves.toBeNull();
     await expect(provider.resolve({ 'x-simulated-customer-id': 'cust-1', 'x-simulated-staff-id': 'staff-1' })).resolves.toBeNull();
     await expect(provider.resolve({ 'x-simulated-customer-id': 'not valid!' })).resolves.toBeNull();
-    await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-1', 'x-simulated-staff-role': 'owner' })).resolves.toBeNull();
+    await expect(provider.resolve({ 'x-simulated-staff-id': 'staff-ana', 'x-simulated-staff-role': 'owner' })).resolves.toBeNull();
   });
 });

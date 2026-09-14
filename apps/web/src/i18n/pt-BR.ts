@@ -387,6 +387,7 @@ export const ptBR = {
       cancel: "Cancelar",
       failed: "Não foi possível aplicar a ação. Tente novamente.",
       consultationsOpen: "Há consulta pendente com outra equipe. Registre a resposta antes de resolver o caso.",
+      notOwner: "Só o responsável ou um supervisor pode alterar o status, resolver, encerrar, consultar equipe ou editar este caso. Você pode responder ao cliente e registrar notas internas.",
       resolvedAs: "Resolvido · {reason}",
       close: "Encerrar caso",
       followUpOf: "Continuação do caso {reference}",

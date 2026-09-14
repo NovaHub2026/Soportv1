@@ -368,15 +368,19 @@ try {
     await desktop.getByText('Em atendimento').waitFor({ timeout: 5000 });
     note('consultation-answered', 'answering the consultation returns the case to "Em atendimento" for the customer');
 
-    // Ownership and attributes (PH-3.3): transfer to Bruno, priority to Alta, then Bruno releases and Ana takes it back.
+    // Ownership and attributes (PH-3.3): priority to Alta while Ana owns the case, transfer to Bruno, then Bruno releases and Ana takes it back.
+    // Under the role model (PH-7.2) attributes are edited by the owner or a supervisor, so the edit comes before the transfer.
+    await staffPage.getByLabel('Prioridade', { exact: true }).selectOption('high');
+    await staffPage.getByText('Prioridade: Normal → Alta').waitFor({ timeout: 5000 });
     await staffPage.getByRole('button', { name: 'Transferir', exact: true }).click();
     await staffPage.getByLabel('Transferir para').selectOption('staff-bruno');
     await staffPage.getByRole('button', { name: 'Confirmar transferência' }).click();
     await staffPage.getByText('staff-bruno').first().waitFor({ timeout: 5000 });
     await staffPage.getByText('Transferido para staff-bruno por Ana Ribeiro').waitFor({ timeout: 5000 });
-    await staffPage.getByLabel('Prioridade', { exact: true }).selectOption('high');
-    await staffPage.getByText('Prioridade: Normal → Alta').waitFor({ timeout: 5000 });
-    note('transfer-priority', 'Ana transferred the case to Bruno (history: "Transferido para staff-bruno por Ana Ribeiro") and raised the priority to Alta with history');
+    note('transfer-priority', 'Ana raised the priority to Alta with history and transferred the case to Bruno (history: "Transferido para staff-bruno por Ana Ribeiro")');
+    await staffPage.getByTestId('not-owner-hint').waitFor({ timeout: 5000 });
+    if (!(await staffPage.getByRole('button', { name: 'Resolver caso' }).isDisabled())) throw new Error('A non-owner agent could still resolve the case');
+    note('role-model', 'once the case belongs to Bruno, Ana (agent) sees "Só o responsável ou um supervisor…" and the state actions disabled; replying stays available (PH-7.2, DEC-0029)');
     await shot(staffPage, '15-staff-transferred');
 
     await staffPage.getByLabel('Atendente simulado').selectOption('staff-bruno');

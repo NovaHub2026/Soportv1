@@ -9,7 +9,7 @@ Environment: WSL2 (Linux 6.18), Node v24.19.0, npm 11.17.0, fresh `npm install` 
 | # | Claim | Category | Method / command | Result |
 |---|---|---|---|---|
 | 1 | `check-context` fails on a missing referenced path (negative case, §7.3) | EXECUTED | `node scripts/check-context.mjs` before `docs/runbooks/VERIFICATION.md` and `docs/phases/PH-1.1.md` existed | exit 1; 2 findings: `CURRENT_STATE.md` → `docs/phases/PH-1.1.md`, `docs/phases/PH-1.md` → `docs/runbooks/VERIFICATION.md` |
-| 2 | `check-context` stops the gate before later layers run | EXECUTED | `npm run verify:full`, first attempt | exit 1 at the context layer with 2 findings (a relative `src/` mention in PH-1.1.md and a not-yet-existing `docs/evidence/`); lint/typecheck/test/build did not run |
+| 2 | `check-context` stops the gate before later layers run | EXECUTED | `npm run verify:full`, first attempt | exit 1 at the context layer with 2 findings (a relative src/ mention in PH-1.1.md and a not-yet-existing `docs/evidence/`); lint/typecheck/test/build did not run |
 | 3 | Lint passes in both apps | EXECUTED | `npm run lint` — oxlint (api), ESLint (web) | exit 0 |
 | 4 | Typecheck passes in both apps | EXECUTED | `npm run typecheck` — `tsc --noEmit` (api); `next typegen && tsc --noEmit` (web) | exit 0. First attempt failed with TS2307 on `supertest/types` in the Nest scaffold's e2e spec (nodenext + TypeScript 6); fixed by dropping that import and the `App` generic |
 | 5 | Unit tests are discovered and pass in both apps | EXECUTED | `npm test` — Vitest 4.1.11 | api: 1 file, 1 test passed; web (jsdom): 1 file, 1 test passed; exit 0 |

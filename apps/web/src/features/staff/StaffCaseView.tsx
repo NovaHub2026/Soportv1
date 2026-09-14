@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  caseOwnership,
+  staffMay,
   CASE_CATEGORIES,
   CASE_PRIORITIES,
   type CaseCategory,
@@ -160,7 +162,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
       onChanged();
     } catch (error) {
       console.warn("staff: could not change status", error);
-      setAction({ status: "error", message: t.staff.actions.failed });
+      setAction({ status: "error", message: forbiddenOr(error, t.staff.actions.failed) });
     }
   }
 
@@ -178,7 +180,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
       onChanged();
     } catch (error) {
       console.warn("staff: could not resolve case", error);
-      setAction({ status: "error", message: apiErrorCode(error) === "consultations_open" ? t.staff.actions.consultationsOpen : t.staff.actions.failed });
+      setAction({ status: "error", message: apiErrorCode(error) === "consultations_open" ? t.staff.actions.consultationsOpen : forbiddenOr(error, t.staff.actions.failed) });
     }
   }
 
@@ -191,7 +193,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
       onChanged();
     } catch (error) {
       console.warn("staff: could not close case", error);
-      setAction({ status: "error", message: t.staff.actions.failed });
+      setAction({ status: "error", message: forbiddenOr(error, t.staff.actions.failed) });
     }
   }
 
@@ -302,6 +304,10 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
 
   const { detail } = load;
   const mine = detail.assignedAgentId === identity.staffId;
+  // The role model (PH-7.2, DEC-0029) mirrored from the shared table: refused actions are disabled with the reason.
+  const ownership = caseOwnership(detail.assignedAgentId, identity.staffId);
+  const mayChange = staffMay(identity.role, "set_status", ownership);
+  const notOwner = !mayChange;
   const canTake = detail.assignedAgentId === null && detail.status !== "resolved" && detail.status !== "closed";
   const canReply = detail.status !== "closed";
   // Whether the customer has seen the latest staff reply (§4.3): read marker at or after the last staff message.
@@ -362,45 +368,50 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
             </p>
           )}
 
+          {detail.status !== "closed" && notOwner && (
+            <p className={styles.hint} role="note" data-testid="not-owner-hint">
+              {t.staff.actions.notOwner}
+            </p>
+          )}
           {detail.status !== "closed" && (
             <div className={styles.actions} role="group" aria-label={t.staff.actions.title}>
               {detail.status !== "waiting_customer" && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleStatus("waiting_customer")}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.actions.notOwner : undefined} onClick={() => void handleStatus("waiting_customer")}>
                   {t.staff.actions.waitCustomer}
                 </button>
               )}
               {detail.status !== "waiting_internal" && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleStatus("waiting_internal")}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.actions.notOwner : undefined} onClick={() => void handleStatus("waiting_internal")}>
                   {t.staff.actions.waitInternal}
                 </button>
               )}
               {detail.status !== "in_progress" && detail.status !== "new" && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleStatus("in_progress")}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.actions.notOwner : undefined} onClick={() => void handleStatus("in_progress")}>
                   {t.staff.actions.resume}
                 </button>
               )}
               {!consulting && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => setConsulting(true)}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.actions.notOwner : undefined} onClick={() => setConsulting(true)}>
                   {t.staff.consultations.request}
                 </button>
               )}
               {!transferring && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => setTransferring(true)}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.assignment.forbidden : undefined} onClick={() => setTransferring(true)}>
                   {t.staff.assignment.transfer}
                 </button>
               )}
               {detail.assignedAgentId && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleAssign(null)}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.assignment.forbidden : undefined} onClick={() => void handleAssign(null)}>
                   {t.staff.assignment.release}
                 </button>
               )}
               {detail.status !== "resolved" && !resolving && (
-                <button type="button" className={styles.resolveButton} disabled={action.status === "busy"} onClick={() => setResolving(true)}>
+                <button type="button" className={styles.resolveButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.actions.notOwner : undefined} onClick={() => setResolving(true)}>
                   {t.staff.actions.resolve}
                 </button>
               )}
               {detail.status === "resolved" && (
-                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleClose()}>
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy" || notOwner} title={notOwner ? t.staff.actions.notOwner : undefined} onClick={() => void handleClose()}>
                   {t.staff.actions.close}
                 </button>
               )}
@@ -827,4 +838,9 @@ function CaseContext({
       </ol>
     </aside>
   );
+}
+
+/** A 403 on a case action means the role model refused it (PH-7.2): say so instead of "try again". */
+function forbiddenOr(error: unknown, fallback: string): string {
+  return error instanceof ApiError && error.status === 403 ? t.staff.actions.notOwner : fallback;
 }

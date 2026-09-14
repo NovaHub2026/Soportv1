@@ -56,6 +56,7 @@ import {
   supportCases,
 } from '../database/schema.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
+import { caseOwnership, type StaffAction, staffMay } from '@orbit-support/shared';
 import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-directory.js';
 import { NotificationsService } from './notifications.service.js';
@@ -459,9 +460,10 @@ export class CasesService {
 
   /** Ask another team; the owner stays responsible for the customer and the case waits for the internal team. */
   async requestConsultation(staff: StaffActor, caseId: string, input: RequestConsultationInput): Promise<CaseConsultation> {
-    await this.requireCase(caseId);
+    this.assertMay(await this.requireCase(caseId), staff, 'consult');
     const { consultation, updated } = await this.mutate(caseId, async (tx, row) => {
       if (row.status === 'closed') throw new ConflictException('case_closed');
+      this.assertMay(row, staff, 'consult');
       const now = new Date();
       const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
       const [created] = await tx
@@ -578,7 +580,8 @@ export class CasesService {
   async closeCase(staff: StaffActor, caseId: string): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
     if (row.status !== 'resolved') throw new ConflictException('case_not_resolved');
-    const updated = await this.closeRow(row.id, 'staff', { actorType: 'staff', actorId: staff.id });
+    this.assertMay(row, staff, 'close');
+    const updated = await this.closeRow(row.id, 'staff', { actorType: 'staff', actorId: staff.id }, new Date(), (locked) => this.assertMay(locked, staff, 'close'));
     if (!updated) throw new ConflictException('case_not_resolved'); // reactivated between the check and the lock
     return this.summaryOf(updated);
   }
@@ -604,9 +607,10 @@ export class CasesService {
    * Closes one case if — under the lock — it is still `resolved`. Returns null otherwise: no event is written and
    * nothing is published for a closure that did not happen (RULE-SUP-09, FND-0009).
    */
-  private async closeRow(caseId: string, reason: 'auto_window' | 'staff', actor: EventActor, now = new Date()): Promise<SupportCaseRow | null> {
+  private async closeRow(caseId: string, reason: 'auto_window' | 'staff', actor: EventActor, now = new Date(), guard?: (row: SupportCaseRow) => void): Promise<SupportCaseRow | null> {
     const updated = await this.mutate(caseId, async (tx, row) => {
       if (row.status !== 'resolved') return null;
+      guard?.(row);
       await tx.insert(caseEvents).values([
         statusChange(row, 'closed', actor.actorId, actor.actorType, now),
         { caseId: row.id, type: 'case_closed', actorType: actor.actorType, actorId: actor.actorId, data: { reason }, createdAt: now },
@@ -732,6 +736,7 @@ export class CasesService {
   async linkIncident(staff: StaffActor, caseId: string, incidentId: string | null): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
     if (row.status === 'closed') throw new ConflictException('case_closed');
+    this.assertMay(row, staff, 'link_incident');
     let incident: IncidentRow | null = null;
     if (incidentId) {
       incident = await this.requireIncident(incidentId);
@@ -740,6 +745,7 @@ export class CasesService {
     if (row.incidentId === incidentId) return this.summaryOf(row);
     const { updated, changed } = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
+      this.assertMay(locked, staff, 'link_incident');
       if (locked.incidentId === incidentId) return { updated: locked, changed: false };
       const now = new Date();
       await tx.insert(caseEvents).values({
@@ -879,16 +885,25 @@ export class CasesService {
   }
 
   private assertMayReassign(row: SupportCaseRow, staff: StaffActor): void {
-    const mayReassign = row.assignedAgentId === null || row.assignedAgentId === staff.id || staff.role !== 'agent';
-    if (!mayReassign) throw new ForbiddenException('not_case_owner');
+    this.assertMay(row, staff, 'transfer');
+  }
+
+  /**
+   * The role model (PH-7.2, DEC-0029): `staffMay` in `@orbit-support/shared` is the single table the web mirrors.
+   * Checked before the transaction (fast failure) and again under the lock (the owner may have just changed).
+   */
+  private assertMay(row: SupportCaseRow, staff: StaffActor, action: StaffAction): void {
+    if (!staffMay(staff.role, action, caseOwnership(row.assignedAgentId, staff.id))) throw new ForbiddenException('not_case_owner');
   }
 
   /** Priority and category corrections, each recorded as an attributable event (§5.4, RULE-SUP-09). */
   async updateAttributes(staff: StaffActor, caseId: string, input: UpdateCaseInput): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
     if (row.status === 'closed') throw new ConflictException('case_closed');
+    this.assertMay(row, staff, 'edit_attributes');
     const updated = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
+      this.assertMay(locked, staff, 'edit_attributes');
       const now = new Date();
       const patch: Partial<SupportCaseRow> = { updatedAt: now };
       if (input.priority && input.priority !== locked.priority) {
@@ -930,8 +945,10 @@ export class CasesService {
   async setStatus(staff: StaffActor, caseId: string, target: StaffStatusTarget): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
     if (row.status === 'closed') throw new ConflictException('case_closed');
+    this.assertMay(row, staff, 'set_status');
     const updated = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
+      this.assertMay(locked, staff, 'set_status');
       const now = new Date();
       const current = locked.assignedAgentId ? locked : (await this.assign(tx, locked, staff, now))[0];
       if (current.status === target) return current;
@@ -960,9 +977,11 @@ export class CasesService {
     const row = await this.requireCase(caseId);
     if (row.status === 'closed') throw new ConflictException('case_closed');
     if (row.status === 'resolved') throw new ConflictException('case_already_resolved');
+    this.assertMay(row, staff, 'resolve');
     const { updated, message } = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
       if (locked.status === 'resolved') throw new ConflictException('case_already_resolved');
+      this.assertMay(locked, staff, 'resolve');
       if ((await this.countOpenConsultations(tx, locked.id)) > 0) throw new ConflictException('consultations_open');
       const now = new Date();
       const current = locked.assignedAgentId ? locked : (await this.assign(tx, locked, staff, now))[0];

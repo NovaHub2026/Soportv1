@@ -808,6 +808,34 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
   });
 
 
+  describe('role model (PH-7.2, DEC-0029, RULE-SUP-02)', () => {
+    it('an agent may reply, note and answer consultations on a colleague\'s case but not change its state; the owner and a supervisor may', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, created.id, { body: 'Olá, sou a Ana.' }); // Ana becomes responsible
+      // Bruno (agent, not the owner): open actions work and never change the owner.
+      await service.postStaffMessage(bruno, created.id, { body: 'Complemento do Bruno.' });
+      await service.postInternalNote(bruno, created.id, { body: 'Nota do Bruno.' });
+      expect((await service.getStaffCase(created.id)).assignedAgentId).toBe(ana.id);
+      const consultation = await service.requestConsultation(ana, created.id, { team: 'finance', question: 'Confere?' });
+      await service.answerConsultation(bruno, created.id, consultation.id, { answer: 'Confere.' });
+      // State-changing actions on someone else's case are refused for an agent.
+      await expect(service.setStatus(bruno, created.id, 'waiting_customer')).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.requestConsultation(bruno, created.id, { team: 'finance', question: 'De novo?' })).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.updateAttributes(bruno, created.id, { priority: 'high' })).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.resolve(bruno, created.id, { reason: 'solved', explanation: 'ok' })).rejects.toBeInstanceOf(ForbiddenException);
+      const incident = await service.createIncident(bruno, { title: 'Instabilidade' });
+      await expect(service.linkIncident(bruno, created.id, incident.id)).rejects.toBeInstanceOf(ForbiddenException);
+      expect((await service.getStaffCase(created.id)).status).toBe('in_progress');
+      // The owner and a supervisor may.
+      await service.updateAttributes(ana, created.id, { priority: 'high' });
+      await service.setStatus(carla, created.id, 'waiting_customer');
+      await service.resolve(carla, created.id, { reason: 'solved', explanation: 'Resolvido pela supervisora.' });
+      await expect(service.closeCase(bruno, created.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await service.closeCase(ana, created.id);
+      expect((await service.getStaffCase(created.id)).status).toBe('closed');
+    });
+  });
+
   describe('outside-hours notice and reminders (PH-6.3, §4.4, §7.4)', () => {
     it('posts one system notice per case per 12 h while support is closed, notifies, and never counts as a human reply', async () => {
       const settings = moduleRef.get(SettingsService);

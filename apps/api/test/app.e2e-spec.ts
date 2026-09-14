@@ -466,6 +466,28 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
   });
 
 
+  it('PH-7.2: the role model is enforced — a non-owner agent gets 403 on state changes, a supervisor may, an unknown staff id is nobody, the directory role wins', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-role')).send({ category: 'other', message: 'Preciso de ajuda com papéis.' }).expect(201);
+    const id = created.body.id;
+    await request(server).post(`/api/staff/cases/${id}/messages`).set(asStaff('staff-ana', 'Ana')).send({ body: 'Olá' }).expect(201); // Ana is responsible
+    const bruno = asStaff('staff-bruno', 'Bruno');
+    await request(server).post(`/api/staff/cases/${id}/status`).set(bruno).send({ status: 'waiting_customer' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(bruno).send({ reason: 'solved', explanation: 'ok' }).expect(403);
+    await request(server).patch(`/api/staff/cases/${id}`).set(bruno).send({ priority: 'high' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/consultations`).set(bruno).send({ team: 'finance', question: 'Pode?' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/messages`).set(bruno).send({ body: 'Posso ajudar também.' }).expect(201);
+    const afterReply = await request(server).get(`/api/staff/cases/${id}`).set(bruno).expect(200);
+    expect(afterReply.body.assignedAgentId).toBe('staff-ana');
+    // A header role cannot promote an agent: the directory says Bruno is an agent.
+    await request(server).post(`/api/staff/cases/${id}/status`).set({ ...bruno, [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' }).send({ status: 'waiting_customer' }).expect(403);
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    await request(server).post(`/api/staff/cases/${id}/status`).set(supervisor).send({ status: 'waiting_customer' }).expect(200);
+    // Unknown staff ids are nobody on every staff route.
+    await request(server).get('/api/staff/cases?view=active').set(asStaff('staff-zzz', 'Zed')).expect(401);
+    await request(server).get('/api/identity/me').set(asStaff('staff-zzz', 'Zed')).expect(401);
+  });
+
   it('PH-7.1: the recovery route needs no identity, reveals nothing, retries safely, bounds abuse, and staff handle it attributably', async () => {
     const server = app.getHttpServer();
     const body = { contact: 'alice@example.com', description: 'Não consigo entrar: o código nunca chega.', clientRequestId: 'rec-e2e-1' };
