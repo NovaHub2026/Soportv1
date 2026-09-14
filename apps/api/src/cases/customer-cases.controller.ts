@@ -1,7 +1,23 @@
-import { Body, Controller, Get, HttpCode, type MessageEvent, Param, ParseUUIDPipe, Post, Sse, UseGuards } from '@nestjs/common';
-import type { Observable } from 'rxjs';
-import { CaseStreamService } from '../events/case-stream.service.js';
 import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  type MessageEvent,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Res,
+  Sse,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import type { Observable } from 'rxjs';
+import {
+  type CaseAttachment,
   type CaseMessage,
   type CaseSummary,
   createCaseSchema,
@@ -10,7 +26,10 @@ import {
   postMessageSchema,
   type PostMessageInput,
 } from '@orbit-support/shared';
+import { sendAttachment, UPLOAD_LIMITS } from '../attachments/attachments.controller-support.js';
+import { AttachmentsService, type UploadedFileLike } from '../attachments/attachments.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { CaseStreamService } from '../events/case-stream.service.js';
 import { CurrentActor, CustomerGuard } from '../identity/guards.js';
 import type { CustomerActor } from '../identity/identity.types.js';
 import { CasesService } from './cases.service.js';
@@ -22,7 +41,32 @@ export class CustomerCasesController {
   constructor(
     private readonly cases: CasesService,
     private readonly streams: CaseStreamService,
+    private readonly attachments: AttachmentsService,
   ) {}
+
+  /** Upload one file to an own case; it is linked to a message when that message is sent (PH-2.3). */
+  @Post(':id/attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
+  async upload(
+    @CurrentActor() actor: CustomerActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: UploadedFileLike,
+  ): Promise<CaseAttachment> {
+    const row = await this.cases.requireOwnCaseRow(actor, id);
+    return this.attachments.upload(actor, row, file);
+  }
+
+  /** Bytes of an attachment on an own case (own upload or on a public message), or 404. */
+  @Get(':id/attachments/:attachmentId')
+  async download(
+    @CurrentActor() actor: CustomerActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const row = await this.cases.requireOwnCaseRow(actor, id);
+    sendAttachment(response, await this.attachments.open(actor, row, attachmentId));
+  }
 
   /** `GET /api/support/cases/stream` — live events for all own cases (home lists, unread badges). Declared before `:id`. */
   @Sse('stream')

@@ -1,4 +1,5 @@
 import {
+  type CaseAttachment,
   type CaseMessage,
   type CaseSummary,
   type CreateCaseInput,
@@ -52,6 +53,30 @@ export const customerIdentityHeaders = (identity: CustomerIdentity): Record<stri
 });
 const customerHeaders = customerIdentityHeaders;
 
+/** Multipart upload of one file; the server decides the real type from the bytes. */
+export async function uploadFile(path: string, identityHeaders: Record<string, string>, file: File): Promise<CaseAttachment> {
+  const form = new FormData();
+  form.append("file", file, file.name);
+  const response = await fetch(`/api${path}`, { method: "POST", headers: { accept: "application/json", ...identityHeaders }, body: form });
+  const text = await response.text();
+  const data: unknown = text ? JSON.parse(text) : null;
+  if (!response.ok) throw new ApiError(response.status, data);
+  return data as CaseAttachment;
+}
+
+/** Bytes of a protected attachment; identity travels in headers, so plain `<img src>` cannot be used. */
+export async function fetchBlob(path: string, identityHeaders: Record<string, string>, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetch(`/api${path}`, { headers: identityHeaders, cache: "no-store", signal });
+  if (!response.ok) throw new ApiError(response.status, null);
+  return response.blob();
+}
+
+/** What the attachment UI needs from either side (customer or staff). */
+export interface AttachmentClient {
+  upload: (file: File) => Promise<CaseAttachment>;
+  fetchBlob: (attachmentId: string, signal?: AbortSignal) => Promise<Blob>;
+}
+
 export const customerApi = {
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<CaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
@@ -63,6 +88,10 @@ export const customerApi = {
     apiRequest<CaseMessage>(`/support/cases/${caseId}/messages`, customerHeaders(identity), { method: "POST", body: input }),
   markRead: (identity: CustomerIdentity, caseId: string) =>
     apiRequest<CaseSummary>(`/support/cases/${caseId}/read`, customerHeaders(identity), { method: "POST" }),
+  attachments: (identity: CustomerIdentity, caseId: string): AttachmentClient => ({
+    upload: (file) => uploadFile(`/support/cases/${caseId}/attachments`, customerHeaders(identity), file),
+    fetchBlob: (attachmentId, signal) => fetchBlob(`/support/cases/${caseId}/attachments/${attachmentId}`, customerHeaders(identity), signal),
+  }),
 };
 
 /** Stable per-attempt id so a retried send is stored once (RULE-SUP-03). */

@@ -1,10 +1,12 @@
 "use client";
 
 import { type CaseMessage, type CustomerCaseDetail, isStreamEvent } from "@orbit-support/shared";
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dictionary as t, formatMessageTime } from "@/i18n";
-import { type CustomerIdentity, customerApi, customerIdentityHeaders, newClientMessageId } from "@/lib/api";
+import { type AttachmentClient, type CustomerIdentity, customerApi, customerIdentityHeaders, newClientMessageId } from "@/lib/api";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
+import { AttachmentComposer } from "./AttachmentComposer";
+import { AttachmentList } from "./AttachmentList";
 import { ConnectionIndicator } from "./ConnectionIndicator";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./support.module.css";
@@ -27,6 +29,7 @@ export interface PendingMessage {
   body: string;
   createdAt: string;
   state: "sending" | "failed";
+  attachmentIds?: string[];
 }
 
 type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; detail: CustomerCaseDetail };
@@ -37,8 +40,11 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [pending, setPending] = useState<PendingMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
+  const [attachClearToken, setAttachClearToken] = useState(0);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const logRef = useRef<HTMLOListElement>(null);
+  const attachmentClient = useMemo(() => customerApi.attachments(identity, caseId), [identity, caseId]);
   // Monotonic request counter: a poll that started before a send must not overwrite the sent message.
   const requestSeq = useRef(0);
   // Mirror of `pending` for callbacks that must not close over stale state (auto-retry on reconnect).
@@ -96,6 +102,7 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
         const saved = await customerApi.postMessage(identity, caseId, {
           body: message.body,
           clientMessageId: message.clientMessageId,
+          ...(message.attachmentIds && message.attachmentIds.length > 0 ? { attachmentIds: message.attachmentIds } : {}),
         });
         setLoad((current) =>
           current.status === "ready" && !current.detail.messages.some((m) => m.id === saved.id)
@@ -173,7 +180,10 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
     const body = draft.trim();
     if (!body) return;
     setDraft("");
-    void send({ clientMessageId: newClientMessageId(), body, createdAt: new Date().toISOString(), state: "sending" });
+    const ids = attachmentIds;
+    setAttachmentIds([]);
+    setAttachClearToken((n) => n + 1);
+    void send({ clientMessageId: newClientMessageId(), body, createdAt: new Date().toISOString(), state: "sending", attachmentIds: ids });
   }
 
   if (load.status === "loading") {
@@ -215,7 +225,7 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
 
       <ol ref={logRef} className={styles.messageLog} aria-live="polite" aria-relevant="additions">
         {detail.messages.map((m) => (
-          <MessageBubble key={m.id} message={m} />
+          <MessageBubble key={m.id} message={m} attachmentClient={attachmentClient} />
         ))}
         {pending.map((p) => (
           <li key={p.clientMessageId} className={styles.messageRowMine} data-state={p.state}>
@@ -248,34 +258,37 @@ export function CaseConversation({ identity, caseId }: CaseConversationProps) {
         </p>
       ) : (
         <form className={styles.composer} onSubmit={handleSubmit}>
-          <label htmlFor="composer-input" className="visually-hidden">
-            {t.support.conversation.composerLabel}
-          </label>
-          <textarea
-            id="composer-input"
-            className={styles.composerInput}
-            rows={2}
-            maxLength={5000}
-            placeholder={t.support.conversation.composerPlaceholder}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-          />
-          <button type="submit" className={styles.primaryButton} disabled={!draft.trim()}>
-            {t.support.conversation.send}
-          </button>
+          <div className={styles.composerRow}>
+            <label htmlFor="composer-input" className="visually-hidden">
+              {t.support.conversation.composerLabel}
+            </label>
+            <textarea
+              id="composer-input"
+              className={styles.composerInput}
+              rows={2}
+              maxLength={5000}
+              placeholder={t.support.conversation.composerPlaceholder}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <button type="submit" className={styles.primaryButton} disabled={!draft.trim()}>
+              {t.support.conversation.send}
+            </button>
+          </div>
+          <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} idPrefix="customer-attach" />
         </form>
       )}
     </div>
   );
 }
 
-function MessageBubble({ message }: { message: CaseMessage }) {
+function MessageBubble({ message, attachmentClient }: { message: CaseMessage; attachmentClient: AttachmentClient }) {
   const mine = message.authorType === "customer";
   const author =
     message.authorType === "customer"
@@ -288,6 +301,7 @@ function MessageBubble({ message }: { message: CaseMessage }) {
       <div className={mine ? styles.bubbleMine : styles.bubble}>
         {!mine && <span className={styles.bubbleAuthor}>{author}</span>}
         <p className={styles.bubbleBody}>{message.body}</p>
+        <AttachmentList attachments={message.attachments} client={attachmentClient} />
         <span className={styles.bubbleMeta}>
           <time dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time>
         </span>

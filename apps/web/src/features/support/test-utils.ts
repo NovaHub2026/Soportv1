@@ -70,6 +70,23 @@ export function message(overrides: Partial<import("@orbit-support/shared").CaseM
     body: "Meu saque não chegou",
     clientMessageId: null,
     createdAt: new Date().toISOString(),
+    attachments: [],
+    ...overrides,
+  };
+}
+
+export function attachment(overrides: Partial<import("@orbit-support/shared").CaseAttachment> = {}) {
+  return {
+    id: "33333333-3333-4333-8333-333333333333",
+    caseId: "11111111-1111-4111-8111-111111111111",
+    messageId: "22222222-2222-4222-8222-222222222222",
+    uploaderType: "customer" as const,
+    uploaderId: identity.customerId,
+    fileName: "comprovante.png",
+    mimeType: "image/png",
+    sizeBytes: 34_567,
+    status: "available" as const,
+    createdAt: new Date().toISOString(),
     ...overrides,
   };
 }

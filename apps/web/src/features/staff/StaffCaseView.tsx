@@ -1,10 +1,12 @@
 "use client";
 
 import type { CaseEvent, CaseMessage, StaffCaseDetail } from "@orbit-support/shared";
-import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AttachmentComposer } from "@/features/support/AttachmentComposer";
+import { AttachmentList } from "@/features/support/AttachmentList";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
-import { newClientMessageId } from "@/lib/api";
+import { type AttachmentClient, newClientMessageId } from "@/lib/api";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import styles from "./staff.module.css";
 
@@ -32,7 +34,10 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const [reply, setReply] = useState<ActionState>({ status: "idle" });
   const [draft, setDraft] = useState("");
   const [clientMessageId, setClientMessageId] = useState(() => newClientMessageId());
+  const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
+  const [attachClearToken, setAttachClearToken] = useState(0);
   const logRef = useRef<HTMLOListElement>(null);
+  const attachmentClient = useMemo(() => staffApi.attachments(identity, caseId), [identity, caseId]);
   // Monotonic request counter: a poll that started before an action must not overwrite the action's result.
   const requestSeq = useRef(0);
 
@@ -101,8 +106,14 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
     if (!body) return;
     setReply({ status: "busy" });
     try {
-      await staffApi.postMessage(identity, caseId, { body, clientMessageId });
+      await staffApi.postMessage(identity, caseId, {
+        body,
+        clientMessageId,
+        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+      });
       setDraft("");
+      setAttachmentIds([]);
+      setAttachClearToken((n) => n + 1);
       setClientMessageId(newClientMessageId());
       await refresh();
       setReply({ status: "idle" });
@@ -178,7 +189,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
 
         <ol ref={logRef} className={styles.messageLog} aria-live="polite" aria-relevant="additions">
           {detail.messages.map((m) => (
-            <StaffMessage key={m.id} message={m} selfId={identity.staffId} />
+            <StaffMessage key={m.id} message={m} selfId={identity.staffId} attachmentClient={attachmentClient} />
           ))}
         </ol>
 
@@ -201,6 +212,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
                 {reply.message}
               </p>
             )}
+            <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} idPrefix="staff-attach" />
             <div className={styles.composerActions}>
               <button type="submit" className={styles.primaryButton} disabled={!draft.trim() || reply.status === "busy"}>
                 {reply.status === "busy" ? t.staff.sending : t.staff.reply}
@@ -215,7 +227,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   );
 }
 
-function StaffMessage({ message, selfId }: { message: CaseMessage; selfId: string }) {
+function StaffMessage({ message, selfId, attachmentClient }: { message: CaseMessage; selfId: string; attachmentClient: AttachmentClient }) {
   const internal = message.visibility === "internal";
   const author =
     message.authorType === "customer"
@@ -237,6 +249,7 @@ function StaffMessage({ message, selfId }: { message: CaseMessage; selfId: strin
         </time>
       </div>
       <p className={styles.messageBody}>{message.body}</p>
+      <AttachmentList attachments={message.attachments} client={attachmentClient} />
     </li>
   );
 }

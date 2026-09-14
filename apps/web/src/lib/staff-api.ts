@@ -7,7 +7,7 @@ import {
   type StaffQueueView,
   type StaffRole,
 } from "@orbit-support/shared";
-import { apiRequest } from "./api";
+import { apiRequest, type AttachmentClient, fetchBlob, uploadFile } from "./api";
 
 /** The staff member the browser acts as. Simulated until Orbit staff accounts exist (DEC-0003). */
 export interface StaffIdentity {
@@ -34,4 +34,8 @@ export const staffApi = {
     apiRequest<CaseMessage>(`/staff/cases/${caseId}/messages`, staffHeaders(identity), { method: "POST", body: input }),
   markRead: (identity: StaffIdentity, caseId: string) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/read`, staffHeaders(identity), { method: "POST" }),
+  attachments: (identity: StaffIdentity, caseId: string): AttachmentClient => ({
+    upload: (file) => uploadFile(`/staff/cases/${caseId}/attachments`, staffHeaders(identity), file),
+    fetchBlob: (attachmentId, signal) => fetchBlob(`/staff/cases/${caseId}/attachments/${attachmentId}`, staffHeaders(identity), signal),
+  }),
 };

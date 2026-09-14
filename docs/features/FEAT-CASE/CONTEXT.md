@@ -3,9 +3,9 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `411f5d9` plus the PH-2.2 change (read markers, unread counts)
+Verified against: `c628d8b` plus the PH-2.3 change (attachments)
 Verified on: 2026-09-13
-Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
+Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/attachments/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
 ## User outcome and applicable product rules
 A support matter is a persistent **case** with a customer-visible reference, status, category, priority, responsible agent, conversation and attributable history (`PROJECT_CONTEXT.md` §7, OBJ-SUP-03). "Chat" is the communication experience; the case is the managed matter whose status reflects work still required, not whether the panel is open.
@@ -19,6 +19,7 @@ Implemented (PH-1.2):
 - Customer message: on `resolved` → `in_progress` + `case_reopened` (§7.2 simple rule); on `waiting_customer` → `in_progress`; on `closed` → 409 `case_closed`.
 - Idempotency: `clientMessageId` unique per author (partial unique index); a retry returns the stored case/message.
 - Read markers (PH-2.2): `customer_last_read_at` / `staff_last_read_at` set by `POST /support/cases/:id/read` and `POST /staff/cases/:id/read`; `unreadCount` on every summary/detail = messages from the other side newer than the viewer's marker (customers count only public non-customer messages); `GET /support/cases/stream` covers all of a customer's cases.
+- Attachments (PH-2.3, DEC-0009): `case_attachments` uploaded via `POST …/:id/attachments` (bytes sniffed: PNG/JPEG/WebP/PDF, ≤ 10 MB) and linked on send through `attachmentIds` (same actor, same case, unattached, ≤ 3); `GET …/:id/attachments/:attachmentId` authorizes from the row (customer: own upload or public message; staff: all); messages carry `attachments[]`.
 - Live events (PH-2.1, ADR-0004): after each committed write the service publishes `case.updated` (with summary) and `message.created` (with message) on the in-process `CaseEventBus`; `GET /support/cases/:id/stream` (ownership checked first, internal messages filtered) and `GET /staff/cases/stream` expose them as SSE with a 15 s heartbeat.
 Accepted target, not yet implemented: staff transitions to `waiting_customer` / `waiting_internal`, resolve with reason and customer-facing explanation, transfer, internal-note endpoint, priority/category edits, specialist consultation, linked follow-up from `closed`, the 7-day closure job and shared incidents (PH-3); filters, search, pagination (PH-5); reminders/inactivity policy (PH-6/BL-002).
 

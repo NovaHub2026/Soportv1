@@ -29,7 +29,7 @@ Scenarios: (1) staff reply appears in the open customer conversation within ~2 s
 |---|---|---|
 | PH-2.1 | Live updates: in-process case event bus, SSE endpoints for customer case stream and staff stream (internal notes filtered for customers), web stream client with reconnect + resync, polling reduced to a safety net — `PH-2.1.md`, approved 2026-09-13 | APPROVED |
 | PH-2.2 | Delivery and unread states: read markers, unread counts in lists, connection indicator, pending queue with retry on reconnect, sent/failed semantics documented — `PH-2.2.md`, approved 2026-09-13 | APPROVED |
-| PH-2.3 | Attachments: `case_attachments`, storage port (local disk), upload with type/size limits, protected download, acceptance state, UI for customer and staff | PLANNED |
+| PH-2.3 | Attachments: `case_attachments`, storage port (local disk), upload with type/size limits, protected download, acceptance state, UI for customer and staff — `PH-2.3.md`, approved 2026-09-13 | APPROVED |
 | PH-2.4 | Reliability evidence and phase closure: disconnect/resync and duplicate-suppression tests, browser smoke for live delivery and attachments, feature contexts updated, phase approval | PLANNED |
 
 ## Verification and operational readiness

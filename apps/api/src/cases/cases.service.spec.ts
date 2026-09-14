@@ -3,6 +3,7 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../database/database.js';
 import type { CaseStreamEvent } from '@orbit-support/shared';
+import { AttachmentsModule } from '../attachments/attachments.module.js';
 import { DatabaseModule, DB } from '../database/database.module.js';
 import { caseMessages, supportCases } from '../database/schema.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
@@ -22,7 +23,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
 
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
-      imports: [DatabaseModule.forRoot({ inMemory: true })],
+      imports: [DatabaseModule.forRoot({ inMemory: true }), AttachmentsModule.forRoot({ inMemory: true })],
       providers: [CasesService, CaseEventBus],
     }).compile();
     await moduleRef.init();

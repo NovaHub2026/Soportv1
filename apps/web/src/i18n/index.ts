@@ -21,6 +21,13 @@ const dateTimeFormat = new Intl.DateTimeFormat("pt-BR", {
   minute: "2-digit",
 });
 
+/** `1,2 MB`, `340 KB` — pt-BR decimal comma. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}
+
 /** Replaces `{name}` placeholders in a dictionary string. */
 export function fill(template: string, values: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? `{${key}}`);

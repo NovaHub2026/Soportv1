@@ -11,6 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import {
+  ATTACHMENT_STATUSES,
   CASE_CATEGORIES,
   CASE_EVENT_TYPES,
   CASE_PRIORITIES,
@@ -26,6 +27,7 @@ export const casePriorityEnum = pgEnum('case_priority', CASE_PRIORITIES);
 export const actorTypeEnum = pgEnum('actor_type', MESSAGE_AUTHOR_TYPES);
 export const messageVisibilityEnum = pgEnum('message_visibility', MESSAGE_VISIBILITIES);
 export const caseEventTypeEnum = pgEnum('case_event_type', CASE_EVENT_TYPES);
+export const attachmentStatusEnum = pgEnum('attachment_status', ATTACHMENT_STATUSES);
 
 const tz = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -101,6 +103,31 @@ export const caseEvents = pgTable(
   (t) => [index('case_events_case_idx').on(t.caseId, t.createdAt)],
 );
 
+/**
+ * Files attached to messages (PH-2.3). Uploaded first (message_id null), linked when the message is sent.
+ * Bytes live behind the storage port under `storage_key`; the row is the authority on who may read them.
+ */
+export const caseAttachments = pgTable(
+  'case_attachments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id')
+      .notNull()
+      .references(() => supportCases.id, { onDelete: 'cascade' }),
+    messageId: uuid('message_id').references(() => caseMessages.id, { onDelete: 'set null' }),
+    uploaderType: actorTypeEnum('uploader_type').notNull(),
+    uploaderId: text('uploader_id').notNull(),
+    fileName: text('file_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    storageKey: text('storage_key').notNull(),
+    status: attachmentStatusEnum('status').notNull().default('available'),
+    createdAt: tz('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('case_attachments_case_idx').on(t.caseId, t.createdAt), index('case_attachments_message_idx').on(t.messageId)],
+);
+
 export type SupportCaseRow = typeof supportCases.$inferSelect;
+export type CaseAttachmentRow = typeof caseAttachments.$inferSelect;
 export type CaseMessageRow = typeof caseMessages.$inferSelect;
 export type CaseEventRow = typeof caseEvents.$inferSelect;

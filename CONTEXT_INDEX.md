@@ -26,7 +26,7 @@ Start a task at its feature row: the `CONTEXT.md` carries the authoritative fres
 | Backlog | `docs/BACKLOG.md` | Repository fallback (DEC-0001) |
 | Features | `docs/features/<FEAT-ID>/CONTEXT.md` | Four live contexts (see topic routes); each owns its freshness metadata |
 | Shared contracts | `packages/shared/src/cases.ts`, `packages/shared/src/identity.ts` | Vocabulary, zod schemas, types, reference formatting, simulated-identity headers |
-| API modules | `apps/api/src/cases/`, `apps/api/src/identity/`, `apps/api/src/database/`, `apps/api/src/events/` | Case service + controllers (incl. SSE endpoints); Orbit identity boundary; Drizzle schema and PGlite factory (migrations in `apps/api/drizzle/`); case event bus + stream service (ADR-0004) |
+| API modules | `apps/api/src/cases/`, `apps/api/src/identity/`, `apps/api/src/database/`, `apps/api/src/events/`, `apps/api/src/attachments/` | Case service + controllers (incl. SSE and attachment endpoints); Orbit identity boundary; Drizzle schema and PGlite factory (migrations in `apps/api/drizzle/`); case event bus + stream service (ADR-0004); attachment storage port, sniffing and service (DEC-0009) |
 | Web modules | `apps/web/src/features/support/`, `apps/web/src/features/staff/`, `apps/web/src/features/shell/`, `apps/web/src/lib/`, `apps/web/src/i18n/` | Customer panel (home, new request, conversation); staff workspace at `/staff` (queues, case view, context); simulated Orbit shell; API clients, SSE client (`apps/web/src/lib/sse.ts`) + simulated sessions; pt-BR dictionary |
 | UI evidence | `scripts/ui-smoke.mjs`, `docs/evidence/screenshots/` | Playwright browser smoke and its screenshots per subphase |
 | Architecture | `docs/architecture/` | Created when real structure exists |

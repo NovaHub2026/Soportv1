@@ -73,10 +73,38 @@ export function deriveSubject(message: string, maxLength = 80): string {
   return `${collapsed.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
+// ---- Attachments (PROJECT_CONTEXT.md §10.2, §13.1 working defaults) ----
+
+export const ATTACHMENT_LIMITS = {
+  maxBytes: 10 * 1024 * 1024,
+  maxPerMessage: 3,
+  allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "application/pdf"],
+} as const;
+export type AllowedAttachmentMimeType = (typeof ATTACHMENT_LIMITS.allowedMimeTypes)[number];
+
+/** `checking` is reserved for asynchronous scanning; today checks are synchronous and uploads land `available`. */
+export const ATTACHMENT_STATUSES = ["checking", "available", "rejected"] as const;
+export type AttachmentStatus = (typeof ATTACHMENT_STATUSES)[number];
+
+export const caseAttachmentSchema = z.object({
+  id: z.string(),
+  caseId: z.string(),
+  messageId: z.string().nullable(),
+  uploaderType: z.enum(MESSAGE_AUTHOR_TYPES),
+  uploaderId: z.string(),
+  fileName: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  status: z.enum(ATTACHMENT_STATUSES),
+  createdAt: z.string(),
+});
+export type CaseAttachment = z.infer<typeof caseAttachmentSchema>;
+
 // ---- Request schemas ----
 
 const messageBodySchema = z.string().trim().min(1, "message_required").max(5000, "message_too_long");
 const clientMessageIdSchema = z.string().trim().min(1).max(100);
+const attachmentIdsSchema = z.array(z.uuid()).max(ATTACHMENT_LIMITS.maxPerMessage, "too_many_attachments");
 
 export const createCaseSchema = z.object({
   category: z.enum(CASE_CATEGORIES),
@@ -90,6 +118,8 @@ export type CreateCaseInput = z.infer<typeof createCaseSchema>;
 export const postMessageSchema = z.object({
   body: messageBodySchema,
   clientMessageId: clientMessageIdSchema.optional(),
+  /** Attachments uploaded beforehand by the same author and not yet linked to a message. */
+  attachmentIds: attachmentIdsSchema.optional(),
 });
 export type PostMessageInput = z.infer<typeof postMessageSchema>;
 
@@ -105,6 +135,7 @@ export const caseMessageSchema = z.object({
   body: z.string(),
   clientMessageId: z.string().nullable(),
   createdAt: z.string(),
+  attachments: z.array(caseAttachmentSchema),
 });
 export type CaseMessage = z.infer<typeof caseMessageSchema>;
 

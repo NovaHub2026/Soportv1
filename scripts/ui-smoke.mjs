@@ -25,6 +25,11 @@ const API = `http://localhost:${API_PORT}`;
 const OUT = resolve(process.argv[2] ?? `${ROOT}/docs/evidence/screenshots/latest`);
 /** Live delivery must beat the old 5 s poll by a clear margin (PH-2.1). */
 const LIVE_DELIVERY_BUDGET_MS = 3000;
+/** A real 1×1 PNG so the browser renders the thumbnail (attachments, PH-2.3). */
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
 mkdirSync(OUT, { recursive: true });
 
 if (!process.env.SUPPORT_DB_DIR) {
@@ -196,6 +201,20 @@ try {
     await desktop.waitForTimeout(2500);
     if (!(await desktop.getByText(followUp).isVisible())) throw new Error('Customer message disappeared after a refresh');
     note('follow-up-live', `customer follow-up shown as own message, still there after a refresh, and visible in the staff case view in ${followUpMs} ms`);
+
+    // Attachments (PH-2.3): a real PNG is accepted and shown to staff live; a disguised executable is refused.
+    await desktop.locator('#customer-attach-input').setInputFiles({ name: 'comprovante.png', mimeType: 'image/png', buffer: TINY_PNG });
+    await desktop.getByText('comprovante.png').waitFor();
+    await desktop.locator('#customer-attach-input').setInputFiles({ name: 'foto.png', mimeType: 'image/png', buffer: Buffer.from('MZ\x90\x00 not an image at all') });
+    await desktop.getByText('Tipo não permitido. Envie PNG, JPEG, WebP ou PDF.').waitFor({ timeout: 10_000 });
+    note('attachment-refused', 'a file with image name/type but executable bytes is refused by the server and shown as not allowed');
+    await desktop.getByRole('button', { name: 'Remover foto.png' }).click();
+    await desktop.getByLabel('Sua mensagem').fill('Segue o comprovante em anexo.');
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    await desktop.getByAltText('Imagem anexada: comprovante.png').waitFor({ timeout: 10_000 });
+    await staffPage.getByAltText('Imagem anexada: comprovante.png').waitFor({ timeout: 10_000 });
+    note('attachment-delivered', 'the PNG attached by the customer appears as a thumbnail in both the customer panel and the staff case view');
+    await shot(staffPage, '12-staff-attachment');
 
     // Offline: a message typed without connectivity is marked "Não enviada", then delivered exactly once on reconnect.
     const offlineText = 'Mandei isto sem internet.';

@@ -124,6 +124,7 @@ describe('Live streams (SSE, e2e)', () => {
       body: 'NOTA INTERNA: verificar com Finance',
       clientMessageId: null,
       createdAt: new Date().toISOString(),
+      attachments: [],
     };
     const before = stream.events.length;
     bus.publish({ type: 'message.created', caseId, customerId: 'cust-alice', message: internal, at: new Date().toISOString() });
@@ -205,6 +206,7 @@ describe('Live streams (SSE, e2e)', () => {
         body: 'nota',
         clientMessageId: null,
         createdAt: new Date().toISOString(),
+        attachments: [],
       },
       at: new Date().toISOString(),
     });

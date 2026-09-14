@@ -26,4 +26,4 @@ Limitations / reuse boundary: valid for this tree. Changes to read/unread logic,
 `npm run verify`, 2026-09-14 01:19 UTC, on the completed PH-2.2 tree: `check-context: 25 documents, 331 links (2 gitignored skipped), 8 phases, 9 subphases, active: PH-2 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 24/24, web 28/28; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34795604031` on `c628d8b` (PH-2.2 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 01:31 UTC. Claim 9 is EXECUTED for `c628d8b`.

@@ -14,6 +14,7 @@ import {
   type StaffCaseDetail,
   type StaffQueueView,
 } from '@orbit-support/shared';
+import { AttachmentsService, toAttachment } from '../attachments/attachments.service.js';
 import { type Db, isUniqueViolation } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
@@ -38,6 +39,7 @@ export class CasesService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly events: CaseEventBus,
+    private readonly attachments: AttachmentsService,
   ) {}
 
   // ---------- Customer ----------
@@ -84,7 +86,7 @@ export class CasesService {
         return { row: created, message: first };
       });
       this.publishCaseUpdated(row);
-      this.publishMessage(row, message);
+      this.publishMessage(row, toMessage(message));
       return this.customerDetail(row);
     } catch (error) {
       // Two retries raced past the lookup: the unique index kept one case; return it (RULE-SUP-03).
@@ -129,9 +131,9 @@ export class CasesService {
     }
     if (input.clientMessageId) {
       const duplicate = await this.findMessageByClientId(customer.id, input.clientMessageId);
-      if (duplicate) return toMessage(duplicate);
+      if (duplicate) return this.messageWithAttachments(duplicate);
     }
-    const { message, updated } = await this.db.transaction(async (tx) => {
+    const { message, updated, linked } = await this.db.transaction(async (tx) => {
       const now = new Date();
       const [inserted] = await tx
         .insert(caseMessages)
@@ -144,6 +146,7 @@ export class CasesService {
           createdAt: now,
         })
         .returning();
+      const linkedRows = await this.attachments.linkToMessage(tx, customer, row.id, inserted.id, input.attachmentIds ?? []);
 
       const patch: Partial<SupportCaseRow> = { updatedAt: now, lastMessageAt: now, lastCustomerMessageAt: now };
       if (row.status === 'resolved') {
@@ -163,11 +166,12 @@ export class CasesService {
         await tx.insert(caseEvents).values(statusChange(row, 'in_progress', customer.id, 'customer', now));
       }
       const [changed] = await tx.update(supportCases).set(patch).where(eq(supportCases.id, row.id)).returning();
-      return { message: inserted, updated: changed };
+      return { message: inserted, updated: changed, linked: linkedRows };
     });
-    this.publishMessage(updated, message);
+    const dto = toMessage(message, linked.map(toAttachment));
+    this.publishMessage(updated, dto);
     this.publishCaseUpdated(updated);
-    return toMessage(message);
+    return dto;
   }
 
   // ---------- Staff ----------
@@ -225,9 +229,9 @@ export class CasesService {
     if (row.status === 'closed') throw new ConflictException('case_closed');
     if (input.clientMessageId) {
       const duplicate = await this.findMessageByClientId(staff.id, input.clientMessageId);
-      if (duplicate) return toMessage(duplicate);
+      if (duplicate) return this.messageWithAttachments(duplicate);
     }
-    const { message, updated } = await this.db.transaction(async (tx) => {
+    const { message, updated, linked } = await this.db.transaction(async (tx) => {
       const now = new Date();
       const [inserted] = await tx
         .insert(caseMessages)
@@ -242,6 +246,7 @@ export class CasesService {
           createdAt: now,
         })
         .returning();
+      const linkedRows = await this.attachments.linkToMessage(tx, staff, row.id, inserted.id, input.attachmentIds ?? []);
       // Replying to an unowned case makes the replier responsible for it (RULE-SUP-02).
       const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
       const [changed] = await tx
@@ -249,11 +254,24 @@ export class CasesService {
         .set({ updatedAt: now, lastMessageAt: now, lastStaffMessageAt: now })
         .where(eq(supportCases.id, current.id))
         .returning();
-      return { message: inserted, updated: changed };
+      return { message: inserted, updated: changed, linked: linkedRows };
     });
-    this.publishMessage(updated, message);
+    const dto = toMessage(message, linked.map(toAttachment));
+    this.publishMessage(updated, dto);
     this.publishCaseUpdated(updated);
-    return toMessage(message);
+    return dto;
+  }
+
+  // ---------- Rows for controllers that need the case before acting (attachments) ----------
+
+  /** The customer's own case row, or 404 (RULE-SUP-01). */
+  requireOwnCaseRow(customer: CustomerActor, caseId: string): Promise<SupportCaseRow> {
+    return this.requireCustomerCase(customer, caseId);
+  }
+
+  /** Any case row for staff, or 404. */
+  requireCaseRow(caseId: string): Promise<SupportCaseRow> {
+    return this.requireCase(caseId);
   }
 
   // ---------- Live updates (ADR-0004): published only after the transaction committed ----------
@@ -268,14 +286,19 @@ export class CasesService {
     });
   }
 
-  private publishMessage(row: SupportCaseRow, message: CaseMessageRow): void {
+  private publishMessage(row: SupportCaseRow, message: CaseMessage): void {
     this.events.publish({
       type: 'message.created',
       caseId: row.id,
       customerId: row.customerId,
-      message: toMessage(message),
+      message,
       at: new Date().toISOString(),
     });
+  }
+
+  private async messageWithAttachments(row: CaseMessageRow): Promise<CaseMessage> {
+    const grouped = await this.attachments.forMessages([row.id]);
+    return toMessage(row, grouped.get(row.id) ?? []);
   }
 
   // ---------- Internals ----------
@@ -352,7 +375,8 @@ export class CasesService {
       ? and(eq(caseMessages.caseId, caseId), eq(caseMessages.visibility, 'public'))
       : eq(caseMessages.caseId, caseId);
     const rows = await this.db.select().from(caseMessages).where(scope).orderBy(asc(caseMessages.createdAt));
-    return rows.map(toMessage);
+    const grouped = await this.attachments.forMessages(rows.map((r) => r.id));
+    return rows.map((row) => toMessage(row, grouped.get(row.id) ?? []));
   }
 
   private async loadEvents(caseId: string): Promise<CaseEvent[]> {
@@ -414,7 +438,7 @@ function toSummary(row: SupportCaseRow, unreadCount = 0): CaseSummary {
   };
 }
 
-function toMessage(row: CaseMessageRow): CaseMessage {
+function toMessage(row: CaseMessageRow, attachments: CaseMessage['attachments'] = []): CaseMessage {
   return {
     id: row.id,
     caseId: row.caseId,
@@ -425,6 +449,7 @@ function toMessage(row: CaseMessageRow): CaseMessage {
     body: row.body,
     clientMessageId: row.clientMessageId,
     createdAt: row.createdAt.toISOString(),
+    attachments,
   };
 }
 

@@ -1,7 +1,24 @@
-import { Body, Controller, Get, HttpCode, type MessageEvent, Param, ParseUUIDPipe, Post, Query, Sse, UseGuards } from '@nestjs/common';
-import type { Observable } from 'rxjs';
-import { CaseStreamService } from '../events/case-stream.service.js';
 import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  type MessageEvent,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  Res,
+  Sse,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
+import type { Observable } from 'rxjs';
+import {
+  type CaseAttachment,
   type CaseMessage,
   type CaseSummary,
   postMessageSchema,
@@ -10,7 +27,10 @@ import {
   type StaffQueueView,
   staffQueueViewSchema,
 } from '@orbit-support/shared';
+import { sendAttachment, UPLOAD_LIMITS } from '../attachments/attachments.controller-support.js';
+import { AttachmentsService, type UploadedFileLike } from '../attachments/attachments.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { CaseStreamService } from '../events/case-stream.service.js';
 import { CurrentActor, StaffGuard } from '../identity/guards.js';
 import type { StaffActor } from '../identity/identity.types.js';
 import { CasesService } from './cases.service.js';
@@ -24,7 +44,30 @@ export class StaffCasesController {
   constructor(
     private readonly cases: CasesService,
     private readonly streams: CaseStreamService,
+    private readonly attachments: AttachmentsService,
   ) {}
+
+  @Post(':id/attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
+  async upload(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: UploadedFileLike,
+  ): Promise<CaseAttachment> {
+    const row = await this.cases.requireCaseRow(id);
+    return this.attachments.upload(actor, row, file);
+  }
+
+  @Get(':id/attachments/:attachmentId')
+  async download(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('attachmentId', ParseUUIDPipe) attachmentId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const row = await this.cases.requireCaseRow(id);
+    sendAttachment(response, await this.attachments.open(actor, row, attachmentId));
+  }
 
   /** `GET /api/staff/cases/stream` — every case change, including internal notes; staff only (ADR-0004). Declared before `:id`. */
   @Sse('stream')

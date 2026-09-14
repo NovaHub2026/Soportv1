@@ -9,6 +9,7 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 - `@orbit-support/shared` must be built before the apps type-check or test: `npm run build:shared` (the `verify` chain does it). After editing `packages/shared/src`, rebuild.
 - Database: embedded PostgreSQL (PGlite, ADR-0003). No server or Docker needed. Dev data lives in `apps/api/.data/pglite` (gitignored; delete to reset). `SUPPORT_DB_DIR` overrides the directory; unset means in memory (tests).
 - Schema change: edit `apps/api/src/database/schema.ts`, run `npm run db:generate -w api`, commit the new file under `apps/api/drizzle/`. Migrations apply automatically when the API opens the database.
+- Attachments (DEC-0009): files are stored under `SUPPORT_UPLOADS_DIR` (default `apps/api/.data/uploads`, gitignored); the UI smoke must point it at scratch too. Allowed: PNG, JPEG, WebP, PDF; 10 MB; 3 per message.
 - Identity (DEC-0008): `SUPPORT_IDENTITY_PROVIDER=simulated` is the only provider; with `NODE_ENV=production` the API refuses to start unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` is set deliberately for an isolated demo. `GET /api/identity/me` shows who the API thinks you are.
 
 ## Profiles (`GOVERNANCE.md` §7.2–7.3)
@@ -20,7 +21,7 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 | verify | `npm run verify` | context + build:shared + static + unit, in that order | Before every commit; required CI check |
 | full | `npm run verify:full` | verify + production builds (`next build`, `nest build`) | Phase candidate or release candidate |
 | api e2e | `npm run test:e2e --workspace api` | Vitest + supertest against the Nest application | API contract changes; not part of CI yet |
-| ui smoke | `SUPPORT_DB_DIR=<scratch> node scripts/ui-smoke.mjs [outDir]` after `npm run build` | Headless Chromium (Playwright) drives the built customer panel end to end and saves screenshots | UI subphase/phase approval (OBSERVED evidence, §6.3); not in CI |
+| ui smoke | `SUPPORT_DB_DIR=<scratch> SUPPORT_UPLOADS_DIR=<scratch2> node scripts/ui-smoke.mjs [outDir]` after `npm run build` | Headless Chromium (Playwright) drives the built customer panel end to end and saves screenshots | UI subphase/phase approval (OBSERVED evidence, §6.3); not in CI |
 
 UI smoke prerequisites: `npx playwright install chromium` (downloads ~115 MB). Chromium also needs system libraries; with sudo run `npx playwright install-deps chromium`. Without sudo (this Owner's WSL2, BL-007): `apt-get download libnspr4 libnss3 libasound2t64`, `dpkg -x` each into a scratch folder and export `LD_LIBRARY_PATH=<scratch>/usr/lib/x86_64-linux-gnu` before running the smoke. The smoke uses API port 3001 (baked into the web build's rewrites) and web port 3150 (`UI_WEB_PORT`). Always point `SUPPORT_DB_DIR` at a scratch directory.
 
