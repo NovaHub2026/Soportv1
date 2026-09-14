@@ -11,20 +11,13 @@ import {
 } from '@orbit-support/shared';
 import type { Db } from '../database/database.js';
 import { DB } from '../database/database.module.js';
-import { caseEvents, caseMessages, supportCases } from '../database/schema.js';
+import { caseConsultations, caseEvents, caseMessages, supportCases } from '../database/schema.js';
 import type { StaffActor } from '../identity/identity.types.js';
+import { awaitingReplySince, waitingInternalSince } from './case-rules.js';
 import { CasesService } from './cases.service.js';
 import { SettingsService } from './settings.service.js';
 
 const OPEN = [...OPEN_CASE_STATUSES];
-
-/** The customer's latest message when nobody from staff replied after it, on a case where a reply is due (DEC-0021). */
-function awaitingSince(row: { status: CaseStatus; lastCustomerMessageAt: Date | null; lastStaffMessageAt: Date | null }): Date | null {
-  if (!row.lastCustomerMessageAt) return null;
-  if (row.status === 'waiting_customer' || row.status === 'resolved' || row.status === 'closed') return null;
-  if (row.lastStaffMessageAt && row.lastStaffMessageAt.getTime() >= row.lastCustomerMessageAt.getTime()) return null;
-  return row.lastCustomerMessageAt;
-}
 
 /**
  * Supervision (PH-5.4, context §5.4): outstanding demand and outcomes computed from the case table and the
@@ -51,23 +44,36 @@ export class SupervisionService {
     for (const row of rows) byStatus[row.status] += 1;
     const open = rows.filter((r) => OPEN.includes(r.status));
     const unassigned = open.filter((r) => r.assignedAgentId === null);
-    const awaiting = open.map((r) => ({ row: r, since: awaitingSince(r) })).filter((x): x is { row: (typeof rows)[number]; since: Date } => x.since !== null);
+    const awaiting = open.map((r) => ({ row: r, since: awaitingReplySince(r) })).filter((x): x is { row: (typeof rows)[number]; since: Date } => x.since !== null);
     awaiting.sort((a, b) => a.since.getTime() - b.since.getTime());
     const agents = new Map<string, AgentLoad>();
     for (const r of open) {
       if (!r.assignedAgentId) continue;
       const load = agents.get(r.assignedAgentId) ?? { agentId: r.assignedAgentId, open: 0, awaitingReply: 0 };
       load.open += 1;
-      if (awaitingSince(r)) load.awaitingReply += 1;
+      if (awaitingReplySince(r)) load.awaitingReply += 1;
       agents.set(r.assignedAgentId, load);
     }
     const cutoff = now.getTime() - thresholdHours * 3_600_000;
     // Waiting for a team counts as follow-up work too (§5.2 "cases requiring follow-up", BL-021): the same threshold applies.
+    // A team owes an answer while a consultation is open, whatever status staff set meanwhile (BL-029, FND-0078).
+    const consultationRows = await this.db
+      .select({ caseId: caseConsultations.caseId, since: min(caseConsultations.requestedAt) })
+      .from(caseConsultations)
+      .where(eq(caseConsultations.status, 'open'))
+      .groupBy(caseConsultations.caseId);
+    const oldestOpenConsultation = new Map(consultationRows.filter((c) => c.since !== null).map((c) => [c.caseId, new Date(c.since as Date | string)]));
     const waitingInternal = open
-      .filter((r) => r.status === 'waiting_internal')
-      .map((r) => ({ row: r, since: r.waitingInternalSince ?? r.updatedAt }))
+      .map((r) => ({ row: r, since: waitingInternalSince(r, oldestOpenConsultation.get(r.id) ?? null) }))
+      .filter((x): x is { row: (typeof rows)[number]; since: Date } => x.since !== null)
       .sort((a, b) => a.since.getTime() - b.since.getTime());
-    const overdueRows = [...awaiting, ...waitingInternal]
+    // One entry per case: a case can both await a reply and wait for a team; it is listed once, at its oldest wait.
+    const oldestWait = new Map<string, { row: (typeof rows)[number]; since: Date }>();
+    for (const x of [...awaiting, ...waitingInternal]) {
+      const seen = oldestWait.get(x.row.id);
+      if (!seen || x.since.getTime() < seen.since.getTime()) oldestWait.set(x.row.id, x);
+    }
+    const overdueRows = [...oldestWait.values()]
       .filter((x) => x.since.getTime() <= cutoff)
       .sort((a, b) => a.since.getTime() - b.since.getTime())
       .slice(0, 50)
@@ -124,7 +130,7 @@ export class SupervisionService {
       .filter((m): m is number => m !== null);
 
     const open = await this.db.select().from(supportCases).where(inArray(supportCases.status, OPEN));
-    const unanswered = open.map(awaitingSince).filter((d): d is Date => d !== null).sort((a, b) => a.getTime() - b.getTime());
+    const unanswered = open.map(awaitingReplySince).filter((d): d is Date => d !== null).sort((a, b) => a.getTime() - b.getTime());
     const reopened = events.filter((e) => e.type === 'case_reopened').length;
     const resolved = resolvedEvents.length;
     return {

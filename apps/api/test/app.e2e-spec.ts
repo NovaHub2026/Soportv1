@@ -1,6 +1,16 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SIMULATED_IDENTITY_HEADERS, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-support/shared';
+import {
+  caseConsultationSchema,
+  caseMessageSchema,
+  caseSummarySchema,
+  customerCaseDetailSchema,
+  customerCaseSummarySchema,
+  SIMULATED_IDENTITY_HEADERS,
+  STAFF_ONLY_SUMMARY_FIELDS,
+  staffCaseDetailSchema,
+} from '@orbit-support/shared';
+import { z } from 'zod';
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { configureApp, finishApp } from './../src/app.setup.js';
@@ -604,6 +614,33 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     }
   });
 
+  it('PH-9.1: responses match the shared contracts exactly — the customer projection refuses staff-only fields — and a retried internal note is stored once (BL-018, BL-013)', async () => {
+    const server = app.getHttpServer();
+    const staff = asStaff('staff-ana', 'Ana');
+    const customer = asCustomer('cust-contract');
+    // `record` travels next to the schema-described fields (a TypeScript extension of the detail types).
+    const exactly = <T extends z.ZodObject>(schema: T) => schema.extend({ record: z.unknown() }).strict();
+    const created = await request(server).post('/api/support/cases').set(customer).send({ category: 'other', message: 'Contrato' }).expect(201);
+    const id: string = created.body.id;
+    exactly(customerCaseDetailSchema).parse(created.body);
+    const note = { body: 'NOTA: contrato', clientMessageId: 'contract-note-1' };
+    const first = await request(server).post(`/api/staff/cases/${id}/notes`).set(staff).send(note).expect(201);
+    const retry = await request(server).post(`/api/staff/cases/${id}/notes`).set(staff).send(note).expect(201);
+    expect(retry.body.id).toBe(first.body.id);
+    caseMessageSchema.strict().parse(first.body);
+    const consultation = await request(server).post(`/api/staff/cases/${id}/consultations`).set(staff).send({ team: 'finance', question: 'Confere?' }).expect(201);
+    caseConsultationSchema.strict().parse(consultation.body);
+    const staffDetail = await request(server).get(`/api/staff/cases/${id}`).set(staff).expect(200);
+    const parsed = staffCaseDetailSchema.extend({ record: z.unknown() }).strict().parse(staffDetail.body);
+    expect(parsed.messages.filter((m) => m.visibility === 'internal')).toHaveLength(1);
+    const queue = await request(server).get('/api/staff/cases?view=waiting_internal').set(staff).expect(200);
+    expect(queue.body.length).toBeGreaterThan(0);
+    for (const row of queue.body) caseSummarySchema.strict().parse(row);
+    exactly(customerCaseDetailSchema).parse((await request(server).get(`/api/support/cases/${id}`).set(customer).expect(200)).body);
+    for (const row of (await request(server).get('/api/support/cases').set(customer).expect(200)).body) customerCaseSummarySchema.strict().parse(row);
+    // The guard fails on the prohibited condition: a staff summary is not a valid customer summary.
+    expect(customerCaseSummarySchema.strict().safeParse(queue.body[0]).success).toBe(false);
+  });
 });
 
 /** Deletes every business row (cases cascade to messages, events, consultations, notifications and attachments). */

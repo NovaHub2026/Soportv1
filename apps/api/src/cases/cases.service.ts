@@ -59,6 +59,7 @@ import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { caseOwnership, type StaffAction, staffMay } from '@orbit-support/shared';
 import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-directory.js';
+import { awaitingReplySince, awaitingReplySinceSql } from './case-rules.js';
 import { NotificationsService } from './notifications.service.js';
 import { SettingsService } from './settings.service.js';
 
@@ -448,14 +449,27 @@ export class CasesService {
 
   /** An internal note: a message only staff can see. It does not change the case's customer-facing timeline. */
   async postInternalNote(staff: StaffActor, caseId: string, input: PostNoteInput): Promise<CaseMessage> {
-    await this.requireCase(caseId);
-    const { note, updated } = await this.mutate(caseId, async (tx, row) => {
-      if (row.status === 'closed') throw new ConflictException('case_closed');
-      return this.insertNote(tx, staff, row, input.body, new Date());
-    });
-    const dto = toMessage(note);
-    this.publishMessage(updated, dto); // customer streams filter internal visibility
-    return dto;
+    const row = await this.requireCase(caseId);
+    // A retried note returns the stored one instead of a second copy, like replies do (RULE-SUP-03, BL-013).
+    if (input.clientMessageId) {
+      const duplicate = await this.findMessageByClientId(row.id, 'staff', staff.id, input.clientMessageId);
+      if (duplicate) return this.sameNote(duplicate);
+    }
+    return this.onceByClientMessageId(row.id, 'staff', staff.id, input.clientMessageId, async () => {
+      const { note, updated } = await this.mutate(caseId, async (tx, locked) => {
+        if (locked.status === 'closed') throw new ConflictException('case_closed');
+        return this.insertNote(tx, staff, locked, input.body, new Date(), input.clientMessageId);
+      });
+      const dto = toMessage(note);
+      this.publishMessage(updated, dto); // customer streams filter internal visibility
+      return dto;
+    }).then((message) => (message.visibility === 'internal' ? message : this.sameNote(message)));
+  }
+
+  /** A key the author already used for a public reply on this case cannot be replayed as a note: that would hide what was sent. */
+  private sameNote(message: CaseMessageRow | CaseMessage): CaseMessage {
+    if (message.visibility !== 'internal') throw new ConflictException('client_message_id_reused');
+    return 'attachments' in message ? message : toMessage(message);
   }
 
   /** Ask another team; the owner stays responsible for the customer and the case waits for the internal team. */
@@ -1045,6 +1059,20 @@ export class CasesService {
     return this.withUnread(rows, 'staff');
   }
 
+  /**
+   * One reminder per waiting period (PH-6.3, §7.4), decided on the locked row like every other change to a case
+   * (DEC-0017, BL-022). Silence is never a solution: the case stays `waiting_customer`. Returns whether a reminder was recorded.
+   */
+  async remind(caseId: string, cutoff: Date, afterHours: number, now = new Date()): Promise<boolean> {
+    return this.mutate(caseId, async (tx, locked) => {
+      if (locked.status !== 'waiting_customer' || locked.reminderSentAt || !locked.waitingCustomerSince || locked.waitingCustomerSince >= cutoff) return false;
+      await tx.insert(caseEvents).values({ caseId: locked.id, type: 'reminder_sent', actorType: 'system', actorId: 'reminder-job', data: { afterHours }, createdAt: now });
+      await tx.update(supportCases).set({ reminderSentAt: now }).where(eq(supportCases.id, locked.id));
+      await this.notifications.record(tx, locked.customerId, locked.id, 'reminder', now);
+      return true;
+    });
+  }
+
   // ---------- Live updates (ADR-0004): published only after the transaction committed ----------
 
   private publishCaseUpdated(row: SupportCaseRow): void {
@@ -1098,7 +1126,7 @@ export class CasesService {
     return { status: to, resolvedAt: null, resolutionReason: null };
   }
 
-  private async insertNote(tx: Db, staff: StaffActor, row: SupportCaseRow, body: string, now: Date) {
+  private async insertNote(tx: Db, staff: StaffActor, row: SupportCaseRow, body: string, now: Date, clientMessageId?: string) {
     const [note] = await tx
       .insert(caseMessages)
       .values({
@@ -1108,6 +1136,7 @@ export class CasesService {
         authorName: staff.displayName,
         visibility: 'internal',
         body,
+        clientMessageId: clientMessageId ?? null,
         createdAt: now,
       })
       .returning();
@@ -1355,17 +1384,6 @@ function searchClauses(filters: Pick<StaffListQuery, 'q' | 'category' | 'priorit
   if (filters.agentId) clauses.push(filters.agentId === 'unassigned' ? isNull(supportCases.assignedAgentId) : eq(supportCases.assignedAgentId, filters.agentId));
   return clauses;
 }
-
-/** The customer's latest message when nobody from staff replied after it, on a case where a reply is due. */
-function awaitingReplySince(row: SupportCaseRow): Date | null {
-  if (!row.lastCustomerMessageAt) return null;
-  if (row.status === 'waiting_customer' || row.status === 'resolved' || row.status === 'closed') return null;
-  if (row.lastStaffMessageAt && row.lastStaffMessageAt.getTime() >= row.lastCustomerMessageAt.getTime()) return null;
-  return row.lastCustomerMessageAt;
-}
-
-/** SQL twin of `awaitingReplySince` for ordering. */
-const awaitingReplySinceSql = sql`case when ${supportCases.status} in ('waiting_customer', 'resolved', 'closed') then null when ${supportCases.lastStaffMessageAt} is not null and ${supportCases.lastStaffMessageAt} >= ${supportCases.lastCustomerMessageAt} then null else ${supportCases.lastCustomerMessageAt} end`;
 
 function toCaseRecord(row: SupportCaseRow): CaseRecord | null {
   if (!row.recordKind || !row.recordReference || !row.recordCapturedAt) return null;

@@ -1,22 +1,21 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the PH-8.3 re-approval commit (after `a863593`): container rehearsal and local PostgreSQL run recorded, PH-8 re-approved, ledger cycle 3 = 2/3. No intended local delta after it.
+Checkpoint: branch `main`; the PH-9.1 commit (after `c73b1b6`): PH-9 opened (Owner: «continua con las siguientes fases pendientes»), PH-9.1 approved. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`; read `CLAUDE.md` from disk (an injected copy may be stale).
 
 ## Running now
-None. The rehearsal and the test PostgreSQL were stopped with `docker compose … down -v` (projects `orbit-rehearsal`, `orbit-pgtest`); images remain in Docker. Other Node processes on this machine belong to other projects — do not touch them.
+None. Other Node processes and the `orbit-otc-*` containers on this machine belong to other projects — do not touch them. A native PostgreSQL service holds port 5433; the test compose uses 55433.
 
 ## Unfinished work
-Nothing planned. Owner instructions carried out: «Ejecuta todo en orden» (demo `v0.1.1-demo`, out-of-band audit closed) and «Reintenta» (container rehearsal and local PostgreSQL run executed, PH-8 re-approved). Pending the Owner's word: the demo's gate #5 reading (operating policies), any release beyond the demo, new phases. Carried backlog items keep their revisit events (`docs/BACKLOG.md`). Commits only through `bash scripts/gate-commit.sh <message-file> --include <new paths>`.
+PH-9 is active: PH-9.2 (staff workspace), PH-9.3 (customer panel) and PH-9.4 (operations, process, closure) are planned in `docs/phases/PH-9.md`. PH-9's approval makes cycle 3's audit due. Pending the Owner's word: the demo's gate #5 reading, any release beyond the demo, BL-001/BL-002. Commits only through `bash scripts/gate-commit.sh <message-file> --include <new paths>`.
 
 ## Evidence and limits
-- `docs/evidence/PH-8.3-verification.md` "Rehearsal", `docs/evidence/PH-8.2-verification.md` "Local PostgreSQL run", `docs/evidence/PH-8-phase-approval.md` "Re-approval".
-- The browser smoke runs against its own servers (fixed ports), not against the containers; the rehearsal used a scripted HTTP walk through the web.
+- `docs/evidence/PH-9.1-verification.md` — API-only subphase, no browser run.
 
 ## Resume here
 1. `git status -sb`; `gh run list --limit 2` — HEAD must be green.
-2. Wait for the Owner.
+2. Continue with PH-9.2 (`CURRENT_STATE.md` "Next valid action").
 
 ## Temporary environment notes
 - Host: Windows 11 native (Git Bash for the agent's shell; PowerShell forms in the runbook); Docker Desktop working (Engine 29.8.0).

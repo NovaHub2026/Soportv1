@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { awaitingReplySince, awaitingReplySinceSql } from './case-rules.js';
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
@@ -914,6 +916,84 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect(await job.remindDue(new Date(Date.now() + 100 * 3_600_000))).toBe(0);
       view = await service.getStaffCase(done.id);
       expect(view.events.some((e) => e.type === 'reminder_sent')).toBe(false);
+    });
+  });
+
+  describe('PH-9.1 case-domain debt (BL-013, BL-022, BL-029)', () => {
+    it('a retried internal note is stored once, also under concurrent retries; keys are per author; a reply key cannot be replayed as a note', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      const input = { body: 'NOTA: conferir extrato', clientMessageId: 'note-1' };
+      const first = await service.postInternalNote(ana, created.id, input);
+      expect((await service.postInternalNote(ana, created.id, input)).id).toBe(first.id);
+      const racing = await Promise.all([
+        service.postInternalNote(ana, created.id, { body: 'Corrida', clientMessageId: 'note-2' }),
+        service.postInternalNote(ana, created.id, { body: 'Corrida', clientMessageId: 'note-2' }),
+      ]);
+      expect(racing[0].id).toBe(racing[1].id);
+      expect((await service.postInternalNote(bruno, created.id, input)).id).not.toBe(first.id); // another author's keys
+      await service.postInternalNote(ana, created.id, { body: 'Sem chave' });
+      await service.postInternalNote(ana, created.id, { body: 'Sem chave' }); // no key: two notes, as before
+      const notes = (await service.getStaffCase(created.id)).messages.filter((m) => m.visibility === 'internal');
+      expect(notes.map((n) => n.body)).toEqual(['NOTA: conferir extrato', 'Corrida', 'NOTA: conferir extrato', 'Sem chave', 'Sem chave']);
+      await service.postStaffMessage(ana, created.id, { body: 'Resposta', clientMessageId: 'reply-1' });
+      await expect(service.postInternalNote(ana, created.id, { body: 'x', clientMessageId: 'reply-1' })).rejects.toBeInstanceOf(ConflictException);
+      expect(JSON.stringify(await service.getCustomerCase(alice, created.id))).not.toContain('NOTA');
+    });
+
+    it('a reminder is decided on the locked case: one that left waiting_customer meanwhile is not reminded, and only once per period', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.setStatus(ana, created.id, 'waiting_customer');
+      const now = new Date(Date.now() + 49 * 3_600_000);
+      const cutoff = new Date(now.getTime() - 48 * 3_600_000);
+      await service.postCustomerMessage(alice, created.id, { body: 'Voltei' }); // back to in_progress
+      expect(await service.remind(created.id, cutoff, 48, now)).toBe(false);
+      await service.setStatus(ana, created.id, 'waiting_customer');
+      expect(await service.remind(created.id, new Date(now.getTime() + 1_000), 48, now)).toBe(true);
+      expect(await service.remind(created.id, new Date(now.getTime() + 1_000), 48, now)).toBe(false);
+      expect((await service.getStaffCase(created.id)).events.filter((e) => e.type === 'reminder_sent')).toHaveLength(1);
+      await expect(service.remind(randomUUID(), cutoff, 48, now)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('supervision counts a case with an open consultation as waiting for a team after staff moved it on, and lists an overdue case once', async () => {
+      const supervision = moduleRef.get(SupervisionService);
+      const created = await service.createCase(alice, { category: 'other', message: 'Preciso da equipe' });
+      const consultation = await service.requestConsultation(ana, created.id, { team: 'finance', question: 'Confere?' });
+      await service.setStatus(ana, created.id, 'in_progress');
+      expect((await service.getStaffCase(created.id)).status).toBe('in_progress');
+      expect((await supervision.overview(carla)).waitingInternal.count).toBe(1);
+      // Older than any threshold (max 720 h), and the customer also waits for a reply: two reasons, one entry.
+      const requestedAt = new Date(Date.now() - 800 * 3_600_000);
+      await db.update(caseConsultations).set({ requestedAt }).where(eq(caseConsultations.caseId, created.id));
+      await db.update(supportCases).set({ lastCustomerMessageAt: new Date(Date.now() - 790 * 3_600_000) }).where(eq(supportCases.id, created.id));
+      const overview = await supervision.overview(carla);
+      expect(overview.waitingInternal).toEqual({ count: 1, oldestSince: requestedAt.toISOString() });
+      expect(overview.overdue.filter((c) => c.id === created.id)).toHaveLength(1);
+      await service.answerConsultation(bruno, created.id, consultation.id, { answer: 'Confere.' });
+      expect((await supervision.overview(carla)).waitingInternal.count).toBe(0);
+    });
+
+    it('the SQL twin of awaitingReplySince agrees with the rule on every status', async () => {
+      const fresh = await service.createCase(alice, { category: 'other', message: 'Novo' });
+      const answered = await service.createCase(alice, { category: 'other', message: 'Respondido' });
+      await service.postStaffMessage(ana, answered.id, { body: 'Olá' });
+      const again = await service.createCase(bob, { category: 'other', message: 'Voltou' });
+      await service.postStaffMessage(ana, again.id, { body: 'Olá' });
+      await service.postCustomerMessage(bob, again.id, { body: 'Mais uma coisa' });
+      const waiting = await service.createCase(bob, { category: 'other', message: 'Aguardando' });
+      await service.setStatus(ana, waiting.id, 'waiting_customer');
+      const team = await service.createCase(alice, { category: 'other', message: 'Equipe' });
+      await service.setStatus(ana, team.id, 'waiting_internal');
+      const done = await service.createCase(bob, { category: 'other', message: 'Feito' });
+      await service.resolve(ana, done.id, { reason: 'solved', explanation: 'ok' });
+      const closed = await service.createCase(alice, { category: 'other', message: 'Fechado' });
+      await service.resolve(ana, closed.id, { reason: 'solved', explanation: 'ok' });
+      await service.closeCase(ana, closed.id);
+      const viaSql = new Map((await db.select({ id: supportCases.id, since: awaitingReplySinceSql }).from(supportCases)).map((r) => [r.id, r.since]));
+      const rows = await db.select().from(supportCases);
+      expect(rows).toHaveLength(7);
+      const asTime = (v: unknown) => (v === null || v === undefined ? null : new Date(v as string | Date).getTime());
+      for (const row of rows) expect(asTime(viaSql.get(row.id))).toBe(awaitingReplySince(row)?.getTime() ?? null);
+      expect(rows.filter((r) => awaitingReplySince(r) !== null).map((r) => r.id).sort()).toEqual([fresh.id, again.id, team.id].sort());
     });
   });
 

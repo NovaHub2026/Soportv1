@@ -108,6 +108,8 @@ export type CaseConsultation = z.infer<typeof caseConsultationSchema>;
 /** Internal notes are messages with `internal` visibility; they never reach customer surfaces (RULE-SUP-04). */
 export const postNoteSchema = z.object({
   body: text(z.string().trim().min(1, "note_required").max(5000, "note_too_long")),
+  /** Retry key, scoped to the case and the author like a reply's (RULE-SUP-03, BL-013). */
+  clientMessageId: text(z.string().trim().min(1).max(100)).optional(),
 });
 export type PostNoteInput = z.infer<typeof postNoteSchema>;
 

@@ -1,21 +1,21 @@
 # CURRENT STATE
 Type: CURRENT STATE
 Synchronized on: 2026-09-14
-Derived from: `docs/phases/ROADMAP.md`, `docs/evidence/PH-8-phase-approval.md`, `docs/evidence/RELEASE-2026-09-14b.md`; base checkpoint: the PH-8.3 re-approval commit (after `a863593`)
+Derived from: `docs/phases/ROADMAP.md`, `docs/phases/PH-9.md`, `docs/evidence/PH-9.1-verification.md`; base checkpoint: the PH-9.1 commit (after `c73b1b6`)
 
 | Field | Value |
 |---|---|
-| Active objective / feature | Every planned phase (PH-1..PH-8) delivered and approved; PH-8 re-approved after the container rehearsal ran (Owner: «Reintenta»). Internal loopback demo `v0.1.1-demo`. **Mode of work: waiting for the Owner.** |
-| Active phase / subphase | None active. PH-1..PH-8 `APPROVED`. No phase is planned after PH-8 (`docs/phases/ROADMAP.md`). |
-| Audit | Cycle 1: 3/3 — CLOSED. Cycle 2: 3/3 — CLOSED. Cycle 3: 2/3 (PH-7, PH-8) — out-of-band audit `docs/audits/CYCLE-3-OOB.md` CLOSED; the cycle's own audit is due at its third first-time phase approval, or out of band on request (`AUDITAR`). |
-| Blocking decisions / dependencies | Owner: confirm or withdraw the demo's gate #5 reading (operating policies pending — `docs/evidence/RELEASE-2026-09-14b.md`); BL-001 (Orbit adapters) and BL-002 (operating policies) block any production release, which also needs the Owner's authorization (§1.1); hosting, TLS, secrets and a mail provider are Owner decisions. |
-| Integration / CI / release | Candidate: the re-approval commit (docs only after `a863593`); `d4fb89b` CI run 34849408489 success, both jobs (`docs/evidence/PH-8.3-verification.md`). `a863593` CI success (both jobs). Release: `v0.1.1-demo`, internal loopback demo; no production release authorized. |
-| Environment (observed 2026-09-14) | Windows 11 native, Git Bash / PowerShell, Node v24.19.0, npm 11.17.0, Docker Engine 29.8.0 (Docker Desktop working again). Fresh clone: set the git author (DEC-0002) and `git config core.hooksPath scripts/git-hooks`. |
-| Context route | `CONTEXT_INDEX.md` → six live feature contexts; audit records `docs/audits/`; commands in `docs/runbooks/VERIFICATION.md`, deployment in `docs/runbooks/DEPLOYMENT.md` |
+| Active objective / feature | PH-9 — Release-candidate debt: the Agent-owned backlog the audits carried past PH-8 (Owner: «continua con las siguientes fases pendientes»). Internal loopback demo `v0.1.1-demo` unchanged. |
+| Active phase / subphase | PH-9 `ACTIVE`; PH-9.1 `APPROVED` (case-domain debt: BL-022, BL-029, BL-013 API, BL-018); next PH-9.2 (staff workspace) `PLANNED`, then PH-9.3 (customer panel) and PH-9.4 (operations, process, phase closure). |
+| Audit | Cycle 1: 3/3 — CLOSED. Cycle 2: 3/3 — CLOSED. Cycle 3: 2/3 (PH-7, PH-8) — out-of-band audit `docs/audits/CYCLE-3-OOB.md` CLOSED; PH-9's approval makes it 3/3 and the Cycle Audit due (§6.4). |
+| Blocking decisions / dependencies | None for PH-9. Owner: confirm or withdraw the demo's gate #5 reading (`docs/evidence/RELEASE-2026-09-14b.md`); BL-001 (Orbit adapters) and BL-002 (operating policies) block any production release, which also needs the Owner's authorization (§1.1); hosting, TLS, secrets and a mail provider are Owner decisions. |
+| Integration / CI / release | Candidate: the PH-9.1 commit; CI pending at recording time (check `gh run list --limit 2`). `c73b1b6` CI success (both jobs). Release: `v0.1.1-demo`, internal loopback demo; no production release authorized. |
+| Environment (observed 2026-09-14) | Windows 11 native, Git Bash / PowerShell, Node v24.19.0, npm 11.17.0, Docker Engine 29.8.0. Fresh clone: set the git author (DEC-0002) and `git config core.hooksPath scripts/git-hooks`. |
+| Context route | `CONTEXT_INDEX.md` → six live feature contexts; phase `docs/phases/PH-9.md`; commands in `docs/runbooks/VERIFICATION.md` |
 
 ## Next valid action
-Action: Report to the Owner (in Spanish) that PH-8 is re-approved after the container rehearsal and the local PostgreSQL run; then wait for direction — gate #5 confirmation, a release beyond the demo (`docs/runbooks/RELEASE.md`), new phases (Orbit adapters when Orbit exists, a mail provider), or `AUDITAR`.
-Why now: nothing else is planned; the remaining steps are Owner decisions (§1.1).
-Preconditions: none pending (`d4fb89b` green on both jobs).
-Evidence/read first: `docs/evidence/PH-8-phase-approval.md` "Re-approval", `docs/evidence/PH-8.3-verification.md` "Rehearsal", `docs/runbooks/RELEASE.md`.
+Action: plan and implement PH-9.2 — staff workspace: BL-014 (one action helper, `StaffCaseView.tsx` split), BL-013 web part (note retry key, composer chips kept until success, attachments on pending/failed rows), BL-024 carried items (queue tab semantics, raw number fields in the settings form, system-message copy through the dictionary).
+Why now: PH-9.1 approved; PH-9.2 is the next planned block of the active phase.
+Preconditions: the PH-9.1 commit green on both CI jobs.
+Evidence/read first: `docs/phases/PH-9.md`, `docs/features/FEAT-STAFF/CONTEXT.md`, `docs/BACKLOG.md` rows BL-013, BL-014, BL-024.
 If preconditions fail: CI red → diagnose and fix through `scripts/gate-commit.sh` (§9.2).
