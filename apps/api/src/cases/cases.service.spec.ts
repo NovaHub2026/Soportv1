@@ -12,6 +12,8 @@ import { ORBIT_RECORDS } from '../identity/orbit-records.js';
 import { SimulatedOrbitRecords } from '../identity/simulated-orbit-records.js';
 import { SimulatedStaffDirectory, STAFF_DIRECTORY } from '../identity/staff-directory.js';
 import { CasesService } from './cases.service.js';
+import { SettingsService } from './settings.service.js';
+import { SupervisionService } from './supervision.service.js';
 
 const alice: CustomerActor = { kind: 'customer', id: 'cust-alice', source: 'simulated' };
 const bob: CustomerActor = { kind: 'customer', id: 'cust-bob', source: 'simulated' };
@@ -33,6 +35,8 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         CaseEventBus,
         { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory },
         { provide: ORBIT_RECORDS, useValue: new SimulatedOrbitRecords({}) },
+        SettingsService,
+        SupervisionService,
       ],
     }).compile();
     await moduleRef.init();
@@ -674,6 +678,42 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect(await ids(undefined, { agentId: 'unassigned' })).toEqual([saque.id]);
       expect(await ids(undefined, { agentId: ana.id })).toEqual([outro.id]);
       expect(await ids('cust', { priority: 'normal' })).toEqual([saque.id]);
+    });
+  });
+
+
+  describe('supervision and configuration (PH-5.4, §5.4)', () => {
+    it('overview counts demand, load per agent and overdue cases; metrics describe the period without targets', async () => {
+      const supervision = moduleRef.get(SupervisionService);
+      const settings = moduleRef.get(SettingsService);
+      await expect(supervision.overview(ana)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(settings.update(ana, { ...(await settings.get()) })).rejects.toBeInstanceOf(ForbiddenException);
+
+      const old = await service.createCase(alice, { category: 'other', message: 'Antigo sem resposta' });
+      await db.update(supportCases).set({ createdAt: new Date(Date.now() - 6 * 3_600_000), lastCustomerMessageAt: new Date(Date.now() - 6 * 3_600_000) }).where(eq(supportCases.id, old.id));
+      const answered = await service.createCase(bob, { category: 'other', message: 'Respondido' });
+      await service.postStaffMessage(ana, answered.id, { body: 'Olá' });
+      const done = await service.createCase(alice, { category: 'other', message: 'Feito' });
+      await service.resolve(ana, done.id, { reason: 'solved', explanation: 'ok' });
+      await service.postCustomerMessage(alice, done.id, { body: 'Ainda não' }); // reopened
+
+      const overview = await supervision.overview(carla);
+      expect(overview.unassigned.count).toBe(1);
+      expect(overview.awaitingReply.count).toBe(2); // old + reopened
+      expect(overview.byAgent.find((a) => a.agentId === ana.id)).toMatchObject({ open: 2, awaitingReply: 1 });
+      expect(overview.overdue.map((c) => c.id)).toEqual([old.id]); // 6 h > 4 h threshold
+      expect(overview.byStatus.in_progress).toBe(2);
+
+      const metrics = await supervision.metrics(carla, 7);
+      expect(metrics).toMatchObject({ created: 3, resolved: 1, reopened: 1, reopenRate: 1, targets: null });
+      expect(metrics.firstResponse.count).toBe(2); // 'Olá' and the resolution explanation
+      expect(metrics.resolution.count).toBe(1);
+      expect(metrics.unansweredNow.count).toBe(2);
+
+      const saved = await settings.update(carla, { ...(await settings.get()), attentionThresholdHours: 12 });
+      expect(saved).toMatchObject({ workingDefault: false, updatedById: carla.id, attentionThresholdHours: 12 });
+      expect((await supervision.overview(carla)).overdue).toHaveLength(0);
+      expect(await settings.followUpWindowDays()).toBe(7);
     });
   });
 

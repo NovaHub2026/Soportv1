@@ -145,6 +145,10 @@ try {
     await desktop.goto(WEB);
     await desktop.getByRole('heading', { name: 'Suporte' }).waitFor();
     await desktop.getByText('Você ainda não falou com o suporte.').waitFor();
+    await desktop.getByTestId('availability').waitFor({ timeout: 5000 });
+    const availabilityText = await desktop.getByTestId('availability').textContent();
+    if (!/Atendimento (aberto|fechado) agora\./.test(availabilityText) || !/Horário padrão de trabalho/.test(availabilityText)) throw new Error(`Availability copy is not honest: ${availabilityText}`);
+    note('availability', `the customer home states availability from the configured schedule and labels it a working default: "${availabilityText.trim().slice(0, 90)}…" (PH-5.4)`);
     note('home', 'desktop shows the side panel with "Falar com o suporte" and an honest empty history');
     await shot(desktop, '01-home-desktop');
 
@@ -428,8 +432,31 @@ try {
     await shot(staffPage, '17-staff-incident');
     await staffPage.close();
 
+    // PH-5.4: supervision — Carla reviews demand, reassigns from the overdue list and saves the schedule.
+    const supPage = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await supPage.goto(`${WEB}/staff`);
+    await supPage.getByLabel('Atendente simulado').selectOption('staff-carla');
+    await supPage.getByRole('button', { name: 'Supervisão' }).click();
+    await supPage.getByTestId('overview').waitFor({ timeout: 10_000 });
+    await supPage.getByTestId('metrics').waitFor();
+    await supPage.getByText(/Não há metas definidas/).waitFor();
+    // The threshold is lowered to 1 h so the overdue list is exercised on today's data if any case qualifies; then saved.
+    await supPage.getByLabel('Horas sem resposta para considerar atraso').fill('1');
+    await supPage.getByLabel('Atende em Sábado').check();
+    await supPage.getByRole('button', { name: 'Salvar configuração' }).click();
+    await supPage.getByText('Configuração salva.').waitFor({ timeout: 5000 });
+    await supPage.getByText(/Configurado por Carla Nunes/).waitFor({ timeout: 5000 });
+    note('supervision', 'as supervisor, "Supervisão" shows demand (unassigned, awaiting a human reply, per status), load per agent, the overdue list, metrics for the period with the explicit "no targets" note, and the schedule form; saving it records "Configurado por Carla Nunes"');
+    await shot(supPage, '23-staff-supervision');
+    await supPage.close();
+    await desktop.reload();
+    await desktop.getByText('Conversas em andamento').waitFor();
+    const configured = await desktop.getByTestId('availability').textContent();
+    if (!/Horário configurado/.test(configured)) throw new Error(`Customer copy did not pick up the configured schedule: ${configured}`);
+    note('availability-configured', 'after the supervisor saved the schedule, the customer home says "Horário configurado (America/Sao_Paulo)" instead of the working-default note (RULE-SUP-08)');
+
     // Contextual entry from a record (PH-4.2, §4.2): "Preciso de ajuda" on a withdrawal in the host.
-    await desktop.getByRole('button', { name: 'Voltar' }).click();
+    if (await desktop.getByRole('button', { name: 'Voltar' }).count()) await desktop.getByRole('button', { name: 'Voltar' }).click();
     await desktop.getByText('Conversas em andamento').waitFor();
     await desktop.getByRole('button', { name: 'Preciso de ajuda: Saque 250 USDT' }).click();
     await desktop.getByText('Como podemos ajudar?').waitFor();

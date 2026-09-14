@@ -1,6 +1,7 @@
 import {
   type CaseAttachment,
   type CaseMessage,
+  type Availability,
   type CreateCaseInput,
   type CustomerCaseDetail,
   type CustomerCaseSummary,
@@ -27,7 +28,7 @@ export class ApiError extends Error {
 }
 
 export interface RequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   signal?: AbortSignal;
 }
@@ -111,6 +112,8 @@ export const customerApi = {
   /** The customer's own Orbit records for contextual entry (PH-4.2); each says whether an active case already exists. */
   listRecords: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<{ records: OrbitLookup<OrbitRecordListItem[]> }>("/support/records", customerHeaders(identity), { signal }),
+  /** Availability computed from the configured schedule (PH-5.4, §4.4) — never a promise of response time. */
+  availability: (identity: CustomerIdentity, signal?: AbortSignal) => apiRequest<Availability>("/support/availability", customerHeaders(identity), { signal }),
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<CustomerCaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
   getCase: (identity: CustomerIdentity, caseId: string, signal?: AbortSignal) =>

@@ -973,6 +973,11 @@ export class CasesService {
     return this.requireCase(caseId);
   }
 
+  /** Staff summaries for rows another service selected (supervision overview, PH-5.4). */
+  summariesOf(rows: SupportCaseRow[]): Promise<CaseSummary[]> {
+    return this.withUnread(rows, 'staff');
+  }
+
   // ---------- Live updates (ADR-0004): published only after the transaction committed ----------
 
   private publishCaseUpdated(row: SupportCaseRow): void {

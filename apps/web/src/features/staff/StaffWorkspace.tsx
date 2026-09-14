@@ -9,6 +9,7 @@ import { type StreamStatus, subscribeStream } from "@/lib/sse";
 import { type StaffIdentity, staffIdentityHeaders } from "@/lib/staff-api";
 import { SavedRepliesPanel } from "./SavedRepliesPanel";
 import { StaffCaseView } from "./StaffCaseView";
+import { SupervisionPanel } from "./SupervisionPanel";
 import { StaffQueue } from "./StaffQueue";
 import styles from "./staff.module.css";
 
@@ -29,7 +30,7 @@ export function StaffWorkspace() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [caseSignal, setCaseSignal] = useState<CaseSignal | null>(null);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
-  const [page, setPage] = useState<"cases" | "replies">("cases");
+  const [page, setPage] = useState<"cases" | "replies" | "supervision">("cases");
   const identity = useMemo<StaffIdentity>(
     () => ({ staffId: staff.id, displayName: staff.name, role: staff.role }),
     [staff.id, staff.name, staff.role],
@@ -65,6 +66,11 @@ export function StaffWorkspace() {
           <button type="button" className={styles.secondaryButton} onClick={() => setPage(page === "replies" ? "cases" : "replies")} aria-pressed={page === "replies"}>
             {t.staff.savedReplies.open}
           </button>
+          {identity.role !== "agent" && (
+            <button type="button" className={styles.secondaryButton} onClick={() => setPage(page === "supervision" ? "cases" : "supervision")} aria-pressed={page === "supervision"}>
+              {t.staff.supervision.open}
+            </button>
+          )}
           <label className={styles.agentPicker}>
             <span className={styles.simBadge}>{t.app.simulationBadge}</span>
             <span className="visually-hidden">{t.staff.agentPicker}</span>
@@ -85,6 +91,16 @@ export function StaffWorkspace() {
       </header>
 
       {page === "replies" && <SavedRepliesPanel identity={identity} onClose={() => setPage("cases")} />}
+      {page === "supervision" && (
+        <SupervisionPanel
+          identity={identity}
+          onClose={() => setPage("cases")}
+          onOpenCase={(caseId) => {
+            setSelectedCaseId(caseId);
+            setPage("cases");
+          }}
+        />
+      )}
       <div className={styles.columns} hidden={page !== "cases"}>
         <StaffQueue
           identity={identity}

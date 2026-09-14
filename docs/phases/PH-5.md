@@ -1,6 +1,6 @@
 # PH-5 — Staff workspace completeness and supervision
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-03; FEAT-STAFF, FEAT-CASE, FEAT-CHAT
 Cycle: 2 (see `ROADMAP.md`; PH-4 counted, 1/3)
 
@@ -30,10 +30,13 @@ Scenarios (§14 item 9): (a) an agent switches to "Aguardando cliente" and "Agua
 | PH-5.1 | Views for every state, attention signals (unanswered since), pagination, history indexes — `PH-5.1.md`, approved 2026-09-14 | APPROVED |
 | PH-5.2 | Filters and search (reference, user id, subject, record reference, category, priority, agent) — `PH-5.2.md`, approved 2026-09-14 | APPROVED |
 | PH-5.3 | Saved replies: table, endpoints, composer picker, attributable edits — `PH-5.3.md`, approved 2026-09-14 | APPROVED |
-| PH-5.4 | Schedule/configuration with customer availability copy, supervision overview with reassignment, service metrics; phase closure | PLANNED |
+| PH-5.4 | Schedule/configuration with customer availability copy, supervision overview with reassignment, service metrics; phase closure — `PH-5.4.md`, approved 2026-09-14 | APPROVED |
 
 ## Verification and operational readiness
 Per subphase: service and e2e tests (views, search, saved replies, settings, overview, metrics — negatives for role gating and customer access), web tests, browser smoke extended with the new views, search, saved reply, schedule copy and overview. `npm run verify` before each commit; `npm run verify:full` and the smoke on the phase candidate.
 
 ## Completion evidence, findings and context updated
-Pending — filled at phase approval.
+Approved 2026-09-14 — `../evidence/PH-5-phase-approval.md`: scenarios (a)–(g) mapped to executed tests and browser observations on the phase candidate (screenshots `../evidence/screenshots/ph-5/`). Subphase evidence: `../evidence/PH-5.1-verification.md` … `../evidence/PH-5.4-verification.md`.
+Findings: FND-0028 (process — two commits after a failed gate, corrected; BL-020). No open product findings. Backlog: BL-011 done; BL-013, BL-014 open.
+Context updated: feature contexts FEAT-STAFF / FEAT-CASE / FEAT-CHAT; `ROADMAP.md` ledger (cycle 2, 2/3); `../../CURRENT_STATE.md`; DEC-0021–DEC-0023.
+Everything runs on simulated identity, simulated records and simulated staff roles (DEC-0003).

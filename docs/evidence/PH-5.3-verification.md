@@ -22,4 +22,4 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 
 ## CI
 Commit `6d11ee8`: expected **failure** (check-context) — see "Final gate run". The corrective commit's run is recorded below when known.
-Corrective commit: pending push.
+Corrective commit `c3fc6a8`: run 34815816291 — **success** (first green run on the PH-5.2/5.3 code).

@@ -777,3 +777,28 @@
   white-space: pre-wrap;
   font-size: 13px;
 }
+
+/* ---- Supervision (PH-5.4) ---- */
+
+.scheduleList {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scheduleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.scheduleDay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 140px;
+}

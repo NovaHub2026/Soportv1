@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `3217c53` plus the PH-5.2/PH-5.3 change (search and filters, saved replies)
+Verified against: `c3fc6a8` plus the PH-5.4 change (settings, supervision, metrics)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -12,6 +12,7 @@ Support staff have a workspace with three areas — queues, conversation, custom
 Rules: RULE-SUP-02 (managed queue / responsible person; transfers preserve follow-through), RULE-SUP-04 (internal notes never published), RULE-SUP-07 (verified vs pending vs unavailable information), RULE-SUP-09 (attributable actions).
 
 ## Current behavior and known gaps
+Supervision and configuration (PH-5.4, DEC-0023): "Supervisão" in the topbar (supervisors/admins; agents get 403 from the API) — demand by status, unassigned count and age, awaiting-reply count and age, load per agent, overdue list (awaiting a human reply longer than the configured threshold) with "Reatribuir", metrics for 7/30 days (created, resolutions, closures, reopenings, first human reply and resolution as median/p90 with sample sizes, unanswered now) under an explicit "no targets defined" note, and the settings form (timezone, weekly schedule, threshold, follow-up window) showing whether values are still working defaults and who configured them.
 Search and filters (PH-5.2): a search box above the tabs (reference with or without `SUP-`, customer id, subject words, record reference) plus category, priority and responsible filters; "Limpar" resets; results respect the current view and pagination.
 Saved replies (PH-5.3, DEC-0022): "Inserir resposta salva" in the reply composer appends the template to the draft; "Respostas salvas" in the topbar opens the management panel (new, edit, remove; author and last editor shown; others' replies editable only by supervisor/admin).
 Queues (PH-5.1, DEC-0021): tabs "Não atribuídos", "Meus casos", "Todos ativos", "Aguardando cliente", "Aguardando equipe", "Resolvidos", "Encerrados"; items flag "Sem resposta há …" when the customer's latest message has no later staff reply, and "Aguardando o cliente há …" in the waiting view; "Carregar mais" pages of 50.
@@ -43,4 +44,4 @@ Take conflicts (someone else took it) surface as an error line, never silently. 
 DEC-0007 (pt-BR staff copy by default; responsible shown by id until profiles exist). Assumption: agents work on desktop-class screens; a narrow layout keeps queue + conversation only.
 
 ## Verification and change checklist
-Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5.3-verification.md`, `docs/evidence/PH-5.2-verification.md`.
+Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5-phase-approval.md`, `docs/evidence/PH-5.4-verification.md`.

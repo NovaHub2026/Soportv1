@@ -67,7 +67,8 @@ describe("SupportHome", () => {
 
   test("offers a retry when the list cannot be loaded", async () => {
     let calls = 0;
-    mockFetch(() => {
+    mockFetch((request) => {
+      if (request.url !== "/api/support/cases") return { status: 404, body: null };
       calls += 1;
       return calls === 1 ? { status: 500, body: { error: "boom" } } : { body: [summary()] };
     });
@@ -76,4 +77,19 @@ describe("SupportHome", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
     await waitFor(() => expect(screen.getByText(/SUP-000001/)).toBeDefined());
   });
+
+  test("PH-5.4: shows availability from the configured schedule and says when it is still a working default", async () => {
+    mockFetch((request) =>
+      request.url === "/api/support/availability"
+        ? { body: { openNow: false, timezone: "America/Sao_Paulo", today: { open: "09:00", close: "18:00" }, nextOpening: { weekday: "thu", open: "09:00" }, workingDefault: true, checkedAt: "" } }
+        : { body: [] },
+    );
+    render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={() => {}} />);
+    const line = await screen.findByTestId("availability");
+    expect(line.textContent).toContain("Atendimento fechado agora.");
+    expect(line.textContent).toContain("Hoje: 09:00–18:00.");
+    expect(line.textContent).toContain("Próximo atendimento: quinta às 09:00.");
+    expect(line.textContent).toContain("ainda não configurado pela operação");
+  });
+
 });

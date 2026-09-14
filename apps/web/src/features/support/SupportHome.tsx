@@ -1,8 +1,8 @@
 "use client";
 
-import { type CustomerCaseSummary, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
+import { type Availability, type CustomerCaseSummary, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
 import { useCallback, useEffect, useState } from "react";
-import { dictionary as t, formatMessageTime } from "@/i18n";
+import { dictionary as t, fill, formatMessageTime } from "@/i18n";
 import { type CustomerIdentity, customerApi, customerIdentityHeaders } from "@/lib/api";
 import { subscribeStream } from "@/lib/sse";
 import { StatusBadge } from "./StatusBadge";
@@ -24,6 +24,17 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const [availability, setAvailability] = useState<Availability | null>(null);
+
+  // Availability comes from the configured schedule (RULE-SUP-08); without it, only the neutral copy is shown.
+  useEffect(() => {
+    const controller = new AbortController();
+    customerApi
+      .availability(identity, controller.signal)
+      .then(setAvailability)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [identity]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,6 +69,19 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
   return (
     <div className={styles.body}>
       <p className={styles.availability}>{t.support.home.availability}</p>
+      {availability && (
+        <p className={styles.availability} data-testid="availability" data-open={availability.openNow ? "true" : "false"}>
+          {availability.openNow ? t.support.home.openNow : t.support.home.closedNow}{" "}
+          {availability.today
+            ? fill(t.support.home.todayHours, { open: availability.today.open, close: availability.today.close })
+            : t.support.home.closedToday}
+          {!availability.openNow && availability.nextOpening
+            ? ` ${fill(t.support.home.nextOpening, { day: t.support.home.weekdays[availability.nextOpening.weekday], time: availability.nextOpening.open })}`
+            : ""}
+          {" "}
+          <span className={styles.muted}>{availability.workingDefault ? t.support.home.scheduleDefault : fill(t.support.home.scheduleConfigured, { tz: availability.timezone })}</span>
+        </p>
+      )}
       <button type="button" className={styles.primaryButton} onClick={onNewRequest}>
         {t.support.home.talk}
       </button>

@@ -401,4 +401,28 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).delete(`/api/staff/saved-replies/${created.body.id}`).set(asStaff('staff-ana', 'Ana')).expect(404);
   });
 
+
+  it('PH-5.4: availability is computed from the configured schedule; supervision and settings are supervisor-only', async () => {
+    const server = app.getHttpServer();
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+    const availability = await request(server).get('/api/support/availability').set(asCustomer('cust-alice')).expect(200);
+    expect(availability.body).toMatchObject({ timezone: 'America/Sao_Paulo', workingDefault: true });
+    expect(typeof availability.body.openNow).toBe('boolean');
+    await request(server).get('/api/support/availability').set(asStaff('staff-ana', 'Ana')).expect(403);
+    await request(server).get('/api/staff/overview').set(asStaff('staff-ana', 'Ana')).expect(403);
+    await request(server).get('/api/staff/metrics?days=7').set(asStaff('staff-ana', 'Ana')).expect(403);
+    await request(server).get('/api/staff/metrics?days=999').set(supervisor).expect(400);
+    const overview = await request(server).get('/api/staff/overview').set(supervisor).expect(200);
+    expect(overview.body).toHaveProperty('byStatus');
+    const metrics = await request(server).get('/api/staff/metrics?days=30').set(supervisor).expect(200);
+    expect(metrics.body).toMatchObject({ periodDays: 30, targets: null });
+    const current = await request(server).get('/api/staff/settings').set(asStaff('staff-ana', 'Ana')).expect(200);
+    await request(server).put('/api/staff/settings').set(asStaff('staff-ana', 'Ana')).send(current.body).expect(403);
+    await request(server).put('/api/staff/settings').set(supervisor).send({ ...current.body, schedule: { ...current.body.schedule, sat: { open: '10:00', close: '14:00' } }, attentionThresholdHours: 0 }).expect(400);
+    const saved = await request(server).put('/api/staff/settings').set(supervisor).send({ timezone: 'America/Sao_Paulo', schedule: { ...current.body.schedule, sat: { open: '10:00', close: '14:00' } }, attentionThresholdHours: 8, followUpWindowDays: 10 }).expect(200);
+    expect(saved.body).toMatchObject({ workingDefault: false, updatedById: 'staff-carla', attentionThresholdHours: 8, followUpWindowDays: 10 });
+    const again = await request(server).get('/api/support/availability').set(asCustomer('cust-alice')).expect(200);
+    expect(again.body.workingDefault).toBe(false);
+  });
+
 });

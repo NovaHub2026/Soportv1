@@ -4,6 +4,7 @@ import { message, mockFetch, summary } from "@/features/support/test-utils";
 import type { StaffIdentity } from "@/lib/staff-api";
 import { StaffCaseView } from "./StaffCaseView";
 import { StaffQueue } from "./StaffQueue";
+import { SupervisionPanel } from "./SupervisionPanel";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -419,6 +420,30 @@ describe("StaffCaseView", () => {
     fireEvent.change(picker, { target: { value: "r1" } });
     expect((screen.getByLabelText("Resposta ao cliente") as HTMLTextAreaElement).value).toBe("Seu saque está em análise.");
     expect(requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages"))).toHaveLength(0);
+  });
+
+
+  test("PH-5.4: the supervision panel shows demand, overdue cases with reassignment, metrics without targets and the settings form", async () => {
+    const overdue = summary({ id: "od", reference: "SUP-000009", subject: "Atrasado", awaitingReplySince: new Date(Date.now() - 6 * 3_600_000).toISOString() });
+    const { requests } = mockFetch((request) => {
+      if (request.url === "/api/staff/overview") return { body: { byStatus: { new: 1, in_progress: 2, waiting_customer: 0, waiting_internal: 0, resolved: 0, closed: 0 }, unassigned: { count: 1, oldestCreatedAt: new Date(Date.now() - 3_600_000).toISOString() }, awaitingReply: { count: 2, oldestSince: overdue.awaitingReplySince }, byAgent: [{ agentId: "staff-ana", open: 2, awaitingReply: 1 }], attentionThresholdHours: 4, overdue: [overdue], computedAt: "" } };
+      if (request.url.startsWith("/api/staff/metrics")) return { body: { periodDays: 7, from: "", to: "", created: 3, resolved: 1, closed: 0, reopened: 1, firstResponse: { count: 2, medianMinutes: 12, p90Minutes: 30 }, resolution: { count: 1, medianMinutes: 240, p90Minutes: 240 }, unansweredNow: { count: 2, oldestMinutes: 360 }, reopenRate: 1, targets: null } };
+      if (request.url === "/api/staff/settings") return { body: { timezone: "America/Sao_Paulo", schedule: { mon: { open: "09:00", close: "18:00" }, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null }, attentionThresholdHours: 4, followUpWindowDays: 7, workingDefault: true, updatedById: null, updatedByName: null, updatedAt: null } };
+      if (request.url.endsWith("/assign")) return { body: summary({ id: "od", assignedAgentId: "staff-bruno" }) };
+      return { body: [] };
+    });
+    const carla: StaffIdentity = { staffId: "staff-carla", displayName: "Carla Nunes", role: "supervisor" };
+    const onOpenCase = vi.fn();
+    render(<SupervisionPanel identity={carla} onClose={() => {}} onOpenCase={onOpenCase} />);
+    expect((await screen.findByTestId("overview")).textContent).toContain("Aguardando resposta humana2");
+    expect(screen.getByTestId("by-agent").textContent).toContain("Ana Ribeiro");
+    expect(screen.getByTestId("metrics").textContent).toContain("mediana 12 min · p90 30 min · n=2");
+    expect(screen.getByText(/Não há metas definidas/)).toBeDefined();
+    expect(screen.getByText(/ainda não os configurou/)).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Reatribuir a"), { target: { value: "staff-bruno" } });
+    await waitFor(() => expect(requests.some((r) => r.url.endsWith("/od/assign") && (r.body as { agentId: string }).agentId === "staff-bruno")).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: /SUP-000009/ }));
+    expect(onOpenCase).toHaveBeenCalledWith("od");
   });
 
 });

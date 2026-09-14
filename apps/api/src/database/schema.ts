@@ -208,6 +208,19 @@ export const savedReplies = pgTable('saved_replies', {
   updatedAt: tz('updated_at').notNull().defaultNow(),
 });
 
+/** Operating configuration (PH-5.4): one row, attributed. Absent row = working defaults (RULE-SUP-08). */
+export const supportSettings = pgTable('support_settings', {
+  id: text('id').primaryKey(),
+  timezone: text('timezone').notNull(),
+  schedule: jsonb('schedule').$type<Record<string, unknown>>().notNull(),
+  attentionThresholdHours: integer('attention_threshold_hours').notNull(),
+  followUpWindowDays: integer('follow_up_window_days').notNull(),
+  updatedById: text('updated_by_id').notNull(),
+  updatedByName: text('updated_by_name'),
+  updatedAt: tz('updated_at').notNull().defaultNow(),
+});
+
+export type SupportSettingsRow = typeof supportSettings.$inferSelect;
 export type SavedReplyRow = typeof savedReplies.$inferSelect;
 export type SupportCaseRow = typeof supportCases.$inferSelect;
 export type CaseAttachmentRow = typeof caseAttachments.$inferSelect;
