@@ -25,13 +25,15 @@ interface SupportPanelProps {
   visible?: boolean;
   /** Contextual entry from a record in the host (context §4.2). */
   entry?: SupportEntry | null;
+  /** A case the host wants opened (a notification was clicked — PH-6.1). */
+  openCase?: { caseId: string; seq: number } | null;
 }
 
 /**
  * The customer "Suporte" experience (context §4): home with a prominent way to talk to a person, a short
  * new-request form, and the conversation of one case. Opening the panel creates nothing; sending does.
  */
-export function SupportPanel({ customer, onClose, visible = true, entry = null }: SupportPanelProps) {
+export function SupportPanel({ customer, onClose, visible = true, entry = null, openCase = null }: SupportPanelProps) {
   const [view, setView] = useState<View>({ name: "home" });
   const identity = useMemo<CustomerIdentity>(() => ({ customerId: customer.id }), [customer.id]);
 
@@ -39,6 +41,9 @@ export function SupportPanel({ customer, onClose, visible = true, entry = null }
   useEffect(() => {
     if (entry) queueMicrotask(() => setView({ name: "new", record: entry.record }));
   }, [entry]);
+  useEffect(() => {
+    if (openCase) queueMicrotask(() => setView({ name: "case", caseId: openCase.caseId }));
+  }, [openCase]);
 
   return (
     <section className={styles.panel} data-testid="support-panel">

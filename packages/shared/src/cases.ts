@@ -217,6 +217,27 @@ export const staffListQuerySchema = z.object({
 });
 export type StaffListQuery = z.infer<typeof staffListQuerySchema>;
 
+// ---- Customer notifications (PH-6.1, context §4.4) ----
+
+export const NOTIFICATION_KINDS = ["staff_reply", "waiting_customer", "resolved", "closed", "reminder", "outside_hours"] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/** Never carries message content: the kind and the case reference are enough to bring the customer back. */
+export interface CustomerNotification {
+  id: string;
+  caseId: string;
+  caseReference: string;
+  kind: NotificationKind;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export const markNotificationsReadSchema = z.object({
+  ids: z.array(z.uuid()).max(100).optional(),
+  caseId: z.uuid().optional(),
+});
+export type MarkNotificationsReadInput = z.infer<typeof markNotificationsReadSchema>;
+
 // ---- Saved replies (PH-5.3, context §5.2 / §5.4) ----
 
 export const savedReplyInputSchema = z.object({

@@ -7,6 +7,7 @@ import { dictionary as t, formatMessageTime } from "@/i18n";
 import { customerApi } from "@/lib/api";
 import { SIMULATED_CUSTOMERS, useSimulatedCustomer } from "@/lib/simulated-session";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { NotificationsBell } from "./NotificationsBell";
 
 /** Below this width the panel is a full-screen view toggled from the topbar (shell.module.css). */
 const DESKTOP_QUERY = "(min-width: 900px)";
@@ -18,6 +19,11 @@ export function OrbitShell() {
   const [panelOpen, setPanelOpen] = useState(false);
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const [entry, setEntry] = useState<SupportEntry | null>(null);
+  const [openCase, setOpenCase] = useState<{ caseId: string; seq: number } | null>(null);
+  const openFromNotification = (caseId: string) => {
+    setOpenCase((current) => ({ caseId, seq: (current?.seq ?? 0) + 1 }));
+    setPanelOpen(true);
+  };
   const [records, setRecords] = useState<OrbitLookup<OrbitRecordListItem[]> | null>(null);
 
   // The simulated "trading" area lists the customer's records so "Preciso de ajuda" can start from one (§4.2).
@@ -64,6 +70,7 @@ export function OrbitShell() {
               ))}
             </select>
           </label>
+          <NotificationsBell identity={{ customerId: customer.id }} onOpenCase={openFromNotification} refreshToken={openCase?.seq ?? 0} />
           <button
             type="button"
             className={styles.supportButton}
@@ -118,7 +125,7 @@ export function OrbitShell() {
 
         <aside id="support-panel" className={styles.panel} aria-label={t.support.title}>
           {/* Keyed by customer: changing who the browser acts as never leaves another customer's conversation on screen (FND-0011). */}
-          <SupportPanel key={customer.id} customer={customer} visible={desktop || panelOpen} entry={entry} onClose={() => setPanelOpen(false)} />
+          <SupportPanel key={customer.id} customer={customer} visible={desktop || panelOpen} entry={entry} openCase={openCase} onClose={() => setPanelOpen(false)} />
         </aside>
       </div>
     </div>

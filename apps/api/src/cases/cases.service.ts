@@ -58,6 +58,7 @@ import {
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
 import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-directory.js';
+import { NotificationsService } from './notifications.service.js';
 
 const OPEN = [...OPEN_CASE_STATUSES];
 
@@ -80,6 +81,7 @@ export class CasesService {
     private readonly attachments: AttachmentsService,
     @Inject(STAFF_DIRECTORY) private readonly staffDirectory: StaffDirectory,
     @Inject(ORBIT_RECORDS) private readonly orbit: OrbitRecordsPort,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ---------- Customer ----------
@@ -175,6 +177,7 @@ export class CasesService {
   /** The customer opened the conversation: everything received so far counts as read (§4.3 unread state). */
   async markCustomerRead(customer: CustomerActor, caseId: string): Promise<CustomerCaseSummary> {
     const row = await this.requireCustomerCase(customer, caseId);
+    await this.notifications.markRead(customer, { caseId: row.id }); // the conversation is on screen: its notifications are read (PH-6.1)
     const [updated] = await this.db
       .update(supportCases)
       .set({ customerLastReadAt: new Date() })
@@ -578,6 +581,7 @@ export class CasesService {
         .set({ status: 'closed', closedAt: now, closedReason: reason, updatedAt: now })
         .where(eq(supportCases.id, row.id))
         .returning();
+      await this.notifications.record(tx, row.customerId, row.id, 'closed', now);
       return changed;
     });
     if (updated) this.publishCaseUpdated(updated);
@@ -635,6 +639,7 @@ export class CasesService {
         .set({ updatedAt: now, lastMessageAt: now, lastStaffMessageAt: now })
         .where(eq(supportCases.id, current.id))
         .returning();
+      await this.notifications.record(tx, row.customerId, row.id, 'staff_reply', now); // PH-6.1: once per committed reply
       return { message: inserted, updated: changed, linked: linkedRows };
     });
     const dto = toMessage(message, linked.map(toAttachment));
@@ -900,6 +905,7 @@ export class CasesService {
         await tx.insert(caseEvents).values(statusChange(current, target, staff.id, 'staff', now));
       }
       const [changed] = await tx.update(supportCases).set(patch).where(eq(supportCases.id, current.id)).returning();
+      if (target === 'waiting_customer') await this.notifications.record(tx, current.customerId, current.id, 'waiting_customer', now);
       return changed;
     });
     this.publishCaseUpdated(updated);
@@ -954,6 +960,7 @@ export class CasesService {
         })
         .where(eq(supportCases.id, current.id))
         .returning();
+      await this.notifications.record(tx, current.customerId, current.id, 'resolved', now);
       return { updated: changed, message: explanation };
     });
     this.publishMessage(updated, toMessage(message));

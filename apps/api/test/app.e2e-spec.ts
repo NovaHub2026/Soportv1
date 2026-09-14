@@ -425,4 +425,23 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(again.body.workingDefault).toBe(false);
   });
 
+
+  it('PH-6.1: customers read and mark their own notifications; staff and other customers cannot', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-notify')).send({ category: 'other', message: 'Aviso?' }).expect(201);
+    await request(server).post(`/api/staff/cases/${created.body.id}/messages`).set(asStaff('staff-ana', 'Ana')).send({ body: 'Olá!' }).expect(201);
+    await request(server).get('/api/support/notifications').set(asStaff('staff-ana', 'Ana')).expect(403);
+    const mine = await request(server).get('/api/support/notifications').set(asCustomer('cust-notify')).expect(200);
+    expect(mine.body.unread).toBe(1);
+    expect(mine.body.notifications[0]).toMatchObject({ kind: 'staff_reply', caseReference: created.body.reference, readAt: null });
+    expect(mine.text).not.toContain('Olá!');
+    const theirs = await request(server).get('/api/support/notifications').set(asCustomer('cust-other')).expect(200);
+    expect(theirs.body).toEqual({ notifications: [], unread: 0 });
+    await request(server).post('/api/support/notifications/read').set(asCustomer('cust-other')).send({ ids: [mine.body.notifications[0].id] }).expect(200);
+    expect((await request(server).get('/api/support/notifications').set(asCustomer('cust-notify')).expect(200)).body.unread).toBe(1);
+    await request(server).post('/api/support/notifications/read').set(asCustomer('cust-notify')).send({ ids: ['not-a-uuid'] }).expect(400);
+    const marked = await request(server).post('/api/support/notifications/read').set(asCustomer('cust-notify')).send({}).expect(200);
+    expect(marked.body).toEqual({ marked: 1, unread: 0 });
+  });
+
 });

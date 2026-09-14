@@ -5,6 +5,8 @@ import {
   type CreateCaseInput,
   type CustomerCaseDetail,
   type CustomerCaseSummary,
+  type CustomerNotification,
+  type MarkNotificationsReadInput,
   type FollowUpInput,
   type OrbitLookup,
   type OrbitRecordListItem,
@@ -114,6 +116,10 @@ export const customerApi = {
     apiRequest<{ records: OrbitLookup<OrbitRecordListItem[]> }>("/support/records", customerHeaders(identity), { signal }),
   /** Availability computed from the configured schedule (PH-5.4, §4.4) — never a promise of response time. */
   availability: (identity: CustomerIdentity, signal?: AbortSignal) => apiRequest<Availability>("/support/availability", customerHeaders(identity), { signal }),
+  listNotifications: (identity: CustomerIdentity, signal?: AbortSignal) =>
+    apiRequest<{ notifications: CustomerNotification[]; unread: number }>("/support/notifications", customerHeaders(identity), { signal }),
+  markNotificationsRead: (identity: CustomerIdentity, input: MarkNotificationsReadInput) =>
+    apiRequest<{ marked: number; unread: number }>("/support/notifications/read", customerHeaders(identity), { method: "POST", body: input }),
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<CustomerCaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
   getCase: (identity: CustomerIdentity, caseId: string, signal?: AbortSignal) =>

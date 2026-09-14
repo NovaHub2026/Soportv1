@@ -12,6 +12,7 @@ import { ORBIT_RECORDS } from '../identity/orbit-records.js';
 import { SimulatedOrbitRecords } from '../identity/simulated-orbit-records.js';
 import { SimulatedStaffDirectory, STAFF_DIRECTORY } from '../identity/staff-directory.js';
 import { CasesService } from './cases.service.js';
+import { NotificationsService } from './notifications.service.js';
 import { SettingsService } from './settings.service.js';
 import { SupervisionService } from './supervision.service.js';
 
@@ -37,6 +38,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         { provide: ORBIT_RECORDS, useValue: new SimulatedOrbitRecords({}) },
         SettingsService,
         SupervisionService,
+        NotificationsService,
       ],
     }).compile();
     await moduleRef.init();
@@ -714,6 +716,33 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect(saved).toMatchObject({ workingDefault: false, updatedById: carla.id, attentionThresholdHours: 12 });
       expect((await supervision.overview(carla)).overdue).toHaveLength(0);
       expect(await settings.followUpWindowDays()).toBe(7);
+    });
+  });
+
+
+  describe('in-product notifications (PH-6.1, §4.4)', () => {
+    it('records one notification per customer-facing change, none for internal work, marks them read when the case is opened, and isolates customers', async () => {
+      const notifications = moduleRef.get(NotificationsService);
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.postInternalNote(ana, created.id, { body: 'nota' });
+      const consultation = await service.requestConsultation(ana, created.id, { team: 'finance', question: '?' });
+      await service.answerConsultation(bruno, created.id, consultation.id, { answer: 'ok' });
+      expect(await notifications.list(alice)).toHaveLength(0);
+      const input = { body: 'Resposta', clientMessageId: 'n-1' };
+      await service.postStaffMessage(ana, created.id, input);
+      await service.postStaffMessage(ana, created.id, input); // retry: same message, no second notification
+      await service.setStatus(ana, created.id, 'waiting_customer');
+      await service.resolve(ana, created.id, { reason: 'solved', explanation: 'Feito' });
+      await service.closeCase(ana, created.id);
+      const list = await notifications.list(alice);
+      expect(list.map((n) => n.kind)).toEqual(['closed', 'resolved', 'waiting_customer', 'staff_reply']);
+      expect(list.every((n) => n.readAt === null && n.caseReference === created.reference)).toBe(true);
+      expect(await notifications.unreadCount(alice)).toBe(4);
+      expect(await notifications.list(bob)).toHaveLength(0);
+      expect(await notifications.markRead(bob, { caseId: created.id })).toBe(0);
+      await service.markCustomerRead(alice, created.id);
+      expect(await notifications.unreadCount(alice)).toBe(0);
+      expect((await notifications.list(alice)).every((n) => n.readAt !== null)).toBe(true);
     });
   });
 

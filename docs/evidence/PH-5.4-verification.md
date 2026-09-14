@@ -25,4 +25,4 @@ Not verified: reassignment from the overdue list in a browser (the smoke's data 
 `npm run build` (shared, nest, next) exit 0 before the smoke; `npm run verify` exit 0 at commit time through the gate-then-commit script (check-context OK; lint/typecheck exit 0; Vitest shared 15/15, api 53/53, web 58/58, api e2e 27/27) — together the `full` profile on the phase candidate.
 
 ## CI
-Pending push. Earlier commits of this phase: `3217c53` failure and `6d11ee8` failure (FND-0028, both corrected); `c3fc6a8` run 34815816291 **success**.
+Commit `4b868e7`: run 34816489000 — **success**. Earlier commits of this phase: `3217c53` failure and `6d11ee8` failure (FND-0028, both corrected); `c3fc6a8` run 34815816291 **success**.

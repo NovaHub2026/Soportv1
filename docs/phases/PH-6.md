@@ -1,6 +1,6 @@
 # PH-6 — Notifications and availability
 Type: PHASE CONTEXT
-Status: PLANNED
+Status: ACTIVE
 Objective / Feature IDs: OBJ-SUP-04; FEAT-NOTIFY (new), FEAT-CHAT, FEAT-CASE
 Cycle: 2 (see `ROADMAP.md`; PH-4 and PH-5 counted, 2/3 — this phase's approval triggers Cycle Audit 2)
 
@@ -26,7 +26,7 @@ Scenarios: (a) staff reply → badge "1" on the host's "Suporte" button and a no
 ## Planned subphases, adjusted as evidence arrives
 | ID | Block | Status |
 |---|---|---|
-| PH-6.1 | In-product notifications: table, creation on customer-facing events, read state, endpoints, host badge and list, live refresh — `PH-6.1.md` | PLANNED |
+| PH-6.1 | In-product notifications: table, creation on customer-facing events, read state, endpoints, host badge and list, live refresh — `PH-6.1.md`, approved 2026-09-14 | APPROVED |
 | PH-6.2 | E-mail through a boundary port with a simulated labeled outbox, delay job, per-customer preference | PLANNED |
 | PH-6.3 | Outside-hours notice from the schedule, waiting-for-customer reminders, metrics exclusion check; phase closure | PLANNED |
 

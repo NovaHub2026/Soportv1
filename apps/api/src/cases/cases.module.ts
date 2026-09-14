@@ -5,6 +5,8 @@ import { CustomerCasesController } from './customer-cases.controller.js';
 import { CustomerRecordsController } from './customer-records.controller.js';
 import { IncidentsController } from './incidents.controller.js';
 import { SavedRepliesController } from './saved-replies.controller.js';
+import { NotificationsController } from './notifications.controller.js';
+import { NotificationsService } from './notifications.service.js';
 import { SavedRepliesService } from './saved-replies.service.js';
 import { SettingsService } from './settings.service.js';
 import { AvailabilityController, SettingsController, SupervisionController } from './supervision.controller.js';
@@ -16,13 +18,14 @@ import { StaffCasesController } from './staff-cases.controller.js';
     CustomerCasesController,
     CustomerRecordsController,
     AvailabilityController,
+    NotificationsController,
     StaffCasesController,
     IncidentsController,
     SavedRepliesController,
     SettingsController,
     SupervisionController,
   ],
-  providers: [CasesService, ClosureJob, SavedRepliesService, SettingsService, SupervisionService],
-  exports: [CasesService],
+  providers: [CasesService, ClosureJob, SavedRepliesService, SettingsService, SupervisionService, NotificationsService],
+  exports: [CasesService, NotificationsService],
 })
 export class CasesModule {}

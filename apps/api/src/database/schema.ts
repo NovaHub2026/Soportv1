@@ -220,6 +220,23 @@ export const supportSettings = pgTable('support_settings', {
   updatedAt: tz('updated_at').notNull().defaultNow(),
 });
 
+/** In-product notifications for customers (PH-6.1): one row per customer-facing event; read when the case is opened. */
+export const caseNotifications = pgTable(
+  'case_notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    customerId: text('customer_id').notNull(),
+    caseId: uuid('case_id')
+      .notNull()
+      .references(() => supportCases.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    createdAt: tz('created_at').notNull().defaultNow(),
+    readAt: tz('read_at'),
+  },
+  (t) => [index('case_notifications_customer_idx').on(t.customerId, t.readAt, t.createdAt), index('case_notifications_case_idx').on(t.caseId)],
+);
+
+export type CaseNotificationRow = typeof caseNotifications.$inferSelect;
 export type SupportSettingsRow = typeof supportSettings.$inferSelect;
 export type SavedReplyRow = typeof savedReplies.$inferSelect;
 export type SupportCaseRow = typeof supportCases.$inferSelect;

@@ -4,6 +4,7 @@ import type {
   CasePriority,
   CaseStatus,
   ConsultationTeam,
+  NotificationKind,
   OrbitAccountStatus,
   OrbitEnvironment,
   OrbitRecordKind,
@@ -110,6 +111,19 @@ export const ptBR = {
       reconnecting: "Reconectando…",
       closed: "Sem conexão",
       retryingPending: "Reenviando mensagens pendentes…",
+    },
+    notifications: {
+      label: "Notificações",
+      unreadLabel: "Notificações: {n} não lidas",
+      empty: "Nenhuma notificação.",
+      kinds: {
+        staff_reply: "Nova resposta em {reference}",
+        waiting_customer: "Precisamos da sua resposta em {reference}",
+        resolved: "{reference} foi marcado como resolvido",
+        closed: "{reference} foi encerrado",
+        reminder: "Lembrete: {reference} aguarda sua resposta",
+        outside_hours: "Fora do horário: {reference} foi registrado",
+      } satisfies Record<NotificationKind, string>,
     },
     records: {
       title: "Seus registros",

@@ -216,6 +216,13 @@ try {
     await desktop.getByText('Em atendimento').waitFor();
     await desktop.getByText('Ao vivo').waitFor();
     note('reply-live', `staff reply attributed to "Ana Ribeiro" reached the open customer panel in ${liveMs} ms via the live stream; status "Em atendimento"; connection "Ao vivo"`);
+    // PH-6.1: the reply produced a notification; the conversation is open, so it is already read and the badge stays absent.
+    await desktop.waitForTimeout(800);
+    if (await desktop.getByTestId('notifications-badge').count()) throw new Error('Notification badge shown although the conversation is open');
+    await desktop.getByRole('button', { name: 'Notificações' }).click();
+    await desktop.getByRole('button', { name: /Nova resposta em SUP-000001/ }).waitFor({ timeout: 5000 });
+    await desktop.getByRole('button', { name: 'Notificações' }).click();
+    note('notification', 'the staff reply created the notification "Nova resposta em SUP-000001"; because the conversation was on screen it was marked read at once and no badge appeared (PH-6.1)');
     await shot(desktop, '04-conversation-reply');
 
     // The customer has the conversation open, so the reply counts as read — staff see that, live.

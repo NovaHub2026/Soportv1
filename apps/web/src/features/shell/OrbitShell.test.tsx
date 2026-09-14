@@ -46,4 +46,24 @@ describe("OrbitShell", () => {
     expect(screen.getByTestId("request-record").textContent).toContain("WD-48213");
   });
 
+
+  test("PH-6.1: the host shows unread notifications and clicking one opens the conversation", async () => {
+    const alice = summary({ customerId: "cust-alice", subject: "Caso com aviso" });
+    let unread = 1;
+    mockFetch((request) => {
+      if (request.url === "/api/support/notifications") return { body: { notifications: [{ id: "n1", caseId: alice.id, caseReference: "SUP-000001", kind: "staff_reply", createdAt: new Date().toISOString(), readAt: unread ? null : new Date().toISOString() }], unread } };
+      if (request.url.endsWith("/read")) {
+        unread = 0;
+        return { body: alice };
+      }
+      if (request.url === "/api/support/cases") return { body: [alice] };
+      return { body: { ...alice, messages: [message({ body: "Resposta da Ana", authorType: "staff", authorId: "staff-ana", authorName: "Ana" })], unreadCount: 1, record: null } };
+    });
+    render(<OrbitShell />);
+    expect((await screen.findByTestId("notifications-badge")).textContent).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Notificações: 1 não lidas" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Nova resposta em SUP-000001/ }));
+    expect(await screen.findByText("Resposta da Ana")).toBeDefined();
+  });
+
 });
