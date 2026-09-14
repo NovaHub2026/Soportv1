@@ -13,6 +13,8 @@ describe('resolveIdentityProviderName', () => {
 
   it('refuses to run the simulated provider in production without an explicit opt-in (negative case)', () => {
     expect(() => resolveIdentityProviderName({ NODE_ENV: 'production' })).toThrow(/must not run in production/);
+    expect(() => resolveIdentityProviderName({ NODE_ENV: 'Production' })).toThrow(/must not run in production/);
+    expect(() => resolveIdentityProviderName({ NODE_ENV: ' PRODUCTION ' })).toThrow(/must not run in production/);
     expect(resolveIdentityProviderName({ NODE_ENV: 'production', SUPPORT_ALLOW_SIMULATED_IDENTITY: 'true' })).toBe('simulated');
   });
 });

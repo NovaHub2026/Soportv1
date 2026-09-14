@@ -19,21 +19,23 @@ Canonical entrypoint for this repository (`GOVERNANCE.md` §0.2, §3.1). Other p
 | Index | `CONTEXT_INDEX.md` — topic routing + document catalog, one file while small |
 | Roadmap / ledger | `docs/phases/ROADMAP.md`; phase and subphase docs in `docs/phases/` |
 | Decisions | `docs/decisions/DECISION_LOG.md`; ADRs in `docs/decisions/` |
-| Evidence / audits | `docs/evidence/`, `docs/audits/` — created with the first run / audit |
+| Evidence / audits | `docs/evidence/` (one record per work item), `docs/audits/` (`CYCLE-1.md` closed 2026-09-14) |
 | Backlog | `docs/BACKLOG.md` — repository fallback; no external tracker chosen (DEC-0001) |
 | Remote | `origin` → github.com/NovaHub2026/Soportv1 (inspected 2026-09-13); integration branch `main` |
 | Git author (repo-local) | `NovaHub2026 <orbitmarket.pro@gmail.com>` (DEC-0002) |
 | Confirmed stack | Frontend: React + Next.js + TypeScript. Backend: NestJS + TypeScript. Everything else is decided per ADR/decision log as needed. |
-| Verification | `docs/runbooks/VERIFICATION.md` — run `npm run verify` before every commit (profiles: context, static, unit, verify, full) |
+| Verification | `docs/runbooks/VERIFICATION.md` — run `npm run verify` before every commit (profiles: context, static, unit, e2e, verify, full) |
 | CI / release authorization | GitHub Actions `.github/workflows/ci.yml` runs `verify` on push to `main` and PRs; it runs post-integration, so a push is awaiting corroboration until green (§9.2). Release authorization: none granted; production release requires the Owner (§1.1). |
-| Audit cadence | Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none. Independent review: subagents are available in this runtime. |
+| Audit cadence | Cycle Audit after 3 first-time phase approvals (§6.4). Cycle 1 closed 2026-09-14; cycle 2 at 0/3. Independent review: subagents are available in this runtime. |
 | Languages | Developer artifacts: English. Owner communication: Spanish. Customer UI: pt-BR first, es later. |
 | Commands (§12.1) | `START`/resume · `GUARDAR`/save · `PARAR`/stop · `AUDITAR`/audit · `EJECUTA` = execute the current task (new-adoption binding) |
 
 ## Local constraints
-- Toolchain observed 2026-09-13: Node v24.19.0, npm 11.17.0; pnpm not installed. Runs under WSL2.
+- Toolchain observed 2026-09-14: Node v24.19.0, npm 11.17.0; pnpm not installed. Host: Windows 11 native (Git Bash / PowerShell) since 2026-09-14; earlier sessions ran on WSL2 — check `uname`/`$OS` before assuming either. Env vars that hold paths use Windows-style `C:/…` on the Windows host.
+- The git author (DEC-0002) is repo-local and absent on a fresh clone: set it before the first commit (`docs/runbooks/VERIFICATION.md` "Setup").
 - Orbit does not exist yet as a system (Owner, 2026-09-13, DEC-0003). All Orbit identity/record context is simulated behind an explicit boundary (ADR-0002) and must be labeled as simulation in UI and docs.
 - Monorepo with npm workspaces: install with `npm ci` at the root, never inside an app. Build `packages/shared` before the apps (`npm run build:shared`). Dev ports: API 3001, web 3000.
 - Database: embedded PostgreSQL (PGlite) with Drizzle (ADR-0003); schema changes need `npm run db:generate -w api` and the migration committed.
 - Identity is simulated and header-based; the API refuses `NODE_ENV=production` without an explicit opt-in (DEC-0008). Never treat simulated demos as proof of a connected Orbit capability.
+- Case domain rules from Cycle Audit 1: every case change goes through `CasesService.mutate` (row lock in one transaction, DEC-0017); customer responses are the `CustomerCaseSummary` projection (DEC-0015); idempotency keys are per case and author (DEC-0016).
 - Never commit secrets, real customer data or probe code (§11).

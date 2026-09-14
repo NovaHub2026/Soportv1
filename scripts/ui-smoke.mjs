@@ -10,7 +10,7 @@
  *
  * Usage: SUPPORT_DB_DIR=/tmp/x node scripts/ui-smoke.mjs [outputDir]
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,8 +40,15 @@ if (!process.env.SUPPORT_DB_DIR) {
 const children = [];
 // Each server runs in its own process group so shutdown reaches grandchildren (e.g. `next start` → next-server);
 // an orphaned server on the port would silently serve a stale build (learned in PH-1.3).
+// Windows has no process groups: children run attached and are stopped with taskkill /T (Cycle Audit 1, FND-0019).
+const WINDOWS = process.platform === 'win32';
 function start(name, cmd, args, cwd, env = {}) {
-  const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+  const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'], detached: !WINDOWS });
+  child.on('error', (error) => {
+    console.error(`[${name}] failed to start: ${error.message}`);
+    stopAll('SIGKILL');
+    process.exit(3);
+  });
   child.stdout.on('data', (d) => process.stdout.write(`[${name}] ${d}`));
   child.stderr.on('data', (d) => process.stderr.write(`[${name}] ${d}`));
   children.push(child);
@@ -50,7 +57,11 @@ function start(name, cmd, args, cwd, env = {}) {
 
 function stopAll(signal) {
   for (const child of children) {
-    if (child.exitCode !== null) continue;
+    if (child.exitCode !== null || !child.pid) continue;
+    if (WINDOWS) {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+      continue;
+    }
     try {
       process.kill(-child.pid, signal);
     } catch {
@@ -99,7 +110,8 @@ try {
   await assertPortFree(API_PORT);
   await assertPortFree(WEB_PORT);
   start('api', 'node', ['apps/api/dist/main.js'], ROOT, { PORT: String(API_PORT) });
-  start('web', `${ROOT}/node_modules/.bin/next`, ['start', '-p', String(WEB_PORT)], `${ROOT}/apps/web`);
+  // The JS entry, not the .bin shim: the shim is a shell script Windows cannot spawn.
+  start('web', process.execPath, [`${ROOT}/node_modules/next/dist/bin/next`, 'start', '-p', String(WEB_PORT)], `${ROOT}/apps/web`);
   await waitForHttp(`${API}/api/health`);
   await waitForHttp(WEB);
 

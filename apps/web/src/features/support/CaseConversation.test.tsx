@@ -203,4 +203,137 @@ describe("CaseConversation", () => {
     render(<CaseConversation identity={identity} caseId={detail.id} />);
     expect((await screen.findByRole("alert")).textContent).toContain("Não foi possível carregar a conversa.");
   });
+
+  describe("Cycle Audit 1 regressions", () => {
+    test("FND-0002: a poll that started before a send never hides the sent message when it resolves late", async () => {
+      let release: ((value: unknown) => void) | undefined;
+      let gets = 0;
+      let stored: ReturnType<typeof message> | null = null;
+      mockFetch(async (request) => {
+        if (request.url.endsWith("/read")) return { body: summary() };
+        if (request.method === "GET") {
+          gets += 1;
+          if (gets === 2) {
+            await new Promise((resolve) => (release = resolve));
+            return { body: detail }; // stale: taken before the send
+          }
+          return { body: stored ? { ...detail, messages: [...detail.messages, stored] } : detail };
+        }
+        const body = request.body as { body: string; clientMessageId: string };
+        stored = message({ id: "m-late", body: body.body, clientMessageId: body.clientMessageId });
+        return { status: 201, body: stored };
+      });
+      render(<CaseConversation identity={identity} caseId={detail.id} />);
+      await screen.findByText(/SUP-000001/);
+
+      // A case.updated event starts a poll that will hang until released.
+      act(() => streams[0].handlers.onEvent("case.updated", { type: "case.updated", caseId: detail.id, customerId: identity.customerId, summary: detail, at: "" }));
+      await waitFor(() => expect(gets).toBe(2));
+      fireEvent.change(screen.getByLabelText("Sua mensagem"), { target: { value: "Chegou depois" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      await waitFor(() => expect(gets).toBe(3));
+      await screen.findByText("Chegou depois");
+
+      await act(async () => {
+        release?.(undefined);
+        await Promise.resolve();
+      });
+      expect(screen.getAllByText("Chegou depois")).toHaveLength(1);
+    });
+
+    test("FND-0011: when the case stops being this customer's, the conversation is cleared and nothing is retried", async () => {
+      let forbidden = false;
+      const { requests } = mockFetch((request) => {
+        if (request.url.endsWith("/read")) return { body: summary() };
+        if (request.method === "GET") return forbidden ? { status: 404, body: { message: "case_not_found" } } : { body: detail };
+        return { status: 503, body: {} };
+      });
+      render(<CaseConversation identity={identity} caseId={detail.id} />);
+      await screen.findByText(/SUP-000001/);
+      fireEvent.change(screen.getByLabelText("Sua mensagem"), { target: { value: "Segredo" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      await screen.findByText("Não enviada");
+
+      forbidden = true;
+      act(() => streams[0].handlers.onEvent("case.updated", { type: "case.updated", caseId: detail.id, customerId: identity.customerId, summary: detail, at: "" }));
+      expect((await screen.findByRole("alert")).textContent).toContain("Não foi possível carregar a conversa.");
+      expect(screen.queryByText(/SUP-000001/)).toBeNull();
+      expect(screen.queryByText("Segredo")).toBeNull();
+      const posts = requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages")).length;
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages")).length).toBe(posts);
+    });
+
+    test("FND-0012: a send refused because the case closed moves the text into the follow-up form instead of retrying forever", async () => {
+      let closed = false;
+      const { requests } = mockFetch((request) => {
+        if (request.url.endsWith("/read")) return { body: summary() };
+        if (request.method === "GET") return { body: { ...detail, status: closed ? "closed" : "in_progress" } };
+        closed = true;
+        return { status: 409, body: { statusCode: 409, message: "case_closed" } };
+      });
+      render(<CaseConversation identity={identity} caseId={detail.id} />);
+      await screen.findByText(/SUP-000001/);
+      fireEvent.change(screen.getByLabelText("Sua mensagem"), { target: { value: "Ainda não recebi" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+
+      expect(await screen.findByText(/Esta conversa foi encerrada/)).toBeDefined();
+      expect(screen.getByText(/pronta abaixo para a continuação/)).toBeDefined();
+      expect((screen.getByLabelText("O que ainda precisa") as HTMLTextAreaElement).value).toBe("Ainda não recebi");
+      expect(screen.queryByText("Não enviada")).toBeNull();
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages"))).toHaveLength(1);
+    });
+
+    test("FND-0012: a validation refusal is shown as refused and never auto-retried; a failed send survives leaving and coming back", async () => {
+      const { requests } = mockFetch((request) => {
+        if (request.url.endsWith("/read")) return { body: summary() };
+        if (request.method === "GET") return { body: detail };
+        const body = request.body as { body: string };
+        return body.body === "inválida" ? { status: 400, body: { error: "validation_failed" } } : { status: 503, body: {} };
+      });
+      const first = render(<CaseConversation identity={identity} caseId={detail.id} />);
+      await screen.findByText(/SUP-000001/);
+      fireEvent.change(screen.getByLabelText("Sua mensagem"), { target: { value: "inválida" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      expect(await screen.findByText("Recusada pelo servidor")).toBeDefined();
+      fireEvent.change(screen.getByLabelText("Sua mensagem"), { target: { value: "sem rede" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      expect(await screen.findByText("Não enviada")).toBeDefined();
+      const postsBefore = requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages")).length;
+
+      first.unmount();
+      render(<CaseConversation identity={identity} caseId={detail.id} />);
+      await screen.findByText(/SUP-000001/);
+      expect(screen.getByText("sem rede")).toBeDefined();
+      expect(screen.getByText("inválida")).toBeDefined();
+      expect(screen.getByText("Recusada pelo servidor")).toBeDefined();
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(() => expect(requests.filter((r) => r.method === "POST" && r.url.endsWith("/messages")).length).toBe(postsBefore + 1));
+      expect((requests.at(-1)?.body as { body: string }).body).toBe("sem rede");
+      fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
+      expect(screen.queryByText("inválida")).toBeNull();
+      window.sessionStorage.clear();
+    });
+
+    test("FND-0013: nothing is marked as read while the panel is hidden; showing it marks the unread reply", async () => {
+      const { requests } = mockFetch((request) => (request.url.endsWith("/read") ? { body: summary() } : { body: { ...detail, unreadCount: 1 } }));
+      const view = render(<CaseConversation identity={identity} caseId={detail.id} visible={false} />);
+      await screen.findByText(/SUP-000001/);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(requests.some((r) => r.url.endsWith("/read"))).toBe(false);
+
+      view.rerender(<CaseConversation identity={identity} caseId={detail.id} visible={true} />);
+      await waitFor(() => expect(requests.some((r) => r.method === "POST" && r.url.endsWith("/read"))).toBe(true));
+    });
+  });
+
 });

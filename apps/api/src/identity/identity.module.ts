@@ -2,6 +2,7 @@ import { type DynamicModule, Module } from '@nestjs/common';
 import { IdentityController } from './identity.controller.js';
 import { ORBIT_IDENTITY } from './identity.types.js';
 import { SimulatedOrbitIdentity } from './simulated-orbit-identity.js';
+import { SimulatedStaffDirectory, STAFF_DIRECTORY } from './staff-directory.js';
 
 export type IdentityProviderName = 'simulated';
 
@@ -17,7 +18,8 @@ export function resolveIdentityProviderName(env: NodeJS.ProcessEnv): IdentityPro
       `Unknown identity provider "${name}". Only "simulated" exists until Orbit provides sessions (ADR-0002).`,
     );
   }
-  if (env.NODE_ENV === 'production' && env.SUPPORT_ALLOW_SIMULATED_IDENTITY !== 'true') {
+  // Case-insensitive: "Production" must not slip past the guard (Cycle Audit 1, FND-0018).
+  if (env.NODE_ENV?.trim().toLowerCase() === 'production' && env.SUPPORT_ALLOW_SIMULATED_IDENTITY !== 'true') {
     throw new Error(
       'Refusing to start: the simulated identity provider trusts request headers and must not run in production. ' +
         'Set SUPPORT_ALLOW_SIMULATED_IDENTITY=true only for a deliberately isolated demo.',
@@ -42,8 +44,9 @@ export class IdentityModule {
             return new SimulatedOrbitIdentity();
           },
         },
+        { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory },
       ],
-      exports: [ORBIT_IDENTITY],
+      exports: [ORBIT_IDENTITY, STAFF_DIRECTORY],
     };
   }
 }

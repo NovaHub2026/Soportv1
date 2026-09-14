@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { positiveNumberEnv } from '../common/env.js';
 import { CasesService } from './cases.service.js';
 
 /**
@@ -10,12 +11,14 @@ import { CasesService } from './cases.service.js';
 export class ClosureJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ClosureJob.name);
   private timer: ReturnType<typeof setInterval> | undefined;
+  /** A slow tick must not overlap the next one: the closure is per-row locked, but double work is still waste. */
+  private running = false;
 
   constructor(private readonly cases: CasesService) {}
 
   onModuleInit(): void {
     if (process.env.SUPPORT_CLOSURE_JOB === 'off') return;
-    const intervalMs = Number(process.env.SUPPORT_CLOSURE_INTERVAL_MS ?? 60_000);
+    const intervalMs = positiveNumberEnv('SUPPORT_CLOSURE_INTERVAL_MS', 60_000);
     this.timer = setInterval(() => void this.tick(), intervalMs);
     // Never keep the process alive just for this timer.
     this.timer.unref?.();
@@ -26,11 +29,15 @@ export class ClosureJob implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
     try {
       const closed = await this.cases.closeExpired();
       if (closed > 0) this.logger.log(`Closed ${closed} resolved case(s) past the follow-up window`);
     } catch (error) {
       this.logger.error('Closure job failed', error instanceof Error ? error.stack : String(error));
+    } finally {
+      this.running = false;
     }
   }
 }

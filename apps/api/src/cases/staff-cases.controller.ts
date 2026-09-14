@@ -45,7 +45,7 @@ import {
   updateCaseSchema,
   type UpdateCaseInput,
 } from '@orbit-support/shared';
-import { sendAttachment, UPLOAD_LIMITS } from '../attachments/attachments.controller-support.js';
+import { sendAttachment, UPLOAD_OPTIONS } from '../attachments/attachments.controller-support.js';
 import { AttachmentsService, type UploadedFileLike } from '../attachments/attachments.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { CaseStreamService } from '../events/case-stream.service.js';
@@ -66,7 +66,7 @@ export class StaffCasesController {
   ) {}
 
   @Post(':id/attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
+  @UseInterceptors(FileInterceptor('file', UPLOAD_OPTIONS))
   async upload(
     @CurrentActor() actor: StaffActor,
     @Param('id', ParseUUIDPipe) id: string,

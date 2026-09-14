@@ -3,7 +3,7 @@
 import { type CaseMessage, type CustomerCaseDetail, isStreamEvent } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
-import { type AttachmentClient, type CustomerIdentity, customerApi, customerIdentityHeaders, newClientMessageId } from "@/lib/api";
+import { ApiError, apiErrorCode, type AttachmentClient, type CustomerIdentity, customerApi, customerIdentityHeaders, isRetryable, newClientMessageId } from "@/lib/api";
 import { type StreamStatus, subscribeStream } from "@/lib/sse";
 import { AttachmentComposer } from "./AttachmentComposer";
 import { AttachmentList } from "./AttachmentList";
@@ -23,14 +23,19 @@ interface CaseConversationProps {
   caseId: string;
   /** Navigate to another case of this customer (a follow-up just opened, or the previous case of one). */
   onOpenCase?: (caseId: string) => void;
+  /** False while the panel is mounted but hidden (mobile layout): nothing is marked as read then (FND-0021). */
+  visible?: boolean;
 }
 
-/** A message the customer typed that the server has not confirmed yet, or that failed to send. */
+/**
+ * A message the customer typed that the server has not confirmed yet, that failed to send (retried
+ * automatically), or that the server refused (kept on screen until the customer discards it — RULE-SUP-03).
+ */
 export interface PendingMessage {
   clientMessageId: string;
   body: string;
   createdAt: string;
-  state: "sending" | "failed";
+  state: "sending" | "failed" | "refused";
   attachmentIds?: string[];
 }
 
@@ -38,9 +43,35 @@ type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"
 
 const pageVisible = () => typeof document === "undefined" || document.visibilityState === "visible";
 
-export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversationProps) {
+/** Unsent messages survive "Voltar", a reload or a closed tab within the session (FND-0012). Per customer and case. */
+const pendingStorageKey = (customerId: string, caseId: string) => `orbit-support.pending.${customerId}.${caseId}`;
+
+function readPending(key: string): PendingMessage[] {
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as PendingMessage[];
+    // Whatever was "sending" when the page went away is unconfirmed: retry it, the same id keeps it single.
+    return parsed.map((p) => (p.state === "sending" ? { ...p, state: "failed" } : p));
+  } catch {
+    return [];
+  }
+}
+
+function writePending(key: string, pending: PendingMessage[]): void {
+  try {
+    if (pending.length === 0) window.sessionStorage.removeItem(key);
+    else window.sessionStorage.setItem(key, JSON.stringify(pending));
+  } catch {
+    // Storage unavailable: the in-memory list still works for this mount.
+  }
+}
+
+export function CaseConversation({ identity, caseId, onOpenCase, visible = true }: CaseConversationProps) {
+  const storageKey = pendingStorageKey(identity.customerId, caseId);
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
-  const [pending, setPending] = useState<PendingMessage[]>([]);
+  const [pending, setPending] = useState<PendingMessage[]>(() => (typeof window === "undefined" ? [] : readPending(storageKey)));
+  const [movedToFollowUp, setMovedToFollowUp] = useState(false);
   const [draft, setDraft] = useState("");
   const [followUpDraft, setFollowUpDraft] = useState("");
   const [followUp, setFollowUp] = useState<{ status: "idle" } | { status: "sending" } | { status: "error" }>({ status: "idle" });
@@ -56,11 +87,18 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
   const pendingRef = useRef<PendingMessage[]>([]);
   useEffect(() => {
     pendingRef.current = pending;
-  }, [pending]);
+    writePending(storageKey, pending);
+  }, [pending, storageKey]);
+  // The case is no longer reachable for this identity (404/401/403): stop polling and show nothing of it.
+  const unavailable = useRef(false);
 
-  /** Tell the server what was read; only while the page is actually visible to the customer (§4.3). */
+  /** Tell the server what was read; only while the conversation is actually on screen (§4.3, FND-0021). */
+  const visibleRef = useRef(visible);
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
   const markRead = useCallback(() => {
-    if (!pageVisible()) return;
+    if (!pageVisible() || !visibleRef.current) return;
     customerApi.markRead(identity, caseId).then(
       () => setLoad((current) => (current.status === "ready" ? { status: "ready", detail: { ...current.detail, unreadCount: 0 } } : current)),
       (error: unknown) => console.warn("support: could not mark read", error),
@@ -69,6 +107,7 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
+      if (unavailable.current) return;
       const id = ++requestSeq.current;
       try {
         const detail = await customerApi.getCase(identity, caseId, signal);
@@ -82,11 +121,23 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
       } catch (error: unknown) {
         if (signal?.aborted || id !== requestSeq.current) return;
         console.warn("support: could not load case", error);
+        if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+          // Not this customer's case (any more): never keep a loaded conversation on screen (RULE-SUP-01, FND-0011).
+          unavailable.current = true;
+          setLoad({ status: "error" });
+          setPending([]);
+          return;
+        }
         setLoad((current) => (current.status === "ready" ? current : { status: "error" }));
       }
     },
     [identity, caseId, markRead],
   );
+
+  // Coming back on screen with unread replies counts as reading them.
+  useEffect(() => {
+    if (visible && load.status === "ready" && load.detail.unreadCount > 0) markRead();
+  }, [visible, load, markRead]);
 
   const pollMs = streamStatus === "connected" ? CONNECTED_REFRESH_INTERVAL_MS : REFRESH_INTERVAL_MS;
   useEffect(() => {
@@ -119,9 +170,18 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
         await refresh();
       } catch (error) {
         console.warn("support: could not send message", error);
-        setPending((current) =>
-          current.map((p) => (p.clientMessageId === message.clientMessageId ? { ...p, state: "failed" } : p)),
-        );
+        if (apiErrorCode(error) === "case_closed") {
+          // The case closed before the message arrived (§7.4): the text moves to the follow-up form, and the
+          // same client id keeps the follow-up single if this is retried too.
+          setPending((current) => current.filter((p) => p.clientMessageId !== message.clientMessageId));
+          setFollowUpDraft((current) => (current.trim() ? `${current}\n${message.body}` : message.body));
+          setFollowUpClientId(message.clientMessageId);
+          setMovedToFollowUp(true);
+          await refresh();
+          return;
+        }
+        const state: PendingMessage["state"] = isRetryable(error) ? "failed" : "refused";
+        setPending((current) => current.map((p) => (p.clientMessageId === message.clientMessageId ? { ...p, state } : p)));
       }
     },
     [identity, caseId, refresh],
@@ -131,6 +191,10 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
   const retryFailed = useCallback(() => {
     for (const failed of pendingRef.current.filter((p) => p.state === "failed")) void send(failed);
   }, [send]);
+
+  const discard = useCallback((clientMessageId: string) => {
+    setPending((current) => current.filter((p) => p.clientMessageId !== clientMessageId));
+  }, []);
 
   // Connectivity can return without the stream noticing right away: also retry on `online` and periodically.
   useEffect(() => {
@@ -269,6 +333,13 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
               <span className={styles.bubbleMeta}>
                 {p.state === "sending" ? (
                   t.support.conversation.sending
+                ) : p.state === "refused" ? (
+                  <>
+                    <span className={styles.failedLabel}>{t.support.conversation.refused}</span>{" "}
+                    <button type="button" className={styles.linkButton} onClick={() => discard(p.clientMessageId)}>
+                      {t.support.conversation.discard}
+                    </button>
+                  </>
                 ) : (
                   <>
                     <span className={styles.failedLabel}>{t.support.conversation.failed}</span>{" "}
@@ -292,6 +363,7 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
           <button
             type="button"
             className={styles.secondaryButton}
+            disabled={pending.length > 0}
             onClick={() =>
               void send({
                 clientMessageId: newClientMessageId(),
@@ -311,6 +383,11 @@ export function CaseConversation({ identity, caseId, onOpenCase }: CaseConversat
           <p className={styles.notice} role="status">
             {t.support.conversation.closedNotice}
           </p>
+          {movedToFollowUp && (
+            <p className={styles.notice} role="status">
+              {t.support.conversation.movedToFollowUp}
+            </p>
+          )}
           <label htmlFor="follow-up-message" className="visually-hidden">
             {t.support.conversation.followUpLabel}
           </label>

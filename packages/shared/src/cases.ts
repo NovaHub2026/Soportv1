@@ -80,6 +80,12 @@ export type ConsultationTeam = (typeof CONSULTATION_TEAMS)[number];
 export const CONSULTATION_STATUSES = ["open", "answered"] as const;
 export type ConsultationStatus = (typeof CONSULTATION_STATUSES)[number];
 
+/**
+ * Free text fields refuse NUL bytes: PostgreSQL cannot store them and the API used to answer 500
+ * (Cycle Audit 1, FND-0016). Other control characters are stored verbatim.
+ */
+const text = <T extends z.ZodString>(schema: T) => schema.refine((value) => !value.includes("\u0000"), "invalid_characters");
+
 export const caseConsultationSchema = z.object({
   id: z.string(),
   caseId: z.string(),
@@ -98,18 +104,18 @@ export type CaseConsultation = z.infer<typeof caseConsultationSchema>;
 
 /** Internal notes are messages with `internal` visibility; they never reach customer surfaces (RULE-SUP-04). */
 export const postNoteSchema = z.object({
-  body: z.string().trim().min(1, "note_required").max(5000, "note_too_long"),
+  body: text(z.string().trim().min(1, "note_required").max(5000, "note_too_long")),
 });
 export type PostNoteInput = z.infer<typeof postNoteSchema>;
 
 export const requestConsultationSchema = z.object({
   team: z.enum(CONSULTATION_TEAMS),
-  question: z.string().trim().min(1, "question_required").max(5000, "question_too_long"),
+  question: text(z.string().trim().min(1, "question_required").max(5000, "question_too_long")),
 });
 export type RequestConsultationInput = z.infer<typeof requestConsultationSchema>;
 
 export const answerConsultationSchema = z.object({
-  answer: z.string().trim().min(1, "answer_required").max(5000, "answer_too_long"),
+  answer: text(z.string().trim().min(1, "answer_required").max(5000, "answer_too_long")),
 });
 export type AnswerConsultationInput = z.infer<typeof answerConsultationSchema>;
 
@@ -134,8 +140,8 @@ export const incidentSchema = z.object({
 export type Incident = z.infer<typeof incidentSchema>;
 
 export const createIncidentSchema = z.object({
-  title: z.string().trim().min(3, "title_too_short").max(200, "title_too_long"),
-  description: z.string().trim().max(5000).optional(),
+  title: text(z.string().trim().min(3, "title_too_short").max(200, "title_too_long")),
+  description: text(z.string().trim().max(5000)).optional(),
 });
 export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;
 
@@ -146,7 +152,7 @@ export const linkIncidentSchema = z.object({
 export type LinkIncidentInput = z.infer<typeof linkIncidentSchema>;
 
 export const incidentNoteSchema = z.object({
-  body: z.string().trim().min(1, "note_required").max(5000, "note_too_long"),
+  body: text(z.string().trim().min(1, "note_required").max(5000, "note_too_long")),
 });
 export type IncidentNoteInput = z.infer<typeof incidentNoteSchema>;
 
@@ -157,8 +163,8 @@ export type ClosedReason = (typeof CLOSED_REASONS)[number];
 
 /** "Preciso de mais ajuda" from a closed case: a new linked case with the customer's first message. */
 export const followUpSchema = z.object({
-  message: z.string().trim().min(1, "message_required").max(5000, "message_too_long"),
-  clientMessageId: z.string().trim().min(1).max(100).optional(),
+  message: text(z.string().trim().min(1, "message_required").max(5000, "message_too_long")),
+  clientMessageId: text(z.string().trim().min(1).max(100)).optional(),
 });
 export type FollowUpInput = z.infer<typeof followUpSchema>;
 
@@ -166,7 +172,7 @@ export type FollowUpInput = z.infer<typeof followUpSchema>;
 
 /** `agentId: null` releases the case back to the unassigned queue. */
 export const assignCaseSchema = z.object({
-  agentId: z.string().trim().min(1).max(64).nullable(),
+  agentId: text(z.string().trim().min(1).max(64)).nullable(),
 });
 export type AssignCaseInput = z.infer<typeof assignCaseSchema>;
 
@@ -186,7 +192,7 @@ export type SetStatusInput = z.infer<typeof setStatusSchema>;
 export const resolveCaseSchema = z.object({
   reason: z.enum(RESOLUTION_REASONS),
   /** Customer-facing explanation; posted as a public message so it lives in the conversation (§7.1). */
-  explanation: z.string().trim().min(1, "explanation_required").max(5000, "explanation_too_long"),
+  explanation: text(z.string().trim().min(1, "explanation_required").max(5000, "explanation_too_long")),
 });
 export type ResolveCaseInput = z.infer<typeof resolveCaseSchema>;
 
@@ -245,13 +251,14 @@ export type CaseAttachment = z.infer<typeof caseAttachmentSchema>;
 
 // ---- Request schemas ----
 
-const messageBodySchema = z.string().trim().min(1, "message_required").max(5000, "message_too_long");
-const clientMessageIdSchema = z.string().trim().min(1).max(100);
+const messageBodySchema = text(z.string().trim().min(1, "message_required").max(5000, "message_too_long"));
+/** Client-generated idempotency key: unique per case and author for messages, per customer for case creation. */
+const clientMessageIdSchema = text(z.string().trim().min(1).max(100));
 const attachmentIdsSchema = z.array(z.uuid()).max(ATTACHMENT_LIMITS.maxPerMessage, "too_many_attachments");
 
 export const createCaseSchema = z.object({
   category: z.enum(CASE_CATEGORIES),
-  subject: z.string().trim().min(1).max(200).optional(),
+  subject: text(z.string().trim().min(1).max(200)).optional(),
   message: messageBodySchema,
   /** Client-generated id so a retried submission does not create a second case (RULE-SUP-03). */
   clientMessageId: clientMessageIdSchema.optional(),
@@ -308,11 +315,34 @@ export const caseSummarySchema = z.object({
   /** The case this one continues (set on a follow-up opened from a closed case — §7.3). */
   parentCaseId: z.string().nullable(),
   parentReference: z.string().nullable(),
-  /** Shared incident this case is associated with, if any (§5.4). Staff-only information in practice. */
+  /** Shared incident this case is associated with, if any (§5.4). Staff-only: stripped from customer surfaces. */
   incidentId: z.string().nullable(),
   incidentTitle: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
+
+/**
+ * Fields that describe how staff work the case, never the customer's own matter. They are removed from every
+ * customer response and customer stream event (RULE-SUP-04, context §10.2 — Cycle Audit 1, FND-0006).
+ */
+export const STAFF_ONLY_SUMMARY_FIELDS = ["priority", "assignedAgentId", "staffLastReadAt", "incidentId", "incidentTitle"] as const;
+export type StaffOnlySummaryField = (typeof STAFF_ONLY_SUMMARY_FIELDS)[number];
+
+export const customerCaseSummarySchema = caseSummarySchema.omit({
+  priority: true,
+  assignedAgentId: true,
+  staffLastReadAt: true,
+  incidentId: true,
+  incidentTitle: true,
+});
+export type CustomerCaseSummary = z.infer<typeof customerCaseSummarySchema>;
+
+/** The customer projection of a summary: the same object minus every staff-only field. */
+export function toCustomerCaseSummary(summary: CaseSummary): CustomerCaseSummary {
+  const copy: Record<string, unknown> = { ...summary };
+  for (const field of STAFF_ONLY_SUMMARY_FIELDS) delete copy[field];
+  return copy as CustomerCaseSummary;
+}
 
 export const caseEventSchema = z.object({
   id: z.string(),
@@ -325,12 +355,13 @@ export const caseEventSchema = z.object({
 });
 export type CaseEvent = z.infer<typeof caseEventSchema>;
 
-export const customerCaseDetailSchema = caseSummarySchema.extend({
+export const customerCaseDetailSchema = customerCaseSummarySchema.extend({
   messages: z.array(caseMessageSchema),
 });
 export type CustomerCaseDetail = z.infer<typeof customerCaseDetailSchema>;
 
-export const staffCaseDetailSchema = customerCaseDetailSchema.extend({
+export const staffCaseDetailSchema = caseSummarySchema.extend({
+  messages: z.array(caseMessageSchema),
   events: z.array(caseEventSchema),
   consultations: z.array(caseConsultationSchema),
 });

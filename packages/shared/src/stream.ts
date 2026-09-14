@@ -1,4 +1,4 @@
-import type { CaseMessage, CaseSummary } from "./cases.js";
+import type { CaseMessage, CaseSummary, CustomerCaseSummary } from "./cases.js";
 
 /** Events pushed to open conversations and staff queues (ADR-0004). `data` of each SSE event is one of these. */
 export const STREAM_EVENT_TYPES = ["case.updated", "message.created", "heartbeat"] as const;
@@ -8,7 +8,8 @@ export interface CaseUpdatedEvent {
   type: "case.updated";
   caseId: string;
   customerId: string;
-  summary: CaseSummary;
+  /** Full summary on the staff stream; the customer projection on customer streams (FND-0006). */
+  summary: CaseSummary | CustomerCaseSummary;
   at: string;
 }
 

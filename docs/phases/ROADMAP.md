@@ -1,7 +1,7 @@
 # ROADMAP — Orbit Support
 Type: ROADMAP AND AUDIT LEDGER
-Updated: 2026-09-13
-Derived from: `PROJECT_CONTEXT.md` v1.0 (§9 scope, §14 success situations) and an empty repository (inspected 2026-09-13)
+Updated: 2026-09-14
+Derived from: `PROJECT_CONTEXT.md` v1.0 (§9 scope, §14 success situations); first drawn on an empty repository (2026-09-13), maintained with each phase
 
 Near-term work is detailed; later phases are at outcome level and are refined just in time (`GOVERNANCE.md` §6.1). Ordering favors a thin end-to-end slice first so every later capability lands on a verifiable foundation.
 
@@ -20,11 +20,12 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: none active — PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13. **Cycle Audit 1 is OPEN (`../audits/CYCLE-1.md`); ordinary development is paused until it closes (§6.4).** Next after closure: PH-4. PH-1 and PH-2 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`). PH-3's approval makes the ledger 3/3 and triggers the Cycle Audit.
+Phase: none active — PH-1, PH-2 and PH-3 `APPROVED` 2026-09-13 (evidence `../evidence/PH-1-phase-approval.md`, `../evidence/PH-2-phase-approval.md`, `../evidence/PH-3-phase-approval.md`). Cycle Audit 1 CLOSED 2026-09-14 (`../audits/CYCLE-1.md`, remediation evidence `../evidence/CYCLE-1-verification.md`). Next: PH-4.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.
 
 | Cycle | Counted phase (first approval) | Approved on | Audit record | Status |
 |---|---|---|---|---|
-| 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit OPEN |
+| 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit CLOSED 2026-09-14 |
+| 2 | — | — | — | 0/3, open cycle |

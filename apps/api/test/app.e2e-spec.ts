@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { SIMULATED_IDENTITY_HEADERS } from '@orbit-support/shared';
+import { SIMULATED_IDENTITY_HEADERS, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-support/shared';
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
@@ -248,4 +248,40 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     await request(server).post(`/api/support/cases/${caseId}/read`).set(asCustomer('cust-bob')).expect(404);
     await request(server).post(`/api/staff/cases/${caseId}/read`).set(asStaff('staff-ana', 'Ana')).expect(200);
   });
+
+  it('Cycle Audit 1: listing creates nothing, NUL bytes and unknown agents are 400, customer JSON has no staff-only fields, open consultations block resolution', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/support/cases').set(asCustomer('cust-zero')).expect(200, []);
+    await request(server).get('/api/support/cases').set(asCustomer('cust-zero')).expect(200, []); // opening the panel creates nothing (§4.1)
+    await request(server).post('/api/support/cases').set(asCustomer('cust-zero')).send({ category: 'other', message: 'a\u0000b' }).expect(400);
+
+    const created = await request(server).post('/api/support/cases').set(asCustomer('cust-zero')).send({ category: 'other', message: 'Oi' }).expect(201);
+    const id: string = created.body.id;
+    const incident = await request(server).post('/api/staff/incidents').set(asStaff('staff-ana', 'Ana')).send({ title: 'INTERNO: fora do ar' }).expect(201);
+    await request(server).post(`/api/staff/cases/${id}/incident`).set(asStaff('staff-ana', 'Ana')).send({ incidentId: incident.body.id }).expect(200);
+    await request(server).post(`/api/staff/cases/${id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: 'a\u0000b' }).expect(400);
+    await request(server).patch(`/api/staff/cases/${id}`).set(asStaff('staff-ana', 'Ana')).send({ priority: 'urgent' }).expect(200);
+
+    const detail = await request(server).get(`/api/support/cases/${id}`).set(asCustomer('cust-zero')).expect(200);
+    const list = await request(server).get('/api/support/cases').set(asCustomer('cust-zero')).expect(200);
+    const read = await request(server).post(`/api/support/cases/${id}/read`).set(asCustomer('cust-zero')).expect(200);
+    for (const field of STAFF_ONLY_SUMMARY_FIELDS) {
+      expect(detail.body).not.toHaveProperty(field);
+      expect(list.body[0]).not.toHaveProperty(field);
+      expect(read.body).not.toHaveProperty(field);
+    }
+    expect(JSON.stringify([detail.body, list.body, read.body])).not.toContain('fora do ar');
+    const staffView = await request(server).get(`/api/staff/cases/${id}`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(staffView.body).toMatchObject({ incidentTitle: 'INTERNO: fora do ar', priority: 'urgent' });
+
+    await request(server).post(`/api/staff/cases/${id}/take`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    const ghost = await request(server).post(`/api/staff/cases/${id}/assign`).set(asStaff('staff-ana', 'Ana')).send({ agentId: 'ghost-agent' }).expect(400);
+    expect(ghost.body).toMatchObject({ error: 'unknown_agent' });
+
+    const consultation = await request(server).post(`/api/staff/cases/${id}/consultations`).set(asStaff('staff-ana', 'Ana')).send({ team: 'finance', question: 'Saldo?' }).expect(201);
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: 'Feito' }).expect(409);
+    await request(server).post(`/api/staff/cases/${id}/consultations/${consultation.body.id}/answer`).set(asStaff('staff-bruno', 'Bruno')).send({ answer: 'ok' }).expect(200);
+    await request(server).post(`/api/staff/cases/${id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: 'Feito' }).expect(200);
+  });
+
 });

@@ -6,6 +6,7 @@ import type {
   ConsultationTeam,
   ResolutionReason,
   StaffQueueView,
+  StaffRole,
 } from "@orbit-support/shared";
 
 /** Customer-facing copy, Brazilian Portuguese first (PROJECT_CONTEXT.md §10.1). */
@@ -61,6 +62,9 @@ export const ptBR = {
       sending: "Enviando…",
       failed: "Não enviada",
       retry: "Reenviar",
+      refused: "Recusada pelo servidor",
+      discard: "Descartar",
+      movedToFollowUp: "O caso foi encerrado antes de a sua última mensagem chegar. Ela está pronta abaixo para a continuação.",
       loading: "Carregando conversa…",
       error: "Não foi possível carregar a conversa.",
       closedNotice: "Esta conversa foi encerrada. Se ainda precisar de ajuda sobre este assunto, conte o que está acontecendo: abriremos uma continuação ligada a este caso, com um novo número.",
@@ -171,6 +175,7 @@ export const ptBR = {
       resolveConfirm: "Confirmar resolução",
       cancel: "Cancelar",
       failed: "Não foi possível aplicar a ação. Tente novamente.",
+      consultationsOpen: "Há consulta pendente com outra equipe. Registre a resposta antes de resolver o caso.",
       resolvedAs: "Resolvido · {reason}",
       close: "Encerrar caso",
       closedAs: "Encerrado {how}",
@@ -251,6 +256,11 @@ export const ptBR = {
       openMany: "{n} consultas pendentes",
       failed: "Não foi possível registrar a consulta.",
     },
+    roles: {
+      agent: "Atendente",
+      supervisor: "Supervisão",
+      admin: "Administração",
+    } satisfies Record<StaffRole, string>,
     teams: {
       finance: "Financeiro",
       operations: "Operações",

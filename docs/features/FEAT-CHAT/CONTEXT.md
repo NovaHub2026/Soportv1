@@ -3,8 +3,8 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `426678a` plus the PH-3.5 change (PH-3 closure; no behavior change in this scope)
-Verified on: 2026-09-13
+Verified against: `11f178a` plus the Cycle Audit 1 remediation (identity reset, refused sends, pending persistence, visibility-gated read receipts)
+Verified on: 2026-09-14
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
 ## User outcome and applicable product rules
@@ -22,6 +22,7 @@ Implemented (PH-1.3, refined in PH-1.4):
 - Attachments (PH-2.3): "Anexar arquivo" in the composer uploads immediately and shows each file's state (enviando / tamanho / recusado com motivo); ready ids are linked when the message is sent; images render as thumbnails fetched with the identity header (blob URLs), PDFs as chips with "Abrir"; unavailable files show a state instead of a broken image.
 - Resolution (PH-3.1): a resolved case shows a notice with the staff explanation in the conversation and the button "Ainda preciso de ajuda", which sends "Ainda preciso de ajuda." and reactivates the same case (§7.2); "Aguardando sua resposta" is shown while staff wait for the customer.
 - Closure (PH-3.4): a closed case replaces the composer with the closure notice and a form whose button "Preciso de mais ajuda" opens a linked continuation and navigates to it; a continuation shows "Continuação do caso SUP-…" with "Ver caso anterior".
+Reliability and privacy on the client (Cycle Audit 1, FND-0011/0012/0021): the panel is keyed by the simulated customer, so changing identity never leaves another customer's conversation on screen; a 401/403/404 on refresh clears the conversation and stops polling; the stream client stops on those statuses. A send refused with 409 `case_closed` moves the text into the follow-up form (same client id); other 4xx show "Recusada pelo servidor" with "Descartar" and are never auto-retried; failed messages persist in `sessionStorage` per customer and case and are retried after "Voltar" or a reload; mutations time out after 20 s. Read receipts are sent only while the panel is actually on screen (desktop, or mobile with the panel open); becoming visible marks unread replies. The home resyncs on every stream (re)connect. Customer responses no longer carry staff-only fields (DEC-0015) — the customer UI never needed them.
 Gaps (accepted target): attachments on the first message of a new case (BL-010); in-product notifications outside the conversation (PH-6); contextual entry from a record with a card ("Preciso de ajuda", PH-4); "Ainda preciso de ajuda" / linked follow-up from closed (PH-3); "Não consigo acessar minha conta" route (PH-7); Spanish locale (structure ready, content later).
 
 ## Dependencies and consumers
@@ -35,10 +36,10 @@ Used by / affects: the future Orbit host (placement, §4.1) and FEAT-NOTIFY (dee
 - Tests: `apps/web/src/features/support/*.test.tsx` (Vitest + Testing Library, `mockFetch` helper in `test-utils.ts`), `apps/web/src/i18n/i18n.test.ts`. Browser evidence: `scripts/ui-smoke.mjs`.
 
 ## Important failure and permission behavior
-The browser only ever sends the current simulated customer's header; the API enforces ownership (404 for others). Network failure on create/send shows an error and keeps the draft and id for retry. Load errors show retry (home) or an alert (conversation); a refresh error never wipes an already loaded conversation. Nothing here may promise response times or show agents online (RULE-SUP-08).
+The browser only ever sends the current simulated customer's header; the API enforces ownership (404 for others). Network failure on create/send shows an error and keeps the draft and id for retry. Load errors show retry (home) or an alert (conversation); a transient refresh error never wipes an already loaded conversation, but a 401/403/404 does (the case is not this customer's). Nothing here may promise response times or show agents online (RULE-SUP-08).
 
 ## Decisions and assumptions
 DEC-0006 (CSS Modules, rewrites, polling, Playwright smoke), DEC-0003 (simulated identity, labeled). Assumptions: Orbit will host the panel as a side panel on desktop and full screen on mobile (context §13.1 working default); the topbar picker disappears when a real session exists.
 
 ## Verification and change checklist
-Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs` (screenshots under `docs/evidence/screenshots/`); vocabulary change → dictionary test. Last scoped evidence: `docs/evidence/PH-1.3-verification.md`, `docs/evidence/PH-1.4-verification.md`.
+Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs` (screenshots under `docs/evidence/screenshots/`); vocabulary change → dictionary test. Last scoped evidence: `docs/evidence/PH-3.4-verification.md`, `docs/evidence/CYCLE-1-verification.md`.

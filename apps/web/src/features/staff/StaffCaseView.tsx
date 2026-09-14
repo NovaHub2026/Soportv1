@@ -21,7 +21,7 @@ import { AttachmentComposer } from "@/features/support/AttachmentComposer";
 import { AttachmentList } from "@/features/support/AttachmentList";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
-import { ApiError, type AttachmentClient, newClientMessageId } from "@/lib/api";
+import { ApiError, apiErrorCode, type AttachmentClient, newClientMessageId } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import { IncidentSection } from "./IncidentSection";
@@ -156,7 +156,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
       onChanged();
     } catch (error) {
       console.warn("staff: could not resolve case", error);
-      setAction({ status: "error", message: t.staff.actions.failed });
+      setAction({ status: "error", message: apiErrorCode(error) === "consultations_open" ? t.staff.actions.consultationsOpen : t.staff.actions.failed });
     }
   }
 
@@ -397,7 +397,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
                 <option value="">—</option>
                 {SIMULATED_STAFF.filter((s) => s.id !== identity.staffId).map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} · {s.role}
+                    {s.name} · {t.staff.roles[s.role]}
                   </option>
                 ))}
               </select>

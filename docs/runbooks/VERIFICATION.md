@@ -1,16 +1,18 @@
 # Verification runbook
 Type: RUNBOOK
 Scope: root `package.json` scripts, `apps/web`, `apps/api`, `scripts/check-context.mjs`, `.github/workflows/ci.yml`
-Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
+Verified on: 2026-09-14 (Cycle Audit 1 remediation, `docs/evidence/CYCLE-1-verification.md`)
 
 ## Setup
-- Node ≥ 24 (`.nvmrc`), npm ≥ 11. Observed locally: Node v24.19.0, npm 11.17.0.
+- Node ≥ 24 (`.nvmrc`), npm ≥ 11. Observed locally: Node v24.19.0, npm 11.17.0 (Windows 11 native since 2026-09-14; WSL2 before).
+- Fresh clone: the git author is repo-local (DEC-0002) — `git config --local user.name NovaHub2026` and `git config --local user.email orbitmarket.pro@gmail.com` before committing.
 - `npm ci` at the repository root. npm workspaces: `packages/*`, `apps/*`. Do not install inside an app directory.
 - `@orbit-support/shared` must be built before the apps type-check or test: `npm run build:shared` (the `verify` chain does it). After editing `packages/shared/src`, rebuild.
 - Database: embedded PostgreSQL (PGlite, ADR-0003). No server or Docker needed. Dev data lives in `apps/api/.data/pglite` (gitignored; delete to reset). `SUPPORT_DB_DIR` overrides the directory; unset means in memory (tests).
 - Schema change: edit `apps/api/src/database/schema.ts`, run `npm run db:generate -w api`, commit the new file under `apps/api/drizzle/`. Migrations apply automatically when the API opens the database.
 - Attachments (DEC-0009): files are stored under `SUPPORT_UPLOADS_DIR` (default `apps/api/.data/uploads`, gitignored); the UI smoke must point it at scratch too. Allowed: PNG, JPEG, WebP, PDF; 10 MB; 3 per message.
-- Closure job (DEC-0013): the API closes resolved cases after `SUPPORT_FOLLOW_UP_WINDOW_DAYS` (default 7) every `SUPPORT_CLOSURE_INTERVAL_MS` (default 60 000); `SUPPORT_CLOSURE_JOB=off` disables it (tests). Run one API instance.
+- Closure job (DEC-0013): the API closes resolved cases after `SUPPORT_FOLLOW_UP_WINDOW_DAYS` (default 7) every `SUPPORT_CLOSURE_INTERVAL_MS` (default 60 000); `SUPPORT_CLOSURE_JOB=off` disables it (tests). Run one API instance. Numeric env values that are not positive numbers fall back to the default with a warning (FND-0014).
+- Dependency overrides: `multer` is pinned to 2.3.0 through root `overrides` (FND-0020); `npm audit --omit=dev` must stay at 0 before a release.
 - Identity (DEC-0008): `SUPPORT_IDENTITY_PROVIDER=simulated` is the only provider; with `NODE_ENV=production` the API refuses to start unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` is set deliberately for an isolated demo. `GET /api/identity/me` shows who the API thinks you are.
 
 ## Profiles (`GOVERNANCE.md` §7.2–7.3)
@@ -18,15 +20,15 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 |---|---|---|---|
 | context | `npm run check:context` | Link and lifecycle consistency of live context documents | Any documentation or state change; approval-only edits |
 | static | `npm run lint && npm run typecheck` | ESLint (web), oxlint (api); `tsc --noEmit` in both apps (web runs `next typegen` first) | Any code change |
-| unit | `npm test` | Vitest in `apps/web` (jsdom + Testing Library) and `apps/api` | Behavior change |
-| verify | `npm run verify` | context + build:shared + static + unit, in that order | Before every commit; required CI check |
+| unit | `npm test` | Vitest in `packages/shared`, `apps/web` (jsdom + Testing Library) and `apps/api` (in-memory PGlite) | Behavior change |
+| api e2e | `npm run test:e2e` | Vitest + supertest against the Nest application (HTTP contracts, guards, multer, SSE) | API contract change; part of `verify` since Cycle Audit 1 |
+| verify | `npm run verify` | context + build:shared + static + unit + api e2e, in that order | Before every commit; required CI check |
 | full | `npm run verify:full` | verify + production builds (`next build`, `nest build`) | Phase candidate or release candidate |
-| api e2e | `npm run test:e2e --workspace api` | Vitest + supertest against the Nest application | API contract changes; not part of CI yet |
 | ui smoke | `SUPPORT_DB_DIR=<scratch> SUPPORT_UPLOADS_DIR=<scratch2> node scripts/ui-smoke.mjs [outDir]` after `npm run build` | Headless Chromium (Playwright) drives the built customer panel end to end and saves screenshots | UI subphase/phase approval (OBSERVED evidence, §6.3); not in CI |
 
-UI smoke prerequisites: `npx playwright install chromium` (downloads ~115 MB). Chromium also needs system libraries; with sudo run `npx playwright install-deps chromium`. Without sudo (this Owner's WSL2, BL-007): `apt-get download libnspr4 libnss3 libasound2t64`, `dpkg -x` each into a scratch folder and export `LD_LIBRARY_PATH=<scratch>/usr/lib/x86_64-linux-gnu` before running the smoke. The smoke uses API port 3001 (baked into the web build's rewrites) and web port 3150 (`UI_WEB_PORT`). Always point `SUPPORT_DB_DIR` at a scratch directory.
+UI smoke prerequisites: `npx playwright install chromium` (downloads ~115 MB). On Windows nothing else is needed. On Linux/WSL2 Chromium also needs system libraries; with sudo run `npx playwright install-deps chromium`. Without sudo (the Owner's WSL2, BL-007): `apt-get download libnspr4 libnss3 libasound2t64`, `dpkg -x` each into a scratch folder and export `LD_LIBRARY_PATH=<scratch>/usr/lib/x86_64-linux-gnu` before running the smoke. The smoke uses API port 3001 (baked into the web build's rewrites) and web port 3150 (`UI_WEB_PORT`). Always point `SUPPORT_DB_DIR` at a scratch directory.
 
-Exit codes propagate: the `verify` chain stops at the first failing layer. Vitest exits non-zero when it discovers no test files, so an empty suite cannot pass as green. The report of any run must name the profile that ran; a targeted pass is not a full-project pass.
+On a fresh checkout the first PGlite start compiles WASM and can take tens of seconds; the api vitest configs set `hookTimeout: 60_000` for that (FND-0019). Exit codes propagate: the `verify` chain stops at the first failing layer. Vitest exits non-zero when it discovers no test files, so an empty suite cannot pass as green. The report of any run must name the profile that ran; a targeted pass is not a full-project pass.
 
 ## Running the applications
 | App | Command | URL |
@@ -47,3 +49,4 @@ Simulated identity (DEC-0003): the API resolves the caller from headers `x-simul
 - No browser/e2e tests, no coverage threshold, no performance checks.
 - `check-context` is mechanical; see the script header for what it does not establish.
 - Builds are not part of `verify` (kept in `full`) to keep the per-commit gate fast; run `full` before approving a phase.
+- Concurrency is verified on PGlite (one serialized connection); the row-lock rule (DEC-0017) is confirmed against a server PostgreSQL only in PH-8 (BL-019).

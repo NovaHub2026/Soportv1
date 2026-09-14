@@ -4,12 +4,17 @@ import { useState } from "react";
 import { SupportPanel } from "@/features/support/SupportPanel";
 import { dictionary as t } from "@/i18n";
 import { SIMULATED_CUSTOMERS, useSimulatedCustomer } from "@/lib/simulated-session";
+import { useMediaQuery } from "@/lib/use-media-query";
+
+/** Below this width the panel is a full-screen view toggled from the topbar (shell.module.css). */
+const DESKTOP_QUERY = "(min-width: 900px)";
 import styles from "./shell.module.css";
 
 /** Simulated Orbit host (DEC-0003): trading placeholder + the "Suporte" entrypoint and side panel. */
 export function OrbitShell() {
   const [customer, selectCustomer] = useSimulatedCustomer();
   const [panelOpen, setPanelOpen] = useState(false);
+  const desktop = useMediaQuery(DESKTOP_QUERY);
 
   return (
     <div className={styles.shell} data-panel-open={panelOpen ? "true" : "false"}>
@@ -55,7 +60,8 @@ export function OrbitShell() {
         </main>
 
         <aside id="support-panel" className={styles.panel} aria-label={t.support.title}>
-          <SupportPanel customer={customer} onClose={() => setPanelOpen(false)} />
+          {/* Keyed by customer: changing who the browser acts as never leaves another customer's conversation on screen (FND-0011). */}
+          <SupportPanel key={customer.id} customer={customer} visible={desktop || panelOpen} onClose={() => setPanelOpen(false)} />
         </aside>
       </div>
     </div>

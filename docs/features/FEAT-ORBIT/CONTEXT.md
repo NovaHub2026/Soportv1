@@ -3,9 +3,9 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-ORBIT
 Lifecycle: PARTIAL (identity boundary only; records pending)
 Freshness: CURRENT
-Verified against: `2562555` plus the PH-3.3 change (first role-based check)
-Verified on: 2026-09-13
-Scope: `apps/api/src/identity/`, `packages/shared/src/identity.ts`, `apps/web/src/lib/simulated-session.ts`, identity headers in `apps/web/src/lib/api.ts` and `apps/web/src/lib/staff-api.ts`
+Verified against: `11f178a` plus the Cycle Audit 1 remediation (staff directory port, case-insensitive production guard)
+Verified on: 2026-09-14
+Scope: `apps/api/src/identity/` (incl. `staff-directory.ts`), `packages/shared/src/identity.ts`, `apps/web/src/lib/simulated-session.ts`, identity headers in `apps/web/src/lib/api.ts` and `apps/web/src/lib/staff-api.ts`
 
 ## User outcome and applicable product rules
 Staff identify the right customer and inspect the records relevant to an issue without asking for information Orbit already holds; customers never type their own ids (`PROJECT_CONTEXT.md` §6, OBJ-SUP-02). Orbit does not exist yet (DEC-0003): today this feature is the **boundary** through which identity — and later records — will arrive, plus its simulated implementation.
@@ -16,13 +16,14 @@ Implemented (PH-1.2, hardened in PH-1.5):
 - `OrbitIdentityPort.resolve(headers) → Actor | null` with `CustomerActor { id, source }` and `StaffActor { id, role, displayName, source }`; every actor carries `source: 'simulated'`.
 - `SimulatedOrbitIdentity`: reads `x-simulated-customer-id` or `x-simulated-staff-id` (+ `-role`, `-name`); refuses ambiguous (both), malformed ids and unknown roles.
 - Guards `CustomerGuard`, `StaffGuard`, `AnyActorGuard`, decorator `@CurrentActor()`; `GET /api/identity/me` echoes the actor.
-- Roles in use (PH-3.3): `StaffActor.role` decides reassignment authority (`supervisor` / `admin` may reassign any case — DEC-0012); every other staff action is role-neutral until PH-7.
-- Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008).
+- Roles in use (PH-3.3): `StaffActor.role` decides reassignment authority (`supervisor` / `admin` may reassign any case — DEC-0012); every other staff action is role-neutral until PH-7 (a non-owner may set status, resolve, close or consult on a colleague's case; attribution is kept — BL-016 records the open decision).
+- Staff directory (Cycle Audit 1, DEC-0017): `StaffDirectory.isKnownStaff(id)` is the second port of the boundary; `SimulatedStaffDirectory` answers from `SIMULATED_STAFF_DIRECTORY` in `packages/shared` (the same list the web pickers use). Transfers to unknown ids are refused (400 `unknown_agent`). A real Orbit directory adapter replaces it without touching callers.
+- Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` (any casing) unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008). Simulated display names are unbounded — the real adapter must bound and sanitize them.
 - Web: simulated customer/staff pickers persisted in `localStorage`, always labeled **Simulação**; `/api/health` reports `identity: simulated`.
 Not implemented (PH-4): customer summary (username, status, language, country, registration, masked contact, verification), record lookups (operations, P2P orders/rounds, Pix deposits, withdrawals, balances, bonuses, verification, referral), contextual entry cards, masking, "unavailable" states per record, and the real Orbit session adapter.
 
 ## Dependencies and consumers
-Depends on: nothing inside the repo (it is the outer boundary). Used by: every guarded controller (FEAT-CASE), FEAT-CHAT and FEAT-STAFF (headers), future FEAT-NOTIFY (contact resolution) and FEAT-ACCESS (recovery contact). Shared contract owner: `packages/shared/src/identity.ts` (`STAFF_ROLES`, `IDENTITY_SOURCES`, `SIMULATED_IDENTITY_HEADERS`).
+Depends on: nothing inside the repo (it is the outer boundary). Used by: every guarded controller (FEAT-CASE), FEAT-CHAT and FEAT-STAFF (headers), future FEAT-NOTIFY (contact resolution) and FEAT-ACCESS (recovery contact). Shared contract owner: `packages/shared/src/identity.ts` (`STAFF_ROLES`, `IDENTITY_SOURCES`, `SIMULATED_IDENTITY_HEADERS`, `SIMULATED_STAFF_DIRECTORY`).
 
 ## Where to work
 - Port and actors: `apps/api/src/identity/identity.types.ts`; provider: `apps/api/src/identity/simulated-orbit-identity.ts`; selection/module: `apps/api/src/identity/identity.module.ts`; guards: `apps/api/src/identity/guards.ts`.
@@ -36,4 +37,4 @@ No actor → 401 `identity_required`; wrong kind for the surface → 403 (`custo
 ADR-0002 (dedicated project with explicit boundary), DEC-0003 (Owner: no Orbit system exists), DEC-0008 (provider selection and production refusal). Assumption: Orbit will expose a session verification and read-only record APIs; if Orbit instead hosts this code, the port stays and the adapter changes (ADR-0002 revisit trigger).
 
 ## Verification and change checklist
-Any change here → `npm test -w api` and `npm run test:e2e -w api` (negatives included); header names → rebuild shared and run `npm test -w web`. Last scoped evidence: `docs/evidence/PH-1.5-verification.md`.
+Any change here → `npm test -w api` and `npm run test:e2e -w api` (negatives included); header names → rebuild shared and run `npm test -w web`. Last scoped evidence: `docs/evidence/PH-3.3-verification.md`, `docs/evidence/CYCLE-1-verification.md`.

@@ -13,7 +13,7 @@ Environment: as in `PH-2.3-verification.md`. Sequential runs.
 | 3 | Web: "Criar incidente" creates and links; the broadcast form posts and reports the delivered count; "Marcar incidente como resolvido" posts and the case status badge stays "Novo" | EXECUTED | `npm test -w web` (1 new test) | 7 files, 41 tests passed; lint and typecheck exit 0 |
 | 4 | Integrated behavior in Chromium (also the PH-3 phase candidate run) | OBSERVED | `npm run build`; smoke → `docs/evidence/screenshots/ph-3` | see "Smoke" |
 | 5 | Full gate passes on the candidate | EXECUTED | `npm run verify` | see "Final gate run" |
-| 6 | CI executes the gate on the pushed commit | NOT VERIFIED | `.github/workflows/ci.yml` | see "CI" |
+| 6 | CI executes the gate on the pushed commit | EXECUTED (post-integration) | `.github/workflows/ci.yml` | see "CI" |
 
 Not verified: incidents with dozens of linked cases (broadcast is sequential; fine at current scale); customer-facing incident notices (PH-6).
 
@@ -24,4 +24,4 @@ Not verified: incidents with dozens of linked cases (broadcast is sequential; fi
 `npm run verify`, 2026-09-14 02:13 UTC, on the completed PH-3.5 tree: `check-context: 33 documents, 471 links (2 gitignored skipped), 8 phases, 14 subphases, active: none — OK` (ledger 3/3 with the audit record present); build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 37/37, web 41/41; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Commit `11f178a`: run 34798515452 — **success**, 2026-09-14T02:13:57Z (recorded during Cycle Audit 1; this record said "Pending push" until then — FND-0022). Note: "runs 02:06–02:20 UTC" above is the planned window; the last run in this record finished 02:13 UTC, before the commit at 02:13:40 UTC.

@@ -1,20 +1,21 @@
 # CURRENT STATE
 Type: CURRENT STATE
-Synchronized on: 2026-09-13
-Derived from: `docs/phases/ROADMAP.md`, `docs/audits/CYCLE-1.md`; base checkpoint: PH-3.5 commit on `main` (child of `426678a`)
+Synchronized on: 2026-09-14
+Derived from: `docs/phases/ROADMAP.md`, `docs/audits/CYCLE-1.md`; base checkpoint: the Cycle Audit 1 remediation commit on `main` (child of `11f178a`)
 
 | Field | Value |
 |---|---|
-| Active objective / feature | PH-3 delivered and approved (lifecycle, resolution, notes, consultations, transfer, closure, follow-ups, incidents). **Mode of work: Cycle Audit 1 (§6.4, §8)** — ordinary feature development paused. |
-| Active phase / subphase | None active. PH-1, PH-2, PH-3 `APPROVED` 2026-09-13. PH-4 `PLANNED` (starts after the audit closes). |
-| Audit | Cycle 1: 3/3 first-time phase approvals (PH-1, PH-2, PH-3). **Cycle Audit 1 OPEN** — `docs/audits/CYCLE-1.md`. |
-| Blocking decisions / dependencies | None for the audit. |
-| Integration / CI / release | Candidate: PH-3.5 commit on `main`. Local: `npm run build` exit 0, `npm run verify` exit 0, browser smoke exit 0 (`docs/evidence/PH-3.5-verification.md`, `docs/evidence/PH-3-phase-approval.md`). CI: PH-3.4 `426678a` — see its evidence; PH-3.5 commit awaiting corroboration. Release: none, not authorized. |
-| Context route | `CONTEXT_INDEX.md` → all four live feature contexts; audit record `docs/audits/CYCLE-1.md`; commands in `docs/runbooks/VERIFICATION.md` |
+| Active objective / feature | Cycle Audit 1 CLOSED 2026-09-14 (`docs/audits/CYCLE-1.md`): 22 findings, all material ones fixed with regression tests, minors fixed or carried (BL-011..BL-018). Ordinary feature development resumes. |
+| Active phase / subphase | None active. PH-1, PH-2, PH-3 `APPROVED` 2026-09-13. PH-4 `PLANNED` — next to start (refine `docs/phases/PH-4.md` (to be created) just in time, §6.1). |
+| Audit | Cycle 1: 3/3 — CLOSED. Cycle 2: 0/3, open cycle, no debt. |
+| Blocking decisions / dependencies | None. PH-4 depends on ADR-0002 (boundary) and BL-001 (resolved: everything simulated, DEC-0003). |
+| Integration / CI / release | Candidate: the remediation commit on `main`. Local: `npm run verify:full` exit 0 and browser smoke — see `docs/evidence/CYCLE-1-verification.md` (also records the CI verdict for this commit once known). Release: none, not authorized. |
+| Environment (observed 2026-09-14) | Windows 11 native, Git Bash / PowerShell, Node v24.19.0, npm 11.17.0; earlier sessions ran on WSL2. The repo-local git author (DEC-0002) must be re-set on every fresh clone — see `docs/runbooks/VERIFICATION.md` "Setup". |
+| Context route | `CONTEXT_INDEX.md` → four live feature contexts (all re-verified against the remediation commit); audit record `docs/audits/CYCLE-1.md`; commands in `docs/runbooks/VERIFICATION.md` |
 
 ## Next valid action
-Action: Run Cycle Audit 1 per `GOVERNANCE.md` §8: (1) spawn independent reviewers (subagents that did not author the changes) for — permission/security boundaries with negative probes in an isolated worktree; product correctness against `PROJECT_CONTEXT.md` and evidence integrity with spot re-execution; architecture/reliability review of `apps/api` and `apps/web`; a cold-start exercise following `CLAUDE.md` (§8.5); (2) consolidate findings with verdicts and severities into `docs/audits/CYCLE-1.md`; (3) fix in waves, re-verify, record dispositions; (4) close the audit only when §8.4 conditions hold; (5) then start PH-4.
-Why now: the ledger reached 3/3 with PH-3's approval; §6.4 makes the audit automatic and prior to further feature work.
-Preconditions: `npm run verify` passes on HEAD; tree clean or attributable; CI green on HEAD or its failure diagnosed first.
-Evidence/read first: `GOVERNANCE.md` §8; `docs/audits/CYCLE-1.md`; the three phase-approval records under `docs/evidence/`.
-If preconditions fail: CI red → diagnose and fix first. Unknown local changes → attribute and preserve (§4.3).
+Action: Start PH-4 (Orbit context integration — identity summary, record cards, contextual entry, masking, visibly unavailable data; all simulated behind the ADR-0002 boundary, labeled). First step: create `docs/phases/PH-4.md` (to be created) with subphases with acceptance criteria, then PH-4.1.
+Why now: the audit that §6.4 made mandatory is closed with a verified candidate; PH-4 is the next `PLANNED` phase in `docs/phases/ROADMAP.md`.
+Preconditions: CI green on the remediation commit (check `gh run list --limit 3`); tree clean; `npm run verify` passes.
+Evidence/read first: `docs/audits/CYCLE-1.md` "Process changes" (lock-in-transaction rule DEC-0017, customer projection DEC-0015); `docs/features/FEAT-ORBIT/CONTEXT.md`; `PROJECT_CONTEXT.md` §6 and §14 items 1, 7.
+If preconditions fail: CI red → diagnose before any PH-4 work (§9.2). Unknown local changes → attribute and preserve (§4.3).

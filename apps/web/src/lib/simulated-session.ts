@@ -1,6 +1,6 @@
 "use client";
 
-import type { StaffRole } from "@orbit-support/shared";
+import { SIMULATED_STAFF_DIRECTORY, type SimulatedStaffMember } from "@orbit-support/shared";
 import { useCallback, useSyncExternalStore } from "react";
 
 /**
@@ -12,11 +12,7 @@ export interface SimulatedCustomer {
   name: string;
 }
 
-export interface SimulatedStaff {
-  id: string;
-  name: string;
-  role: StaffRole;
-}
+export type SimulatedStaff = SimulatedStaffMember;
 
 export const SIMULATED_CUSTOMERS: readonly SimulatedCustomer[] = [
   { id: "cust-alice", name: "Alice Souza" },
@@ -24,11 +20,8 @@ export const SIMULATED_CUSTOMERS: readonly SimulatedCustomer[] = [
   { id: "cust-carla", name: "Carla Mendes" },
 ];
 
-export const SIMULATED_STAFF: readonly SimulatedStaff[] = [
-  { id: "staff-ana", name: "Ana Ribeiro", role: "agent" },
-  { id: "staff-bruno", name: "Bruno Costa", role: "agent" },
-  { id: "staff-carla", name: "Carla Nunes", role: "supervisor" },
-];
+/** The shared directory is the single source: the API validates transfer targets against the same list. */
+export const SIMULATED_STAFF: readonly SimulatedStaff[] = SIMULATED_STAFF_DIRECTORY;
 
 function createStore<T extends { id: string }>(storageKey: string, options: readonly T[]) {
   const changeEvent = `${storageKey}:changed`;

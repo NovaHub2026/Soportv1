@@ -14,13 +14,15 @@ type View = { name: "home" } | { name: "new" } | { name: "case"; caseId: string 
 interface SupportPanelProps {
   customer: SimulatedCustomer;
   onClose?: () => void;
+  /** Whether the panel is actually on screen (the mobile layout hides it while mounted). Drives read receipts (FND-0021). */
+  visible?: boolean;
 }
 
 /**
  * The customer "Suporte" experience (context §4): home with a prominent way to talk to a person, a short
  * new-request form, and the conversation of one case. Opening the panel creates nothing; sending does.
  */
-export function SupportPanel({ customer, onClose }: SupportPanelProps) {
+export function SupportPanel({ customer, onClose, visible = true }: SupportPanelProps) {
   const [view, setView] = useState<View>({ name: "home" });
   const identity = useMemo<CustomerIdentity>(() => ({ customerId: customer.id }), [customer.id]);
 
@@ -59,7 +61,7 @@ export function SupportPanel({ customer, onClose }: SupportPanelProps) {
         <NewRequestForm identity={identity} onCreated={(created) => setView({ name: "case", caseId: created.id })} />
       )}
       {view.name === "case" && (
-        <CaseConversation key={view.caseId} identity={identity} caseId={view.caseId} onOpenCase={(caseId) => setView({ name: "case", caseId })} />
+        <CaseConversation key={view.caseId} identity={identity} caseId={view.caseId} visible={visible} onOpenCase={(caseId) => setView({ name: "case", caseId })} />
       )}
     </section>
   );

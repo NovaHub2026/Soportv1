@@ -3,8 +3,8 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `426678a` plus the PH-3.5 change (shared incidents; PH-3 closure)
-Verified on: 2026-09-13
+Verified against: `11f178a` plus the Cycle Audit 1 remediation (row locks, customer projection, idempotency scope, consultation guards, staff directory)
+Verified on: 2026-09-14
 Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/attachments/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
 ## User outcome and applicable product rules
@@ -12,6 +12,11 @@ A support matter is a persistent **case** with a customer-visible reference, sta
 Rules: RULE-SUP-02 (every active case in a queue or with a responsible person), RULE-SUP-03 (accepted communication is never silently lost), RULE-SUP-05 (resolving/closing changes no money, results or permissions), RULE-SUP-06 (continue with context preserved), RULE-SUP-09 (material actions attributable, no silent rewrites).
 
 ## Current behavior and known gaps
+Concurrency and contracts (Cycle Audit 1, DEC-0015/0016/0017):
+- Every case change runs through `CasesService.mutate()`: one transaction that locks and re-reads the row; checks outside it are fast failures only. Two agents cannot both take a case (409 for the loser), a reply cannot be lost against a racing resolution, closure writes nothing unless the locked row is still `resolved`, the closure job is single-flight.
+- Customer responses and customer streams are the `CustomerCaseSummary` projection: no `priority`, `assignedAgentId`, `staffLastReadAt`, `incidentId`, `incidentTitle` (RULE-SUP-04).
+- Idempotency: message keys unique per (case, author type, author id); creation keys on `support_cases.client_message_id` unique per customer; cross-kind reuse → 409 `client_message_id_reused`.
+- Guards: `resolve` → 409 `consultations_open` while a consultation is open; `answerConsultation` on a closed case → 409; transfer to an id outside the staff directory → 400 `unknown_agent`; uploads on closed cases → 409; every exit from `resolved` clears the resolution and records `case_reopened` with its actor; free text refuses NUL (400).
 Implemented (PH-1.2):
 - Create = case + first public message + `case_created` event; subject derived from the first line when omitted. Reference `SUP-` + six digits from an identity column.
 - Statuses: `new`, `in_progress`, `waiting_customer`, `waiting_internal`, `resolved`, `closed`; priority default `normal`; five categories.
@@ -22,7 +27,7 @@ Implemented (PH-1.2):
 - Assignment and attributes (PH-3.3, DEC-0012): `POST /staff/cases/:id/assign {agentId | null}` — owner, unowned, or supervisor/admin; otherwise 403 `not_case_owner`; `case_assigned` event with `previousAgentId` (and `released: true` for null); `PATCH /staff/cases/:id {priority?, category?}` → `priority_changed` / `category_changed` events; both 409 on `closed`.
 - Internal collaboration (PH-3.2, DEC-0011): `POST /staff/cases/:id/notes` → `internal` message (excluded from customer detail, customer streams and customer unread counts; does not bump customer-facing timestamps); `POST /staff/cases/:id/consultations {team, question}` → `case_consultations` row + `consultation_requested`, assigns the requester if unowned, status `waiting_internal`; `POST …/consultations/:cid/answer {answer}` → `consultation_answered`, back to `in_progress` when no consultation stays open; 409 on double answer. `StaffCaseDetail.consultations`.
 - Staff lifecycle (PH-3.1, DEC-0010): `POST /staff/cases/:id/status` with `in_progress | waiting_customer | waiting_internal` (assigns the actor when unowned; `status_changed` event); `POST /staff/cases/:id/resolve` with `{reason, explanation}` → public staff message + `status_changed` + `case_resolved {reason, messageId}`, `resolvedAt`, `resolutionReason`; 409 on `closed` or already `resolved`.
-- Idempotency: `clientMessageId` unique per author (partial unique index); a retry returns the stored case/message — including concurrent retries, where the unique-index loser returns the winner's message (`onceByClientMessageId`, FND-0005).
+- Idempotency (see above; superseded the per-author index in migration `0007`): a retry returns the stored case/message — including concurrent retries, where the unique-index loser returns the winner's message (`onceByClientMessageId`, FND-0005).
 - Read markers (PH-2.2): `customer_last_read_at` / `staff_last_read_at` set by `POST /support/cases/:id/read` and `POST /staff/cases/:id/read`; `unreadCount` on every summary/detail = messages from the other side newer than the viewer's marker (customers count only public non-customer messages); `GET /support/cases/stream` covers all of a customer's cases.
 - Attachments (PH-2.3, DEC-0009): `case_attachments` uploaded via `POST …/:id/attachments` (bytes sniffed: PNG/JPEG/WebP/PDF, ≤ 10 MB) and linked on send through `attachmentIds` (same actor, same case, unattached, ≤ 3); `GET …/:id/attachments/:attachmentId` authorizes from the row (customer: own upload or public message; staff: all); messages carry `attachments[]`.
 - Live events (PH-2.1, ADR-0004): after each committed write the service publishes `case.updated` (with summary) and `message.created` (with message) on the in-process `CaseEventBus`; `GET /support/cases/:id/stream` (ownership checked first, internal messages filtered) and `GET /staff/cases/stream` expose them as SSE with a 15 s heartbeat.
@@ -39,10 +44,10 @@ Used by / affects: FEAT-CHAT (customer endpoints `/api/support/cases*`), FEAT-ST
 - Tests: `apps/api/src/cases/cases.service.spec.ts` (in-memory PGlite), `apps/api/test/app.e2e-spec.ts`, `packages/shared/src/cases.test.ts`.
 
 ## Important failure and permission behavior
-Customer access is ownership: another customer's case answers 404, never 403 (RULE-SUP-01). Staff endpoints require a staff actor; roles are not differentiated yet. Multi-row writes run in a transaction; a unique violation on `clientMessageId` is caught and the existing record returned. Validation failures are 400 with `validation_failed` and per-field issues.
+Customer access is ownership: another customer's case answers 404, never 403 (RULE-SUP-01). Staff endpoints require a staff actor; only reassignment is role-checked (DEC-0012; the rest is BL-016 / PH-7). Multi-row writes run in one transaction under the case row lock; a unique violation on a key is caught and the existing record returned. Validation failures are 400 with `validation_failed` and per-field issues; numeric env values fall back to defaults when invalid.
 
 ## Decisions and assumptions
 ADR-0003 (PostgreSQL via Drizzle, PGlite for dev/tests), DEC-0005 (shared zod contracts). Assumptions: the reference is an identifier, not a credential (context §6.1); the reactivation rule and the closure window are reversible working defaults (context §13.1) — revisit when Operations defines policy (BL-002).
 
 ## Verification and change checklist
-Behavior change → `npm test -w api` and `npm run test:e2e -w api`; schema change → regenerate migration, rerun both; contract change → `npm run build:shared`, `npm test -w web`. Phase-level journey → `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-1.2-verification.md`, `docs/evidence/PH-1.5-verification.md`.
+Behavior change → `npm test -w api` and `npm run test:e2e -w api` (both in `verify`); schema change → regenerate migration, rerun both; contract change → `npm run build:shared`, `npm test -w web`; any new write to `support_cases` must go through `mutate()`. Phase-level journey → `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-3.5-verification.md`, `docs/evidence/CYCLE-1-verification.md`.

@@ -43,3 +43,26 @@ describe("request schemas", () => {
     expect(postMessageSchema.safeParse({ body: "ok" }).success).toBe(true);
   });
 });
+
+describe("customer projection (FND-0006)", () => {
+  test("toCustomerCaseSummary removes every staff-only field and keeps the rest", async () => {
+    const { STAFF_ONLY_SUMMARY_FIELDS, toCustomerCaseSummary, customerCaseSummarySchema } = await import("./cases.js");
+    const summary = {
+      id: "c1", reference: "SUP-000001", customerId: "cust-1", subject: "s", category: "other", status: "new",
+      priority: "urgent", assignedAgentId: "staff-ana", createdAt: "t", updatedAt: "t", lastMessageAt: "t",
+      lastCustomerMessageAt: null, lastStaffMessageAt: null, customerLastReadAt: null, staffLastReadAt: "t",
+      unreadCount: 0, resolvedAt: null, resolutionReason: null, closedAt: null, parentCaseId: null, parentReference: null,
+      incidentId: "i1", incidentTitle: "INTERNO: provedor fora",
+    } as const;
+    const projected = toCustomerCaseSummary(summary);
+    for (const field of STAFF_ONLY_SUMMARY_FIELDS) expect(field in projected).toBe(false);
+    expect(projected).toMatchObject({ id: "c1", reference: "SUP-000001", status: "new", customerLastReadAt: null });
+    expect(customerCaseSummarySchema.safeParse(projected).success).toBe(true);
+  });
+
+  test("text fields refuse NUL bytes (FND-0016)", () => {
+    expect(postMessageSchema.safeParse({ body: "ok\u0000bad" }).success).toBe(false);
+    expect(createCaseSchema.safeParse({ category: "other", message: "ok", subject: "a\u0000b" }).success).toBe(false);
+    expect(postMessageSchema.safeParse({ body: "ok \u001b[31m" }).success).toBe(true);
+  });
+});

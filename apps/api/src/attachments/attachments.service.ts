@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -46,8 +48,13 @@ export class AttachmentsService {
     @Inject(ATTACHMENT_STORAGE) private readonly storage: AttachmentStorage,
   ) {}
 
-  /** Validates size and real type, stores the bytes and records the attachment as unattached. */
+  /**
+   * Validates size and real type, stores the bytes and records the attachment as unattached. A closed case takes
+   * no files (its conversation is over — §7.3). Bytes are written before the row exists so a crash can never leave
+   * a row whose bytes are missing (FND-0015); a failed insert removes the bytes.
+   */
   async upload(actor: Actor, caseRow: SupportCaseRow, file: UploadedFileLike | undefined): Promise<CaseAttachment> {
+    if (caseRow.status === 'closed') throw new ConflictException('case_closed');
     if (!file) throw new BadRequestException({ error: 'file_required' });
     if (file.size > ATTACHMENT_LIMITS.maxBytes || file.buffer.length > ATTACHMENT_LIMITS.maxBytes) {
       throw new PayloadTooLargeException({ error: 'file_too_large', maxBytes: ATTACHMENT_LIMITS.maxBytes });
@@ -56,28 +63,29 @@ export class AttachmentsService {
     if (!mimeType) {
       throw new UnsupportedMediaTypeException({ error: 'unsupported_file_type', allowed: ATTACHMENT_LIMITS.allowedMimeTypes });
     }
-    const [row] = await this.db
-      .insert(caseAttachments)
-      .values({
-        caseId: caseRow.id,
-        uploaderType: actor.kind,
-        uploaderId: actor.id,
-        fileName: safeFileName(file.originalname),
-        mimeType,
-        sizeBytes: file.buffer.length,
-        storageKey: 'pending',
-        status: 'available',
-      })
-      .returning();
-    const storageKey = `${caseRow.id}/${row.id}`;
+    const id = randomUUID();
+    const storageKey = `${caseRow.id}/${id}`;
+    await this.storage.put(storageKey, file.buffer);
     try {
-      await this.storage.put(storageKey, file.buffer);
+      const [row] = await this.db
+        .insert(caseAttachments)
+        .values({
+          id,
+          caseId: caseRow.id,
+          uploaderType: actor.kind,
+          uploaderId: actor.id,
+          fileName: safeFileName(file.originalname),
+          mimeType,
+          sizeBytes: file.buffer.length,
+          storageKey,
+          status: 'available',
+        })
+        .returning();
+      return toAttachment(row);
     } catch (error) {
-      await this.db.delete(caseAttachments).where(eq(caseAttachments.id, row.id));
+      await this.storage.delete(storageKey).catch(() => undefined);
       throw error;
     }
-    const [stored] = await this.db.update(caseAttachments).set({ storageKey }).where(eq(caseAttachments.id, row.id)).returning();
-    return toAttachment(stored);
   }
 
   /**

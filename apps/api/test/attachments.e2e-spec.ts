@@ -138,4 +138,26 @@ describe('Attachments (e2e)', () => {
       .expect(400);
     await request(server).post(`/api/support/cases/${caseId}/attachments`).set(asCustomer('cust-bob')).attach('file', PNG, 'x.png').expect(404);
   });
+
+  it('Cycle Audit 1: a file of exactly the maximum size is accepted, accents in names survive, closed cases take no files', async () => {
+    const server = app.getHttpServer();
+    const exact = Buffer.concat([PNG, Buffer.alloc(ATTACHMENT_LIMITS.maxBytes - PNG.length)]);
+    const ok = await request(server)
+      .post(`/api/support/cases/${caseId}/attachments`)
+      .set(asCustomer('cust-alice'))
+      .attach('file', exact, { filename: 'comprovante-março.png', contentType: 'image/png' })
+      .expect(201);
+    expect(ok.body).toMatchObject({ sizeBytes: ATTACHMENT_LIMITS.maxBytes, fileName: 'comprovante-março.png' });
+    await request(server)
+      .post(`/api/support/cases/${caseId}/attachments`)
+      .set(asCustomer('cust-alice'))
+      .attach('file', Buffer.concat([exact, Buffer.from([0])]), { filename: 'x.png', contentType: 'image/png' })
+      .expect(413);
+
+    const closed = await request(server).post('/api/support/cases').set(asCustomer('cust-alice')).send({ category: 'other', message: 'Encerrado' }).expect(201);
+    await request(server).post(`/api/staff/cases/${closed.body.id}/resolve`).set(asStaff('staff-ana', 'Ana')).send({ reason: 'solved', explanation: 'ok' }).expect(200);
+    await request(server).post(`/api/staff/cases/${closed.body.id}/close`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    await request(server).post(`/api/support/cases/${closed.body.id}/attachments`).set(asCustomer('cust-alice')).attach('file', PNG, 'x.png').expect(409);
+  });
+
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { type CaseSummary, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
+import { type CustomerCaseSummary, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
 import { useCallback, useEffect, useState } from "react";
 import { dictionary as t, formatMessageTime } from "@/i18n";
 import { type CustomerIdentity, customerApi, customerIdentityHeaders } from "@/lib/api";
@@ -18,7 +18,7 @@ interface SupportHomeProps {
 type LoadState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; cases: CaseSummary[] };
+  | { status: "ready"; cases: CustomerCaseSummary[] };
 
 export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
@@ -43,6 +43,10 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
     const stop = subscribeStream("/support/cases/stream", customerIdentityHeaders(identity), {
       onEvent: (_type, data) => {
         if (isStreamEvent(data) && data.type !== "heartbeat") retry();
+      },
+      // Whatever happened while the stream was down is picked up on every (re)connect (ADR-0004).
+      onStatus: (status) => {
+        if (status === "connected") retry();
       },
     });
     return stop;
@@ -79,7 +83,7 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
   );
 }
 
-function CaseList({ title, cases, onOpenCase }: { title: string; cases: CaseSummary[]; onOpenCase: (id: string) => void }) {
+function CaseList({ title, cases, onOpenCase }: { title: string; cases: CustomerCaseSummary[]; onOpenCase: (id: string) => void }) {
   return (
     <section className={styles.listSection}>
       <h3 className={styles.listTitle}>{title}</h3>

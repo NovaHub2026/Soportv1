@@ -65,6 +65,8 @@ export function createSseParser(onEvent: (type: string, data: unknown) => void) 
 }
 
 const MAX_BACKOFF_MS = 15_000;
+/** A reconnect cannot fix these: the identity is missing or the case is not this customer's (FND-0011). */
+const TERMINAL_STATUSES = new Set([401, 403, 404]);
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -112,6 +114,10 @@ export function subscribeStream(
           cache: "no-store",
           signal: connection.signal,
         });
+        if (TERMINAL_STATUSES.has(response.status)) {
+          console.warn(`stream: refused with ${response.status}, not retrying`);
+          break;
+        }
         if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
         attempt = 0;
         handlers.onStatus?.("connected");

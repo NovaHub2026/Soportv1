@@ -1,9 +1,9 @@
 import {
   type CaseAttachment,
   type CaseMessage,
-  type CaseSummary,
   type CreateCaseInput,
   type CustomerCaseDetail,
+  type CustomerCaseSummary,
   type FollowUpInput,
   type PostMessageInput,
   SIMULATED_IDENTITY_HEADERS,
@@ -30,6 +30,33 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
+/** A stalled mutation must become a failure the UI can retry, never an eternal "Enviando…" (FND-0012). */
+export const MUTATION_TIMEOUT_MS = 20_000;
+
+function mutationSignal(options: RequestOptions): AbortSignal | undefined {
+  if (options.signal || (options.method ?? "GET") === "GET") return options.signal;
+  const abortSignal = globalThis.AbortSignal as typeof AbortSignal & { timeout?: (ms: number) => AbortSignal };
+  return typeof abortSignal?.timeout === "function" ? abortSignal.timeout(MUTATION_TIMEOUT_MS) : undefined;
+}
+
+/**
+ * Whether retrying the same request could ever succeed. Validation, ownership and state conflicts (4xx) will
+ * answer the same way again; network failures, timeouts and 5xx may not.
+ */
+export function isRetryable(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return error.status < 400 || error.status >= 500 || error.status === 408 || error.status === 429;
+}
+
+/** The API's error code (`message` of Nest exceptions or `error` of structured bodies), if any. */
+export function apiErrorCode(error: unknown): string | null {
+  if (!(error instanceof ApiError) || typeof error.body !== "object" || error.body === null) return null;
+  const body = error.body as { message?: unknown; error?: unknown };
+  if (typeof body.error === "string") return body.error;
+  if (typeof body.message === "string") return body.message;
+  return null;
+}
+
 /** Same-origin call to `/api/*` (rewritten to the API server); identity travels in the given headers. */
 export async function apiRequest<T>(path: string, identityHeaders: Record<string, string>, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -40,7 +67,7 @@ export async function apiRequest<T>(path: string, identityHeaders: Record<string
       ...identityHeaders,
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    signal: options.signal,
+    signal: mutationSignal(options),
     cache: "no-store",
   });
   const text = await response.text();
@@ -80,7 +107,7 @@ export interface AttachmentClient {
 
 export const customerApi = {
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
-    apiRequest<CaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
+    apiRequest<CustomerCaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
   getCase: (identity: CustomerIdentity, caseId: string, signal?: AbortSignal) =>
     apiRequest<CustomerCaseDetail>(`/support/cases/${caseId}`, customerHeaders(identity), { signal }),
   createCase: (identity: CustomerIdentity, input: CreateCaseInput) =>
@@ -88,7 +115,7 @@ export const customerApi = {
   postMessage: (identity: CustomerIdentity, caseId: string, input: PostMessageInput) =>
     apiRequest<CaseMessage>(`/support/cases/${caseId}/messages`, customerHeaders(identity), { method: "POST", body: input }),
   markRead: (identity: CustomerIdentity, caseId: string) =>
-    apiRequest<CaseSummary>(`/support/cases/${caseId}/read`, customerHeaders(identity), { method: "POST" }),
+    apiRequest<CustomerCaseSummary>(`/support/cases/${caseId}/read`, customerHeaders(identity), { method: "POST" }),
   followUp: (identity: CustomerIdentity, caseId: string, input: FollowUpInput) =>
     apiRequest<CustomerCaseDetail>(`/support/cases/${caseId}/follow-up`, customerHeaders(identity), { method: "POST", body: input }),
   attachments: (identity: CustomerIdentity, caseId: string): AttachmentClient => ({

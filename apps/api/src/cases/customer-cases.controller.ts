@@ -19,16 +19,16 @@ import type { Observable } from 'rxjs';
 import {
   type CaseAttachment,
   type CaseMessage,
-  type CaseSummary,
   createCaseSchema,
   type CreateCaseInput,
   type CustomerCaseDetail,
+  type CustomerCaseSummary,
   followUpSchema,
   type FollowUpInput,
   postMessageSchema,
   type PostMessageInput,
 } from '@orbit-support/shared';
-import { sendAttachment, UPLOAD_LIMITS } from '../attachments/attachments.controller-support.js';
+import { sendAttachment, UPLOAD_OPTIONS } from '../attachments/attachments.controller-support.js';
 import { AttachmentsService, type UploadedFileLike } from '../attachments/attachments.service.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { CaseStreamService } from '../events/case-stream.service.js';
@@ -48,7 +48,7 @@ export class CustomerCasesController {
 
   /** Upload one file to an own case; it is linked to a message when that message is sent (PH-2.3). */
   @Post(':id/attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: UPLOAD_LIMITS }))
+  @UseInterceptors(FileInterceptor('file', UPLOAD_OPTIONS))
   async upload(
     @CurrentActor() actor: CustomerActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -96,7 +96,7 @@ export class CustomerCasesController {
   /** The customer has the conversation in front of them: mark everything received as read. */
   @Post(':id/read')
   @HttpCode(200)
-  markRead(@CurrentActor() actor: CustomerActor, @Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
+  markRead(@CurrentActor() actor: CustomerActor, @Param('id', ParseUUIDPipe) id: string): Promise<CustomerCaseSummary> {
     return this.cases.markCustomerRead(actor, id);
   }
 
@@ -110,7 +110,7 @@ export class CustomerCasesController {
   }
 
   @Get()
-  list(@CurrentActor() actor: CustomerActor): Promise<CaseSummary[]> {
+  list(@CurrentActor() actor: CustomerActor): Promise<CustomerCaseSummary[]> {
     return this.cases.listCustomerCases(actor);
   }
 

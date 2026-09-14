@@ -67,9 +67,14 @@ export const supportCases = pgTable(
     parentCaseId: uuid('parent_case_id'),
     /** Shared incident association (PH-3.5); unlinking sets null, deleting an incident is not supported. */
     incidentId: uuid('incident_id').references(() => incidents.id, { onDelete: 'set null' }),
+    /** The customer's idempotency key for creating this case (root or follow-up): a retry never opens a second one (FND-0010). */
+    clientMessageId: text('client_message_id'),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),
+    uniqueIndex('support_cases_customer_client_message_uq')
+      .on(t.customerId, t.clientMessageId)
+      .where(sql`${t.clientMessageId} is not null`),
     index('support_cases_customer_idx').on(t.customerId, t.lastMessageAt),
     index('support_cases_queue_idx').on(t.status, t.assignedAgentId, t.createdAt),
   ],
@@ -88,14 +93,14 @@ export const caseMessages = pgTable(
     authorName: text('author_name'),
     visibility: messageVisibilityEnum('visibility').notNull().default('public'),
     body: text('body').notNull(),
-    /** Client-generated id: a retried send must not duplicate the message (RULE-SUP-03). Unique per author. */
+    /** Client-generated id: a retried send must not duplicate the message (RULE-SUP-03). Unique per case and author (FND-0010). */
     clientMessageId: text('client_message_id'),
     createdAt: tz('created_at').notNull().defaultNow(),
   },
   (t) => [
     index('case_messages_case_idx').on(t.caseId, t.createdAt),
-    uniqueIndex('case_messages_author_client_message_uq')
-      .on(t.authorId, t.clientMessageId)
+    uniqueIndex('case_messages_case_author_client_message_uq')
+      .on(t.caseId, t.authorType, t.authorId, t.clientMessageId)
       .where(sql`${t.clientMessageId} is not null`),
   ],
 );

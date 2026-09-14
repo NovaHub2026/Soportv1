@@ -50,6 +50,13 @@
       "when": 1789351627881,
       "tag": "0006_foamy_texas_twister",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789363669402,
+      "tag": "0007_thick_fallen_one",
+      "breakpoints": true
     }
   ]
 }

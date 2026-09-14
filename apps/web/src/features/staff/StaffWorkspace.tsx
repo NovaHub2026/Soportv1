@@ -71,7 +71,7 @@ export function StaffWorkspace() {
             >
               {SIMULATED_STAFF.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} · {s.role}
+                  {s.name} · {t.staff.roles[s.role]}
                 </option>
               ))}
             </select>

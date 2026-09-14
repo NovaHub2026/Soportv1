@@ -19,13 +19,16 @@ Environment: as in `PH-2.3-verification.md`.
 RULE-SUP-02: unowned actions assign the actor; transfer/release preserve everything; supervisor reassignment (PH-3.3). RULE-SUP-04: notes, consultation texts and incident broadcasts absent from customer detail/streams/counts (unit + e2e negatives, smoke leak checks). RULE-SUP-05: no code path changes money or account state; closing/resolving touch only case rows. RULE-SUP-06: reactivation from resolved, follow-up from closed. RULE-SUP-09: every transition, transfer, consultation, resolution, closure and incident link is an attributable `case_events` row rendered in the staff history.
 
 ## Delivery states (§6.3)
-Implemented and locally verified: yes. Integrated: `main`. CI verified: the PH-3.5 commit's run is recorded in `PH-3.5-verification.md`. Released: no.
+Implemented and locally verified: yes. Integrated: `main` as `11f178a`. CI verified: run 34798515452 success (recorded in `PH-3.5-verification.md` during Cycle Audit 1). Released: no.
 
 ## Uses simulation
 All demonstrations use simulated identity, a fixed simulated staff list and no Orbit records (DEC-0003).
 
 ## Findings during the phase
-None open. Harness-only locator ambiguities fixed in `scripts/ui-smoke.mjs`.
+None open at approval. Harness-only locator ambiguities fixed in `scripts/ui-smoke.mjs`.
+
+## Limitations stated after Cycle Audit 1 (FND-0023)
+Scenario (b) "owner alerted" is only the staff unread badge — no event or notification until PH-6. §14.9 is demonstrated for unassigned cases only: there is no staff view of waiting, resolved or closed cases and no overdue signal (PH-5, BL-011). Cycle Audit 1 also found and fixed material defects in this phase's scope (customer contract leaking incident fields, unvalidated transfer targets, resolution with open consultations, ownership and closure races, idempotency scope) — see `../audits/CYCLE-1.md`; the approval stands because the phase's user outcomes were delivered, and the corrections are in the remediation commit with regression tests.
 
 ## Approval
 PH-3 `APPROVED` on 2026-09-13 by the Agent (evidence-based, not a human review). Ledger: cycle 1, **3/3 — the Cycle Audit is due now** (`docs/audits/CYCLE-1.md`, opened with this approval; ordinary feature development pauses until it closes — §6.4).

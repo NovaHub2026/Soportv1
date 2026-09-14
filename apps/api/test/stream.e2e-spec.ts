@@ -1,7 +1,7 @@
 import type { AddressInfo } from 'node:net';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { type CaseMessage, SIMULATED_IDENTITY_HEADERS, type StreamEvent } from '@orbit-support/shared';
+import { type CaseMessage, SIMULATED_IDENTITY_HEADERS, STAFF_ONLY_SUMMARY_FIELDS, type StreamEvent } from '@orbit-support/shared';
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
 import { configureApp } from './../src/app.setup.js';
@@ -213,4 +213,26 @@ describe('Live streams (SSE, e2e)', () => {
     const note = await stream.waitFor((e) => e.type === 'message.created' && e.data.type === 'message.created' && e.data.message.visibility === 'internal');
     expect(note).toBeDefined();
   });
+
+  it('customer streams carry the customer projection: no incident, priority or staff-only fields (FND-0006)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/support/cases')
+      .set(asCustomer('cust-fabio'))
+      .send({ category: 'other', message: 'Projeção' })
+      .expect(201);
+    const own = collect(await open(`/api/support/cases/${created.body.id}/stream`, asCustomer('cust-fabio')));
+    const all = collect(await open('/api/support/cases/stream', asCustomer('cust-fabio')));
+
+    const incident = await request(app.getHttpServer()).post('/api/staff/incidents').set(asStaff('staff-ana', 'Ana')).send({ title: 'INTERNO: Pix fora' }).expect(201);
+    await request(app.getHttpServer()).post(`/api/staff/cases/${created.body.id}/incident`).set(asStaff('staff-ana', 'Ana')).send({ incidentId: incident.body.id }).expect(200);
+
+    for (const stream of [own, all]) {
+      const updated = await stream.waitFor((e) => e.type === 'case.updated' && e.data.type === 'case.updated' && e.data.caseId === created.body.id);
+      if (updated.data.type !== 'case.updated') throw new Error('unexpected');
+      for (const field of STAFF_ONLY_SUMMARY_FIELDS) expect(updated.data.summary).not.toHaveProperty(field);
+      expect(updated.data.summary.reference).toBe(created.body.reference);
+      expect(JSON.stringify(updated.data)).not.toContain('Pix fora');
+    }
+  });
+
 });

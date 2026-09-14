@@ -2,8 +2,12 @@ import { ATTACHMENT_LIMITS } from '@orbit-support/shared';
 import type { Response } from 'express';
 import type { AttachmentContent } from './attachments.service.js';
 
-/** multer limits shared by the customer and staff upload endpoints (the service re-checks the bytes). */
-export const UPLOAD_LIMITS = { fileSize: ATTACHMENT_LIMITS.maxBytes, files: 1 } as const;
+/**
+ * multer options shared by the customer and staff upload endpoints. busboy truncates a file whose size equals
+ * the limit, so the limit is one byte above the allowed maximum and the service enforces the exact boundary;
+ * `defParamCharset` keeps non-ASCII file names intact (pt-BR customers). Cycle Audit 1, FND-0017.
+ */
+export const UPLOAD_OPTIONS = { limits: { fileSize: ATTACHMENT_LIMITS.maxBytes + 1, files: 1 }, defParamCharset: 'utf8' } as const;
 
 /** Sends attachment bytes with safe headers: inline for images/PDF, never sniffed by the browser. */
 export function sendAttachment(response: Response, content: AttachmentContent): void {

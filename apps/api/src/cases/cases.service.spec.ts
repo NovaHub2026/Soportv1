@@ -1,13 +1,14 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../database/database.js';
-import type { CaseStreamEvent } from '@orbit-support/shared';
+import { type CaseStreamEvent, STAFF_ONLY_SUMMARY_FIELDS } from '@orbit-support/shared';
 import { AttachmentsModule } from '../attachments/attachments.module.js';
 import { DatabaseModule, DB } from '../database/database.module.js';
-import { caseMessages, supportCases } from '../database/schema.js';
+import { caseConsultations, caseMessages, supportCases } from '../database/schema.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
+import { SimulatedStaffDirectory, STAFF_DIRECTORY } from '../identity/staff-directory.js';
 import { CasesService } from './cases.service.js';
 
 const alice: CustomerActor = { kind: 'customer', id: 'cust-alice', source: 'simulated' };
@@ -25,7 +26,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
       imports: [DatabaseModule.forRoot({ inMemory: true }), AttachmentsModule.forRoot({ inMemory: true })],
-      providers: [CasesService, CaseEventBus],
+      providers: [CasesService, CaseEventBus, { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory }],
     }).compile();
     await moduleRef.init();
     service = moduleRef.get(CasesService);
@@ -320,7 +321,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       });
       expect(detail.reference).toMatch(/^SUP-\d{6}$/);
       expect(detail.status).toBe('new');
-      expect(detail.assignedAgentId).toBeNull();
+      expect('assignedAgentId' in detail).toBe(false); // staff-only fields never reach the customer (FND-0006)
       expect(detail.subject).toBe('Meu saque não chegou');
       expect(detail.messages).toHaveLength(1);
       expect(detail.messages[0]).toMatchObject({ authorType: 'customer', authorId: alice.id, visibility: 'public' });
@@ -411,7 +412,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
 
       const customerView = await service.getCustomerCase(alice, created.id);
       expect(customerView.status).toBe('in_progress');
-      expect(customerView.assignedAgentId).toBe(ana.id);
+      expect((await service.getStaffCase(created.id)).assignedAgentId).toBe(ana.id);
       expect(customerView.messages.map((m) => m.body)).toEqual(['Ajuda', 'Olá, Alice! Já estou verificando.']);
       expect(customerView.lastStaffMessageAt).not.toBeNull();
     });
@@ -473,4 +474,106 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       await expect(service.postCustomerMessage(alice, created.id, { body: 'Oi?' })).rejects.toBeInstanceOf(ConflictException);
     });
   });
+
+  describe('Cycle Audit 1 regressions', () => {
+    it('FND-0006: customer responses never carry staff-only fields, even with an incident linked and a priority set', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      const incident = await service.createIncident(ana, { title: 'INTERNO: provedor fora' });
+      await service.linkIncident(ana, created.id, incident.id);
+      await service.updateAttributes(ana, created.id, { priority: 'urgent' });
+      const detail = await service.getCustomerCase(alice, created.id);
+      const [listed] = await service.listCustomerCases(alice);
+      const read = await service.markCustomerRead(alice, created.id);
+      for (const view of [detail, listed, read]) {
+        for (const field of STAFF_ONLY_SUMMARY_FIELDS) expect(field in view).toBe(false);
+      }
+      expect(JSON.stringify([detail, listed, read])).not.toContain('provedor fora');
+      expect((await service.getStaffCase(created.id)).incidentTitle).toBe('INTERNO: provedor fora');
+    });
+
+    it('FND-0007: a transfer to an agent outside the staff directory is refused and changes nothing', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await service.takeCase(ana, created.id);
+      await expect(service.assignCase(ana, created.id, { agentId: 'ghost-agent' })).rejects.toBeInstanceOf(BadRequestException);
+      const view = await service.getStaffCase(created.id);
+      expect(view.assignedAgentId).toBe(ana.id);
+      expect(view.events.filter((e) => e.type === 'case_assigned')).toHaveLength(1);
+      await expect(service.assignCase(carla, created.id, { agentId: bruno.id })).resolves.toMatchObject({ assignedAgentId: bruno.id });
+    });
+
+    it('FND-0008: no resolution while a consultation is open; a closed case accepts no answer', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      const consultation = await service.requestConsultation(ana, created.id, { team: 'finance', question: 'Saldo?' });
+      await expect(service.resolve(ana, created.id, { reason: 'solved', explanation: 'Feito' })).rejects.toThrow('consultations_open');
+      expect((await service.getStaffCase(created.id)).status).toBe('waiting_internal');
+      await service.answerConsultation(bruno, created.id, consultation.id, { answer: 'Confere' });
+      await service.resolve(ana, created.id, { reason: 'solved', explanation: 'Feito' });
+      await service.closeCase(ana, created.id);
+      const [orphan] = await db.insert(caseConsultations).values({ caseId: created.id, team: 'finance', question: 'q', requestedById: ana.id }).returning();
+      await expect(service.answerConsultation(bruno, created.id, orphan.id, { answer: 'tarde demais' })).rejects.toThrow('case_closed');
+      expect((await service.getStaffCase(created.id)).events.at(-1)?.type).toBe('case_closed');
+    });
+
+    it('FND-0009: two agents taking the same case at once — exactly one succeeds and one assignment is recorded', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      const results = await Promise.allSettled([service.takeCase(ana, created.id), service.takeCase(bruno, created.id)]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect(rejected.reason).toBeInstanceOf(ConflictException);
+      const view = await service.getStaffCase(created.id);
+      expect(view.events.filter((e) => e.type === 'case_assigned')).toHaveLength(1);
+      expect(view.events.filter((e) => e.type === 'status_changed')).toHaveLength(1);
+      expect([ana.id, bruno.id]).toContain(view.assignedAgentId);
+    });
+
+    it('FND-0009: overlapping closure runs close a resolved case once and report only real closures', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await service.resolve(ana, created.id, { reason: 'solved', explanation: 'Feito' });
+      const later = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000);
+      const [a, b] = await Promise.all([service.closeExpired(later), service.closeExpired(later)]);
+      expect(a + b).toBe(1);
+      const view = await service.getStaffCase(created.id);
+      expect(view.status).toBe('closed');
+      expect(view.events.filter((e) => e.type === 'case_closed')).toHaveLength(1);
+      expect(published.filter((e) => e.type === 'case.updated' && e.caseId === created.id && e.summary.status === 'closed')).toHaveLength(1);
+    });
+
+    it('FND-0010: the idempotency key is scoped to the case and the author; a creation key is never answered with another case', async () => {
+      const a = await service.createCase(alice, { category: 'other', message: 'A', clientMessageId: 'create-1' });
+      expect((await service.createCase(alice, { category: 'other', message: 'A', clientMessageId: 'create-1' })).id).toBe(a.id);
+      const b = await service.createCase(alice, { category: 'other', message: 'B' });
+      const onA = await service.postCustomerMessage(alice, a.id, { body: 'para A', clientMessageId: 'k-1' });
+      const onB = await service.postCustomerMessage(alice, b.id, { body: 'para B', clientMessageId: 'k-1' });
+      expect(onB.id).not.toBe(onA.id);
+      expect(onB.caseId).toBe(b.id);
+      expect((await service.getCustomerCase(alice, b.id)).messages.map((m) => m.body)).toEqual(['B', 'para B']);
+      // A staff id equal to a customer id string is a different author: no collision, no foreign message.
+      const homonym: StaffActor = { ...ana, id: alice.id };
+      const staffMessage = await service.postStaffMessage(homonym, a.id, { body: 'da equipe', clientMessageId: 'k-1' });
+      expect(staffMessage).toMatchObject({ authorType: 'staff', body: 'da equipe' });
+      // Creation keys: a follow-up cannot reuse a root creation key and vice versa; a retried follow-up is single.
+      await db.update(supportCases).set({ status: 'closed', closedAt: new Date() }).where(eq(supportCases.id, b.id));
+      await expect(service.createFollowUp(alice, b.id, { message: 'x', clientMessageId: 'create-1' })).rejects.toThrow('client_message_id_reused');
+      const follow = await service.createFollowUp(alice, b.id, { message: 'x', clientMessageId: 'follow-1' });
+      expect((await service.createFollowUp(alice, b.id, { message: 'x', clientMessageId: 'follow-1' })).id).toBe(follow.id);
+      await expect(service.createCase(alice, { category: 'other', message: 'x', clientMessageId: 'follow-1' })).rejects.toThrow('client_message_id_reused');
+      expect((await service.listCustomerCases(alice)).map((c) => c.id).sort()).toEqual([a.id, b.id, follow.id].sort());
+    });
+
+    it('FND-0013: every exit from resolved clears the resolution and records a reopening with its actor', async () => {
+      const first = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await service.resolve(ana, first.id, { reason: 'solved', explanation: 'Feito' });
+      const resumed = await service.setStatus(ana, first.id, 'waiting_customer');
+      expect(resumed).toMatchObject({ status: 'waiting_customer', resolvedAt: null, resolutionReason: null });
+      expect((await service.getStaffCase(first.id)).events.at(-1)).toMatchObject({ type: 'case_reopened', actorId: ana.id, data: { from: 'resolved', to: 'waiting_customer' } });
+
+      const second = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await service.resolve(ana, second.id, { reason: 'solved', explanation: 'Feito' });
+      await service.requestConsultation(ana, second.id, { team: 'finance', question: 'Confere?' });
+      const view = await service.getStaffCase(second.id);
+      expect(view).toMatchObject({ status: 'waiting_internal', resolvedAt: null, resolutionReason: null });
+      expect(view.events.some((e) => e.type === 'case_reopened' && e.data.to === 'waiting_internal')).toBe(true);
+    });
+  });
+
 });
