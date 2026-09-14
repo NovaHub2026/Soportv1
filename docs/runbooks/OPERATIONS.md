@@ -3,20 +3,24 @@ Type: RUNBOOK
 Scope: how the support operation is configured and watched, and which operating decisions are still the Owner's/Operations' (`PROJECT_CONTEXT.md` §13.2, BL-002); PH-8.3
 Verified on: 2026-09-14
 
-## Decisions this product needs from the Owner / Operations (pending)
-Nothing below is invented by the product: each item is a working default the software carries until Operations decides (RULE-SUP-08). Record each decision in `../decisions/DECISION_LOG.md` and configure it where indicated.
-| Decision | Owner | Working default today | Where it is configured |
+## Operating policies (Owner, 2026-09-14 — DEC-0039)
+Decided by the Owner question by question. "In the product" says whether the software already follows the decision; PH-10 brings the rest in. Two items stay open: retention (legal advice) and the e-mail provider.
+| Policy | Decided | In the product today | Where it lives |
 |---|---|---|---|
-| Service hours and time zone | Operations | weekdays 09:00–18:00 America/Sao_Paulo, labeled "working default" to customers | Supervision → settings (schedule, time zone) |
-| Staffing and coverage | Operations | three simulated agents (directory in `packages/shared`) | replaced by Orbit's staff directory (BL-001) |
-| Response and follow-up targets | Operations | none — metrics show medians/p90 without targets (`targets: null`) | a future settings field once targets exist |
-| Attention threshold (overdue) | Operations | 4 h without a human reply / waiting for a team | Supervision → settings |
-| Follow-up window before closure | Operations | 7 days | Supervision → settings (`followUpWindowDays`) |
-| E-mail delay and reminder delay | Operations | 15 min unread → e-mail; 48 h waiting → one reminder | Supervision → settings |
-| Roles and specialist contacts | Operations + security owners | agent / supervisor / admin (DEC-0029); consultation teams: finance, security, product | directory (BL-001); teams in `packages/shared` |
-| Account recovery procedure | Orbit's security process | recovery requests recorded and "forwarded" as a labeled simulation (DEC-0028) | replaced by the real hand-off (BL-001/BL-002) |
-| Retention, exports, formal complaints | Operations + legal/privacy | nothing deleted or exported automatically; no complaint workflow | policy first, then a job (BL-009 for orphan uploads) |
-| Notification channel and provider | Owner (paid service) | simulated outbox only (DEC-0025) | `EmailNotifierPort` adapter |
+| Service hours and time zone | Human team 24/7; internal times America/Sao_Paulo, shown to each customer in their own time zone | Working default weekdays 09:00–18:00 São Paulo, shown in São Paulo time — PH-10 | Supervision → settings; customer availability copy |
+| First line | An AI assistant (future phase; the Owner named ChatGPT); a customer who asks for a person is transferred; disputes and security always go to a person (RULE-SUP-10) | Not built — PH-11 | — |
+| Staffing and coverage | 24/7 coverage; the people come from Orbit's staff directory | Three simulated agents | Orbit's directory (BL-001) |
+| Response and follow-up targets | None yet | Metrics without targets (`targets: null`) | — |
+| Attention threshold (overdue) | 4 h without a human reply / waiting for a team | Same | Supervision → settings |
+| Follow-up window before closure | 7 days | Same | Supervision → settings (`followUpWindowDays`) |
+| E-mail delay and reminder delay | 15 min unread → e-mail; 48 h waiting → one reminder | Same | Supervision → settings |
+| Consultation teams | Finance, operations, security, verification, product | Same | `packages/shared` |
+| Roles | agent / supervisor / admin (DEC-0029) | Same | Orbit's directory (BL-001) |
+| Formal complaints | A topic the customer can choose ("Reclamação formal"), routed to a supervisor, internal deadline 5 business days, recorded; staff may reclassify | No complaint flow — PH-10 | — |
+| Exports of a customer's data | An admin only, on the customer's request, recorded | No export — PH-10 | — |
+| Account recovery procedure | Forwarded to the Verification team, which uses Orbit's KYC process | Recorded and "forwarded" as a labeled simulation — PH-10 names the team; the real process needs Orbit (BL-001) | Staff recovery page |
+| Retention of closed cases | **Pending legal advice** — nothing deleted meanwhile | Nothing deleted except uploads never linked (24 h) | Policy first, then a job |
+| E-mail provider | **Decided later** (paid service) | Simulated outbox | `EmailNotifierPort` adapter |
 
 ## Daily operation
 - Queue oversight: the supervision page shows unassigned cases, cases awaiting a human reply, cases waiting for a team, load per agent and the overdue list; reassign from there (DEC-0012, DEC-0029).
