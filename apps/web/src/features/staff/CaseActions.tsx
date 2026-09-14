@@ -113,7 +113,7 @@ export function CaseActions({ detail, identity, busy, notOwner, error, onStatus,
           </label>
           <select id="transfer-target" className={styles.select} value={transferTarget} onChange={(event) => setTransferTarget(event.target.value)}>
             <option value="">{t.staff.supervision.reassignPlaceholder}</option>
-            {SIMULATED_STAFF.filter((s) => s.id !== identity.staffId).map((s) => (
+            {SIMULATED_STAFF.filter((s) => s.id !== identity.staffId && (detail.category !== "formal_complaint" || staffMayWorkComplaint(s.role))).map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} · {t.staff.roles[s.role]}
               </option>

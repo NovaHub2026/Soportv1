@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, count, desc, eq, gt, ilike, inArray, isNull, lt, min, ne, or, sql } from 'drizzle-orm';
-import { type AnswerConsultationInput, type AssignCaseInput, type CaseConsultation, type CaseEvent, type CaseMessage, type CaseRecord, type CaseRecordRef, type CaseStatus, type CaseSummary, type CreateCaseInput, type CreateIncidentInput, type CustomerCaseDetail, type CustomerCaseSummary, deriveSubject, type FollowUpInput, formatCaseReference, type Incident, type IncidentNoteInput, type IncidentStatus, type MessageAuthorType, OPEN_CASE_STATUSES, type OrbitRecord, type OrbitRecordKind, type OrbitUnavailableReason, type PostMessageInput, type PostNoteInput, type RequestConsultationInput, type ResolutionReason, type ResolveCaseInput, type StaffCaseDetail, STAFF_LIST_LIMITS, type StaffListQuery, type StaffQueueView, type StaffStatusTarget, type SystemMessageKind, toCustomerCaseSummary, type UpdateCaseInput, businessDaysAfter, COMPLAINT_DEADLINE_BUSINESS_DAYS, staffMayWorkComplaint, type StaffRole } from '@orbit-support/shared';
+import { type AnswerConsultationInput, type AssignCaseInput, type CaseConsultation, type CaseEvent, type CaseMessage, type CaseRecord, type CaseRecordRef, type CaseStatus, type CaseSummary, type CreateCaseInput, type CreateIncidentInput, type CustomerCaseDetail, type CustomerCaseEvent, type CustomerCaseSummary, deriveSubject, type FollowUpInput, formatCaseReference, type Incident, type IncidentNoteInput, type IncidentStatus, type MessageAuthorType, OPEN_CASE_STATUSES, type OrbitRecord, type OrbitRecordKind, type OrbitUnavailableReason, type PostMessageInput, type PostNoteInput, type RequestConsultationInput, type ResolutionReason, type ResolveCaseInput, type StaffCaseDetail, STAFF_LIST_LIMITS, type StaffListQuery, type StaffQueueView, type StaffStatusTarget, type SystemMessageKind, toCustomerCaseSummary, type UpdateCaseInput, businessDaysAfter, COMPLAINT_DEADLINE_BUSINESS_DAYS, staffMayWorkComplaint, type StaffRole } from '@orbit-support/shared';
 import { AttachmentsService, toAttachment } from '../attachments/attachments.service.js';
 import { positiveNumberEnv } from '../common/env.js';
 import { type Db, isUniqueViolation } from '../database/database.js';
@@ -25,6 +25,9 @@ import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-director
 import { awaitingReplySince, awaitingReplySinceSql, waitingInternalSince, waitingInternalSinceSql } from './case-rules.js';
 import { NotificationsService } from './notifications.service.js';
 import { SettingsService } from './settings.service.js';
+
+/** History a customer may read (and receive in an export): what the customer's own screens already show (RULE-SUP-04). */
+const CUSTOMER_VISIBLE_EVENT_TYPES = new Set<CaseEvent['type']>(['case_created', 'status_changed', 'case_resolved', 'case_reopened', 'case_closed', 'follow_up_created', 'reminder_sent']);
 
 const OPEN = [...OPEN_CASE_STATUSES];
 
@@ -551,9 +554,10 @@ export class CasesService {
     return Number(open);
   }
 
-  /** Staff opened the conversation: customer messages received so far count as read. */
-  async markStaffRead(caseId: string): Promise<CaseSummary> {
+  /** Staff opened the conversation: customer messages received so far count as read (a complaint's marker moves for its supervisors only). */
+  async markStaffRead(staff: StaffActor, caseId: string): Promise<CaseSummary> {
     const row = await this.requireCase(caseId);
+    this.assertMayWorkComplaint(row, staff);
     const [updated] = await this.db
       .update(supportCases)
       .set({ staffLastReadAt: new Date() })
@@ -623,6 +627,7 @@ export class CasesService {
     if (row.assignedAgentId && row.assignedAgentId !== staff.id) throw new ConflictException('case_assigned_to_other');
     if (row.assignedAgentId === staff.id) return this.summaryOf(row);
     const { updated, changed } = await this.mutate(caseId, async (tx, locked) => {
+      this.assertMayWorkComplaint(locked, staff); // reclassified between the check and the lock
       if (!OPEN.includes(locked.status)) throw new ConflictException('case_not_open');
       if (locked.assignedAgentId && locked.assignedAgentId !== staff.id) throw new ConflictException('case_assigned_to_other');
       if (locked.assignedAgentId === staff.id) return { updated: locked, changed: false };
@@ -762,12 +767,15 @@ export class CasesService {
     return this.summaryOf(updated);
   }
 
-  /** One internal note delivered to every linked open case — the "coordinated update" of §5.4. Atomic (FND-0015). */
-  async broadcastIncidentNote(staff: StaffActor, incidentId: string, input: IncidentNoteInput): Promise<{ delivered: number }> {
+  /**
+   * One internal note delivered to every linked open case — the "coordinated update" of §5.4. Atomic (FND-0015).
+   * A linked formal complaint receives it only from someone who may work complaints (DEC-0041; CLOSING FND-0106).
+   */
+  async broadcastIncidentNote(staff: StaffActor, incidentId: string, input: IncidentNoteInput): Promise<{ delivered: number; skippedComplaints: number }> {
     const incident = await this.requireIncident(incidentId);
-    const notes = await this.noteLinkedOpenCases(incident, staff, `[Incidente “${incident.title}”] ${input.body}`);
+    const { notes, skippedComplaints } = await this.noteLinkedOpenCases(incident, staff, `[Incidente “${incident.title}”] ${input.body}`);
     for (const { note, updated } of notes) this.publishMessage(updated, toMessage(note));
-    return { delivered: notes.length };
+    return { delivered: notes.length, skippedComplaints };
   }
 
   /** Marks the incident resolved and tells every linked open case's team — without touching any case status. */
@@ -782,7 +790,7 @@ export class CasesService {
         .where(and(eq(incidents.id, incident.id), eq(incidents.status, 'open')))
         .returning();
       if (!resolved) throw new ConflictException('incident_already_resolved');
-      return { updated: resolved, notes: await this.noteLinkedOpenCases(incident, staff, advisory, tx) };
+      return { updated: resolved, notes: (await this.noteLinkedOpenCases(incident, staff, advisory, tx)).notes };
     });
     for (const { note, updated: row } of notes) this.publishMessage(row, toMessage(note));
     const counts = await this.linkedCaseCounts([incident.id]);
@@ -795,7 +803,7 @@ export class CasesService {
     staff: StaffActor,
     body: string,
     outerTx?: Db,
-  ): Promise<Array<{ note: CaseMessageRow; updated: SupportCaseRow }>> {
+  ): Promise<{ notes: Array<{ note: CaseMessageRow; updated: SupportCaseRow }>; skippedComplaints: number }> {
     const work = async (tx: Db) => {
       const linked = await tx
         .select()
@@ -803,9 +811,13 @@ export class CasesService {
         .where(and(eq(supportCases.incidentId, incident.id), inArray(supportCases.status, OPEN)))
         .for('update');
       const now = new Date();
-      const result: Array<{ note: CaseMessageRow; updated: SupportCaseRow }> = [];
-      for (const row of linked) result.push(await this.insertNote(tx, staff, row, body, now));
-      return result;
+      const notes: Array<{ note: CaseMessageRow; updated: SupportCaseRow }> = [];
+      let skippedComplaints = 0;
+      for (const row of linked) {
+        if (row.category === 'formal_complaint' && !staffMayWorkComplaint(staff.role)) skippedComplaints += 1;
+        else notes.push(await this.insertNote(tx, staff, row, body, now));
+      }
+      return { notes, skippedComplaints };
     };
     return outerTx ? work(outerTx) : this.db.transaction(work);
   }
@@ -854,11 +866,13 @@ export class CasesService {
     if (input.agentId !== null && !(await this.staffDirectory.isKnownStaff(input.agentId))) {
       throw new BadRequestException({ error: 'unknown_agent', agentId: input.agentId });
     }
-    if (input.agentId !== null) this.assertComplaintTarget(row, await this.staffDirectory.roleOf(input.agentId));
+    const target = input.agentId !== null ? await this.staffDirectory.roleOf(input.agentId) : undefined;
+    this.assertComplaintTarget(row, target);
     if (row.assignedAgentId === input.agentId) return this.summaryOf(row);
     const { updated, changed } = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
       this.assertMayReassign(locked, staff);
+      this.assertComplaintTarget(locked, target); // reclassified between the check and the lock (CLOSING FND-0107)
       if (locked.assignedAgentId === input.agentId) return { updated: locked, changed: false };
       const now = new Date();
       await tx.insert(caseEvents).values({
@@ -900,6 +914,11 @@ export class CasesService {
     if (!staffMay(staff.role, action, caseOwnership(row.assignedAgentId, staff.id))) throw new ForbiddenException('not_case_owner');
   }
 
+  /** The complaint rule for routes outside this service (staff uploads). */
+  assertStaffMayWork(row: SupportCaseRow, staff: StaffActor): void {
+    this.assertMayWorkComplaint(row, staff);
+  }
+
   /** A formal complaint is worked by supervisors and admins only (DEC-0039 g); the web mirrors `staffMayWorkComplaint`. */
   private assertMayWorkComplaint(row: SupportCaseRow, staff: StaffActor): void {
     if (row.category === 'formal_complaint' && !staffMayWorkComplaint(staff.role)) throw new ForbiddenException('supervisor_required');
@@ -921,11 +940,28 @@ export class CasesService {
     if (row.status === 'closed') throw new ConflictException('case_closed');
     this.assertMay(row, staff, 'edit_attributes');
     const timezone = input.category ? await this.operationTimezone() : null;
+    // The owner's role, read before the transaction: a case that becomes a complaint leaves an owner who may not work one.
+    const owner = input.category === 'formal_complaint' && row.assignedAgentId ? await this.staffDirectory.roleOf(row.assignedAgentId) : undefined;
     const updated = await this.mutate(caseId, async (tx, locked) => {
       if (locked.status === 'closed') throw new ConflictException('case_closed');
       this.assertMay(locked, staff, 'edit_attributes');
       const now = new Date();
       const patch: Partial<SupportCaseRow> = { updatedAt: now };
+      if (input.category === 'formal_complaint' && locked.category !== 'formal_complaint' && locked.assignedAgentId) {
+        if (locked.assignedAgentId !== row.assignedAgentId) throw new ConflictException('case_assignment_changed');
+        if (owner && !staffMayWorkComplaint(owner.role)) {
+          // Routed to a supervisor (DEC-0041): the agent could neither work nor release it (CLOSING FND-0107).
+          patch.assignedAgentId = null;
+          await tx.insert(caseEvents).values({
+            caseId: locked.id,
+            type: 'case_assigned',
+            actorType: 'staff',
+            actorId: staff.id,
+            data: { agentId: null, previousAgentId: locked.assignedAgentId, released: true, releasedByName: staff.displayName, reason: 'formal_complaint' },
+            createdAt: now,
+          });
+        }
+      }
       if (input.priority && input.priority !== locked.priority) {
         patch.priority = input.priority;
         await tx.insert(caseEvents).values({
@@ -1190,11 +1226,14 @@ export class CasesService {
   }
 
   /** Customer detail: the customer projection of the summary plus the public conversation (RULE-SUP-04). */
-  /** One case as the customer may see it, plus the attributable history (PH-10.3 exports): public messages only. */
-  async exportCase(customer: CustomerActor, row: SupportCaseRow): Promise<CustomerCaseDetail & { events: CaseEvent[] }> {
+  /**
+   * One case as the customer may see it, plus the history the customer may see (PH-10.3 exports): public messages
+   * and the customer-visible events only — never assignments, consultations, incidents or priority (CLOSING FND-0101).
+   */
+  async exportCase(customer: CustomerActor, row: SupportCaseRow): Promise<CustomerCaseDetail & { events: CustomerCaseEvent[] }> {
     if (row.customerId !== customer.id) throw new NotFoundException('case_not_found');
     const [detail, events] = await Promise.all([this.customerDetail(row), this.loadEvents(row.id)]);
-    return { ...detail, events };
+    return { ...detail, events: events.filter((e) => CUSTOMER_VISIBLE_EVENT_TYPES.has(e.type)).map(({ actorId: _actorId, ...event }) => event) };
   }
 
   private async customerDetail(row: SupportCaseRow): Promise<CustomerCaseDetail> {

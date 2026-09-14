@@ -1,10 +1,11 @@
 "use client";
 
-import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday, isAllDay } from "@orbit-support/shared";
+import { CASE_STATUSES, type ServiceMetrics, type SupervisionOverview, type SupportSettings, WEEKDAYS, type Weekday, isAllDay, staffMayWorkComplaint } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes, isPast } from "@/i18n";
+import { dictionary as t, fill, formatDuration, formatMessageTime, formatMinutes } from "@/i18n";
 import { ApiError } from "@/lib/api";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
+import { complaintDeadlineLine } from "./complaint";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import { DataExportSection } from "./DataExportSection";
 import styles from "./staff.module.css";
@@ -187,16 +188,14 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
               </p>
               <ul className={styles.replyList} data-testid="complaints">
                 {overview.complaints.list.map((c) => {
-                  const late = c.complaintDeadlineAt !== null && isPast(c.complaintDeadlineAt);
+                  const line = complaintDeadlineLine(c.status, c.complaintDeadlineAt);
                   return (
                     <li key={c.id} className={styles.replyItem}>
                       <div className={styles.replyHead}>
                         <button type="button" className={styles.linkButton} onClick={() => onOpenCase(c.id)}>
                           {c.reference} · {c.subject}
                         </button>
-                        <span className={late ? styles.attention : styles.caseMeta}>
-                          {c.complaintDeadlineAt ? (late ? fill(t.staff.complaint.overdue, { age: formatDuration(c.complaintDeadlineAt) }) : fill(t.staff.complaint.deadline, { when: formatMessageTime(c.complaintDeadlineAt) })) : ""}
-                        </span>
+                        <span className={line?.attention ? styles.attention : styles.caseMeta}>{line?.text ?? ""}</span>
                       </div>
                       <p className={styles.consultationMeta}>
                         {t.staff.responsible}: {c.assignedAgentId ?? t.staff.unassigned}
@@ -227,7 +226,7 @@ export function SupervisionPanel({ identity, onClose, onOpenCase }: SupervisionP
                     {s.reassignTo}
                     <select className={styles.select} value="" onChange={(event) => event.target.value && void reassign(c.id, event.target.value)} disabled={status.kind === "busy"}>
                       <option value="">{s.reassignPlaceholder}</option>
-                      {SIMULATED_STAFF.map((st) => (
+                      {SIMULATED_STAFF.filter((st) => c.category !== "formal_complaint" || staffMayWorkComplaint(st.role)).map((st) => (
                         <option key={st.id} value={st.id}>
                           {st.name}
                         </option>

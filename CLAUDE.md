@@ -4,6 +4,7 @@ Type: OPERATIONAL ENTRYPOINT
 Canonical entrypoint for this repository (`GOVERNANCE.md` §0.2, §3.1). Other provider wrappers, if ever added, must only point here.
 
 ## Startup route (fresh session)
+`AGENTS.md` at the root only points here (any other provider wrapper must do the same).
 1. `GOVERNANCE.md` §0 and §1, then the §0.1 table for the situation at hand.
 2. `PROJECT_CONTEXT.md` §1–2 and §8 for product orientation; the full document on a changed objective or a relevant ambiguity.
 3. `CURRENT_STATE.md`, then `SESSION_HANDOFF.md` — check running work and preservation before touching the tree.
@@ -26,7 +27,7 @@ Canonical entrypoint for this repository (`GOVERNANCE.md` §0.2, §3.1). Other p
 | Confirmed stack | Frontend: React + Next.js + TypeScript. Backend: NestJS + TypeScript. Everything else is decided per ADR/decision log as needed. |
 | Verification | `docs/runbooks/VERIFICATION.md` — run `npm run verify` before every commit (profiles: context, static, unit, e2e, verify, full) |
 | CI / release authorization | GitHub Actions `.github/workflows/ci.yml` runs `verify` + builds and the api suites on PostgreSQL on push to `main` and PRs; it runs post-integration, so a push is awaiting corroboration until green (§9.2). Release authorization: none granted; production release requires the Owner (§1.1) and follows `docs/runbooks/RELEASE.md`. |
-| Audit cadence | Cycle Audit after 3 first-time phase approvals (§6.4). The count lives only in the `docs/phases/ROADMAP.md` ledger (echoed by `CURRENT_STATE.md`). Independent review: subagents are available in this runtime. |
+| Audit cadence | Cycle Audit after 3 first-time phase approvals (§6.4). The count lives only in the `docs/phases/ROADMAP.md` ledger (echoed by `CURRENT_STATE.md`). Independent review: the Agent used subagents in its runtime; another runtime (the Owner's GPT build of PH-11) must arrange its own independent reviewers (§8.5). |
 | Languages | Developer artifacts: English. Owner communication: Spanish. Customer UI: pt-BR first, es later. |
 | Commands (§12.1) | `START`/resume · `GUARDAR`/save · `PARAR`/stop · `AUDITAR`/audit · `EJECUTA` = execute the current task (new-adoption binding) |
 

@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { message, mockFetch, summary } from "@/features/support/test-utils";
+import { SECRET_MASK } from "@orbit-support/shared";
+import { message, mockFetch, recoveryRequest, summary } from "@/features/support/test-utils";
+import { dictionary as t } from "@/i18n";
 import type { StaffIdentity } from "@/lib/staff-api";
+import { DataExportSection } from "./DataExportSection";
 import { StaffCaseView } from "./StaffCaseView";
 import { StaffQueue } from "./StaffQueue";
 import { AccessRecoveryPanel } from "./AccessRecoveryPanel";
@@ -619,5 +622,74 @@ describe("StaffCaseView", () => {
     expect(requests.find((r) => r.url === "/api/staff/customers/cust-alice/export")?.body).toEqual({ reason: "Pedido do cliente por e-mail." });
     expect(requests.find((r) => r.url === "/api/staff/customers/cust-alice/export")?.headers["x-simulated-staff-id"]).toBe("staff-dani");
     expect((await within(section).findByTestId("data-export-records")).textContent).toContain("Dani Alves");
+  });
+
+  test("closing audit FND-0114: the recovery page notes a masked description", async () => {
+    mockFetch(() => ({ body: [recoveryRequest({ description: `Minha senha é ${SECRET_MASK} e não entra.`, descriptionMasked: true })] }));
+    render(<AccessRecoveryPanel identity={ana} onClose={() => {}} />);
+    expect((await screen.findByTestId("recovery-request")).textContent).toContain("[oculto]");
+    expect(screen.getByTestId("recovery-masked").textContent).toContain(t.staff.accessRecovery.masked);
+  });
+
+  test("closing audit FND-0113: a finished complaint is not overdue — the queue says when its deadline was, the case view says overdue only while open", async () => {
+    const past = new Date(Date.now() - 12 * 86_400_000).toISOString();
+    mockFetch(() => ({ body: [summary({ status: "closed", category: "formal_complaint", complaintDeadlineAt: past })] }));
+    render(<StaffQueue identity={ana} view="closed" onViewChange={() => {}} selectedCaseId={null} onSelectCase={() => {}} refreshToken={0} />);
+    const line = await screen.findByTestId("complaint-deadline");
+    expect(line.textContent).toMatch(/^Prazo era /);
+    expect(line.className).not.toContain("attention");
+    mockFetch((request) => (request.url.endsWith("/orbit") ? { body: orbitUnavailable } : { body: { ...detail, assignedAgentId: null, status: "new", category: "formal_complaint", complaintDeadlineAt: past } }));
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    expect(screen.getAllByTestId("complaint-deadline").at(-1)!.textContent).toContain("Prazo vencido há");
+  });
+
+  test("closing audit FND-0107: a complaint's transfer list offers no agent, and a supervisor_required refusal is explained by name", async () => {
+    const carla: StaffIdentity = { staffId: "staff-carla", displayName: "Carla Nunes", role: "supervisor" };
+    mockFetch((request) => {
+      if (request.url.endsWith("/assign")) return { status: 400, body: { error: "supervisor_required" } };
+      if (request.url.endsWith("/orbit")) return { body: orbitUnavailable };
+      return { body: { ...detail, assignedAgentId: "staff-carla", status: "in_progress", category: "formal_complaint", complaintDeadlineAt: new Date(Date.now() + 86_400_000).toISOString() } };
+    });
+    render(<StaffCaseView identity={carla} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+    fireEvent.click(screen.getByRole("button", { name: "Transferir" }));
+    const options = Array.from((screen.getByLabelText("Transferir para") as HTMLSelectElement).options).map((o) => o.value).filter(Boolean);
+    expect(options).toEqual(["staff-dani"]);
+    fireEvent.change(screen.getByLabelText("Transferir para"), { target: { value: "staff-dani" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar transferência" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(t.staff.complaint.supervisorOnly);
+  });
+
+  test("closing audit FND-0112: the export says the download started, offers it again without a new record, and blames the input only on a 400", async () => {
+    const dani: StaffIdentity = { staffId: "staff-dani", displayName: "Dani Alves", role: "admin" };
+    const record = { id: "11111111-2222-4333-8444-555555555555", customerId: "cust-alice", requestedById: "staff-dani", requestedByName: "Dani Alves", reason: "Pedido do cliente por e-mail.", caseCount: 2, createdAt: new Date().toISOString() };
+    let exportStatus = 500;
+    let listStatus = 500;
+    const { requests } = mockFetch((request) => {
+      if (request.url === "/api/staff/data-exports") return listStatus === 200 ? { body: [record] } : { status: 500, body: { message: "boom" } };
+      if (request.url.endsWith("/export")) return exportStatus === 201 ? { status: 201, body: { record, customerId: "cust-alice", preferences: { emailNotifications: true, updatedAt: null }, cases: [] } } : { status: exportStatus, body: { message: "no" } };
+      return { body: [] };
+    });
+    const clicks = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    render(<DataExportSection identity={dani} />);
+    const listError = await screen.findByText(/Não foi possível carregar as exportações registradas/);
+    listStatus = 200;
+    fireEvent.click(within(listError).getByRole("button", { name: "Tentar novamente" }));
+    expect((await screen.findByTestId("data-export-records")).textContent).toContain("Dani Alves");
+    fireEvent.change(screen.getByLabelText("ID Orbit do cliente"), { target: { value: "cust-alice" } });
+    fireEvent.change(screen.getByLabelText("Motivo (pedido do cliente)"), { target: { value: "Pedido do cliente por e-mail." } });
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Não foi possível exportar agora. Tente de novo.");
+    exportStatus = 400;
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Não foi possível exportar. Verifique o ID e o motivo."));
+    exportStatus = 201;
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    expect((await screen.findByRole("status")).textContent).toContain("O download foi iniciado.");
+    expect(clicks).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Baixar de novo" }));
+    expect(clicks).toHaveBeenCalledTimes(2);
+    expect(requests.filter((r) => r.url.endsWith("/export"))).toHaveLength(3); // no fourth export for the second download
   });
 });

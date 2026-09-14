@@ -19,7 +19,7 @@ Start a task at its feature row: the `CONTEXT.md` carries the authoritative fres
 |---|---|---|
 | Governance | `GOVERNANCE.md` | Reusable across projects; §0.1 says which sections to read |
 | Product context | `PROJECT_CONTEXT.md` | Objectives OBJ-SUP-01..05 (§2), rules RULE-SUP-01..10 (§8), defaults and unknowns (§13) |
-| Entrypoint | `CLAUDE.md` | Startup route and project bindings |
+| Entrypoint | `CLAUDE.md` (`AGENTS.md` at the root only points here) | Startup route and project bindings |
 | Live state | `CURRENT_STATE.md`, `SESSION_HANDOFF.md` | |
 | Roadmap and phases | `docs/phases/ROADMAP.md`, `docs/phases/PH-N.md`, `docs/phases/PH-N.M.md` | Audit ledger lives in ROADMAP |
 | Decisions | `docs/decisions/DECISION_LOG.md`, `docs/decisions/ADR-NNNN-*.md` | |
@@ -32,5 +32,5 @@ Start a task at its feature row: the `CONTEXT.md` carries the authoritative fres
 | Architecture | `docs/architecture/` (pending) | Not created yet: the structure is described by ADR-0002/0003/0004 and the feature contexts; create the directory when a cross-cutting map is needed |
 | Runbooks | `docs/runbooks/VERIFICATION.md`, `docs/runbooks/DEPLOYMENT.md`, `docs/runbooks/RELEASE.md`, `docs/runbooks/OPERATIONS.md` | Verification: setup, gate profiles, gate-then-commit (`scripts/gate-commit.sh`, hook `scripts/git-hooks/pre-commit`), running the apps, CI. Deployment: containers (`docker/`), `.env.example`, backups, upgrade/rollback. Release: authorization and gate (§1.1, §9.3). Operations: pending §13.2 decisions and daily checks |
 | Controls | `scripts/check-context.mjs`, `scripts/gate-commit.sh`, `scripts/git-hooks/pre-commit`, `scripts/demo-local.mjs`, `apps/api/test/database-guard.ts` | Link + lifecycle consistency, paths inside command spans, cited commits and tags (limits in the script header); gate-then-commit with named new paths; loopback demo with post-release checks; test-database guard |
-| Evidence | `docs/evidence/` | One record per work item or material run, e.g. `docs/evidence/PH-1.1-verification.md`; audit remediation in `docs/evidence/CYCLE-1-verification.md`, `docs/evidence/CYCLE-2-verification.md`; out-of-band audit remediation `docs/evidence/CYCLE-3-verification.md`; Cycle Audit 3 remediation `docs/evidence/CYCLE-3-closure-verification.md`; release records `docs/evidence/RELEASE-2026-09-14.md` (superseded), `docs/evidence/RELEASE-2026-09-14b.md` |
-| Audits | `docs/audits/` | `CYCLE-1.md`, `CYCLE-2.md` (closed 2026-09-14), `CYCLE-3-OOB.md` (out-of-band audit in cycle 3, closed), `CYCLE-3.md` (cycle 3, open); one record per cycle |
+| Evidence | `docs/evidence/` | One record per work item or material run, e.g. `docs/evidence/PH-1.1-verification.md`; audit remediation in `docs/evidence/CYCLE-1-verification.md`, `docs/evidence/CYCLE-2-verification.md`; out-of-band audit remediation `docs/evidence/CYCLE-3-verification.md`; Cycle Audit 3 remediation `docs/evidence/CYCLE-3-closure-verification.md`; closing audit remediation `docs/evidence/CLOSING-verification.md`; release records `docs/evidence/RELEASE-2026-09-14.md` (superseded), `docs/evidence/RELEASE-2026-09-14b.md` |
+| Audits | `docs/audits/` | `CYCLE-1.md`, `CYCLE-2.md` (closed 2026-09-14), `CYCLE-3-OOB.md` (out-of-band audit in cycle 3, closed), `CYCLE-3.md` (cycle 3, closed), `CLOSING.md` (closing audit, out of band in cycle 4, closed); one record per cycle |

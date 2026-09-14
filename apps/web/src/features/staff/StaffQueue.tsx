@@ -5,8 +5,11 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { UnreadBadge } from "@/features/support/UnreadBadge";
-import { dictionary as t, fill, formatDuration, formatMessageTime, isPast } from "@/i18n";
+import { dictionary as t, fill, formatDuration, formatMessageTime } from "@/i18n";
 import { type QueueFilters, type StaffIdentity, staffApi } from "@/lib/staff-api";
+import { complaintDeadlineLine } from "./complaint";
+
+const deadlineLine = (c: CaseSummary) => complaintDeadlineLine(c.status, c.complaintDeadlineAt);
 
 /** Typing pauses before a search request goes out. */
 export const SEARCH_DEBOUNCE_MS = 300;
@@ -232,9 +235,9 @@ export function StaffQueue({ identity, view, onViewChange, selectedCaseId, onSel
                 {c.status === "waiting_customer" && c.lastStaffMessageAt && (
                   <span className={styles.caseMeta}>{fill(t.staff.waitingCustomerSince, { age: formatDuration(c.lastStaffMessageAt) })}</span>
                 )}
-                {c.complaintDeadlineAt && (
-                  <span className={isPast(c.complaintDeadlineAt) ? styles.attention : styles.caseMeta} data-testid="complaint-deadline">
-                    {isPast(c.complaintDeadlineAt) ? fill(t.staff.complaint.overdue, { age: formatDuration(c.complaintDeadlineAt) }) : fill(t.staff.complaint.deadline, { when: formatMessageTime(c.complaintDeadlineAt) })}
+                {deadlineLine(c) && (
+                  <span className={deadlineLine(c)!.attention ? styles.attention : styles.caseMeta} data-testid="complaint-deadline">
+                    {deadlineLine(c)!.text}
                   </span>
                 )}
                 {c.waitingInternalSince && (

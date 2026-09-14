@@ -129,7 +129,7 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const list = await request(server).get('/api/staff/incidents?status=open').set(asStaff('staff-ana', 'Ana')).expect(200);
     expect(list.body[0]).toMatchObject({ id: incident.body.id, linkedCaseCount: 1 });
     const broadcast = await request(server).post(`/api/staff/incidents/${incident.body.id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: 'Normalizado.' }).expect(200);
-    expect(broadcast.body).toEqual({ delivered: 1 });
+    expect(broadcast.body).toEqual({ delivered: 1, skippedComplaints: 0 });
     const customerView = await request(server).get(`/api/support/cases/${created.body.id}`).set(asCustomer('cust-rui')).expect(200);
     expect(JSON.stringify(customerView.body.messages)).not.toContain('Normalizado');
     const resolved = await request(server).post(`/api/staff/incidents/${incident.body.id}/resolve`).set(asStaff('staff-ana', 'Ana')).expect(200);
@@ -687,6 +687,12 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
     const created = await request(server).post('/api/support/cases').set(asCustomer('cust-export')).send({ category: 'other', message: 'Meus dados, por favor.' }).expect(201);
     await request(server).post(`/api/staff/cases/${created.body.id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: 'NOTA INTERNA sobre a exportação' }).expect(201);
+    // Internal history: an assignment, a priority change, a consultation and an incident never reach the export (closing audit FND-0101).
+    await request(server).post(`/api/staff/cases/${created.body.id}/take`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    await request(server).patch(`/api/staff/cases/${created.body.id}`).set(asStaff('staff-ana', 'Ana')).send({ priority: 'urgent' }).expect(200);
+    await request(server).post(`/api/staff/cases/${created.body.id}/consultations`).set(asStaff('staff-ana', 'Ana')).send({ team: 'security', question: 'PERGUNTA INTERNA' }).expect(201);
+    const exportIncident = await request(server).post('/api/staff/incidents').set(asStaff('staff-ana', 'Ana')).send({ title: 'INCIDENTE INTERNO' }).expect(201);
+    await request(server).post(`/api/staff/cases/${created.body.id}/incident`).set(asStaff('staff-ana', 'Ana')).send({ incidentId: exportIncident.body.id }).expect(200);
     await request(server).post('/api/support/cases').set(asCustomer('cust-other-export')).send({ category: 'other', message: 'Segredo de outro cliente' }).expect(201);
     await request(server).post('/api/staff/customers/cust-export/export').set(supervisor).send({ reason: 'Pedido do cliente por e-mail.' }).expect(403);
     await request(server).post('/api/staff/customers/cust-export/export').set(asStaff('staff-ana', 'Ana')).send({ reason: 'Pedido do cliente por e-mail.' }).expect(403);
@@ -696,9 +702,13 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(exported.body.record).toMatchObject({ customerId: 'cust-export', requestedById: 'staff-dani', requestedByName: 'Dani Alves', reason: 'Pedido do cliente por e-mail.', caseCount: 1 });
     expect(exported.body.cases).toHaveLength(1);
     expect(exported.body.cases[0].messages.map((m: { body: string }) => m.body)).toEqual(['Meus dados, por favor.']);
-    expect(exported.body.cases[0].events.length).toBeGreaterThan(0);
+    expect(exported.body.cases[0].events.map((e: { type: string }) => e.type)).toEqual(['case_created', 'status_changed', 'status_changed']); // taken, then waiting on the team — no assignment, priority, consultation or incident event
     const text = JSON.stringify(exported.body);
     expect(text).not.toContain('NOTA INTERNA');
+    expect(text).not.toContain('PERGUNTA INTERNA');
+    expect(text).not.toContain('INCIDENTE INTERNO');
+    expect(text).not.toContain('staff-ana');
+    expect(text).not.toContain('urgent');
     expect(text).not.toContain('Segredo de outro cliente');
     for (const field of STAFF_ONLY_SUMMARY_FIELDS) expect(exported.body.cases[0]).not.toHaveProperty(field);
     const list = await request(server).get('/api/staff/data-exports').set(admin).expect(200);

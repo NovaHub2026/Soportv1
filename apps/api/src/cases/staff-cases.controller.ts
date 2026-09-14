@@ -87,6 +87,7 @@ export class StaffCasesController {
     @UploadedFile() file?: UploadedFileLike,
   ): Promise<CaseAttachment> {
     const row = await this.cases.requireCaseRow(id);
+    this.cases.assertStaffMayWork(row, actor); // a complaint's files come from its supervisors (DEC-0041)
     return this.attachments.upload(actor, row, file);
   }
 
@@ -221,8 +222,8 @@ export class StaffCasesController {
   /** Staff have the conversation open: customer messages received so far count as read. */
   @Post(':id/read')
   @HttpCode(200)
-  markRead(@Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
-    return this.cases.markStaffRead(id);
+  markRead(@CurrentActor() actor: StaffActor, @Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
+    return this.cases.markStaffRead(actor, id);
   }
 
   @Post(':id/messages')

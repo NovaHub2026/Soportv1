@@ -47,18 +47,31 @@ export function normalizeContact(contact: string): string {
 
 /** What a masked secret is replaced with in the staff view (BL-027). */
 export const SECRET_MASK = "[oculto]";
-/** A word that announces a secret, followed by something that looks like one (a code, a password, a token). */
-const SECRET_AFTER_KEYWORD = /\b(senha|password|contrase[nñ]a|c[oó]digo|code|pin|token|otp|2fa|frase(?:\s+de\s+recupera[cç][aã]o)?|seed)\b\s*(?:[:=]|é|es|is|de|do|da)?\s*["'“”]?([^\s"'“”,;]{4,})/giu;
-/** A bare 6–8 digit number: the shape of a one-time code (phones are longer or formatted). */
+/** A word that announces a secret (pt, es, en), followed by something that looks like one (a code, a password, a token). */
+const SECRET_AFTER_KEYWORD = /\b(senhas?|passwords?|passcodes?|contrase[nñ]as?|claves?|chaves?|palavras?-passe|c[oó]digos?|codes?|pin|tokens?|otp|2fa|frase(?:\s+de\s+recupera[cç][aã]o)?|seed)\b(?:\s+de\s+(?:acesso|verifica[cç][aã]o|seguran[cç]a|login|entrada))?\s*(?:[:=]|é|es|is|de|do|da|são|sao|are)?\s*["'“”]?([^\s"'“”,;]{4,})/giu;
+/** A bare 6–8 digit number: the shape of a one-time code (phones are longer or formatted) — also spelled digit by digit. */
 const BARE_CODE = /(?<![\d./-])\d{6,8}(?![\d./-])/g;
+const SPACED_CODE = /(?<![\d./-])\d(?:[ \-]\d){5,7}(?![\d./-])/g;
+/** A recovery phrase announced as such: the rest of the sentence is masked when it reads like a word list (a real seed phrase is lowercase words). */
+const PHRASE_AFTER_KEYWORD = /\b(frases?\s+(?:de\s+)?(?:recupera[cç][aã]o|semente|seguran[cç]a|backup)|seed(?:\s+phrase)?|recovery\s+phrase|mnemonic|palavras\s+de\s+recupera[cç][aã]o|(?:12|24)\s+palavras)\b\s*(?:[:=]|é|es|is|são|sao|are)?\s*["'“”]?([^.!?\n]{8,})/giu;
 const COMMON_WORDS = new Set(["nunca", "chega", "chegou", "não", "nao", "errado", "errada", "esqueci", "perdi", "expirou", "invalido", "inválido", "expired", "wrong", "never", "arrives", "reset", "recuperar", "mudar", "trocar", "redefinir", "verificação", "verificacao", "verification", "acesso", "conta", "email", "e-mail", "sms"]);
+/** Words that make a run of words prose rather than a word list. */
+const PROSE_WORDS = new Set(["e", "a", "o", "as", "os", "de", "da", "do", "não", "nao", "que", "na", "no", "em", "um", "uma", "para", "com", "meu", "minha", "eu", "consigo", "conta", "the", "and", "my", "is", "not", "y", "el", "la", "mi", "que", "se", "mas", "ou", "por", "está", "esta", "foi"]);
 
 /** Whether the token after a keyword looks like a secret rather than a word about one ("a senha nunca chega" keeps "nunca"). */
 function looksSecret(token: string): boolean {
   const t = token.toLowerCase().replace(/[.!?)]+$/, "");
   if (COMMON_WORDS.has(t)) return false;
   if (/\d/.test(t)) return true;
+  if (t.length >= 6 && /^[A-Z0-9]+$/.test(token.replace(/[.!?)]+$/, ""))) return true; // an all-caps code
   return t.length >= 8 && /[A-Z]/.test(token) && /[a-z]/.test(token);
+}
+
+/** Eight or more words with at most one word of prose: the shape of a seed phrase, not of a sentence about one. */
+function looksWordList(rest: string): boolean {
+  const words = rest.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 8) return false;
+  return words.filter((w) => PROSE_WORDS.has(w.toLowerCase().replace(/[.,;!?)]+$/, ""))).length <= 1;
 }
 
 /**
@@ -68,15 +81,19 @@ function looksSecret(token: string): boolean {
  */
 export function maskLikelySecrets(text: string): { text: string; masked: boolean } {
   let masked = false;
-  let out = text.replace(SECRET_AFTER_KEYWORD, (whole, keyword: string, token: string) => {
-    if (!looksSecret(token)) return whole;
-    masked = true;
-    return whole.slice(0, whole.length - token.length) + SECRET_MASK;
-  });
-  out = out.replace(BARE_CODE, () => {
+  const hide = () => {
     masked = true;
     return SECRET_MASK;
+  };
+  let out = text.replace(PHRASE_AFTER_KEYWORD, (whole, keyword: string, rest: string) => {
+    if (!looksWordList(rest)) return whole;
+    return whole.slice(0, whole.length - rest.length) + hide();
   });
+  out = out.replace(SECRET_AFTER_KEYWORD, (whole, keyword: string, token: string) => {
+    if (token === SECRET_MASK || !looksSecret(token)) return whole;
+    return whole.slice(0, whole.length - token.length) + hide();
+  });
+  out = out.replace(SPACED_CODE, hide).replace(BARE_CODE, hide);
   return { text: out, masked };
 }
 

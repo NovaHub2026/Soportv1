@@ -30,7 +30,7 @@
  * Failure signal: non-zero exit, one line per finding. Maintenance owner: Agent (introduced in PH-1.1, BL-003).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -73,6 +73,21 @@ function gitIgnored(relPath) {
   }
 }
 
+/**
+ * Exists with exactly this spelling: Windows resolves `docs/Phases/roadmap.md`, Linux (CI) does not, so a wrong-case
+ * path passed the local gate and failed after the push (closing audit FND-0110).
+ */
+function existsExact(absPath) {
+  if (!existsSync(absPath)) return false;
+  try {
+    const expected = relative(ROOT, absPath).replace(/\\/g, '/').replace(/\/$/, '');
+    const actual = relative(ROOT, realpathSync.native(absPath)).replace(/\\/g, '/');
+    return actual === expected;
+  } catch {
+    return false;
+  }
+}
+
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir)) {
@@ -98,7 +113,7 @@ function checkCommandWord(doc, i, word) {
   if (!w.includes('/') || w.startsWith('-') || w.includes('=') || w.includes('://') || !PATH_TOKEN.test(w) || TEMPLATE_TOKEN.test(w)) return;
   if (!FILE_LIKE.test(w) && !w.endsWith('/')) return;
   const candidates = [join(ROOT, w), join(dirname(doc), w), ...WORKSPACES.map((ws) => join(ROOT, ws, w))];
-  if (candidates.some(existsSync)) linksChecked++;
+  if (candidates.some(existsExact)) linksChecked++;
   else if (gitIgnored(w)) linksIgnored++;
   else fail(doc, `line ${i + 1}: path in a command not found: ${w}`);
 }
@@ -115,10 +130,10 @@ for (const doc of liveDocs) {
       if (!FILE_LIKE.test(tok) && !tok.endsWith('/')) continue;
       const candidates = [join(ROOT, tok), join(dirname(doc), tok)];
       if (tok.includes('/') || ROOT_DOCS.includes(tok)) {
-        if (candidates.some(existsSync)) linksChecked++;
+        if (candidates.some(existsExact)) linksChecked++;
         else if (gitIgnored(tok)) linksIgnored++;
         else fail(doc, `line ${i + 1}: referenced path not found: ${tok}`);
-      } else if (existsSync(candidates[1])) {
+      } else if (existsExact(candidates[1])) {
         linksChecked++;
       }
     }
@@ -141,7 +156,7 @@ for (const doc of liveDocs) {
       for (const m of line.matchAll(REPO_PATH)) {
         const tok = m[0];
         if (/[*$<>{}]/.test(tok) || TEMPLATE_TOKEN.test(tok)) continue;
-        if (existsSync(join(ROOT, tok))) linksChecked++;
+        if (existsExact(join(ROOT, tok))) linksChecked++;
         else if (gitIgnored(tok)) linksIgnored++;
         else fail(source, `line ${i + 1}: repository path not found: ${tok}`);
       }
@@ -276,7 +291,7 @@ if (existsSync(roadmap)) {
       // "Cycle N: n/3" — a stale count of another cycle must not satisfy this (Cycle Audit 2, FND-0038).
       const echo = new RegExp(`Cycle\\s*${cycle}\\s*:\\s*${expected.replace('/', '\\/')}`, 'i');
       if (!echo.test(currentStateText)) fail(currentState, `should repeat the ledger count as "Cycle ${cycle}: ${expected}"`);
-      const hasRecord = entry.record && (existsSync(join(ROOT, entry.record)) || existsSync(join(phasesDir, entry.record)));
+      const hasRecord = entry.record && (existsExact(join(ROOT, entry.record)) || existsExact(join(phasesDir, entry.record)));
       if (entry.count >= AUDIT_CADENCE && !hasRecord) {
         fail(roadmap, `cycle ${cycle}: ${entry.count} first-time approvals without an audit record — Cycle Audit is due (§6.4)`);
       } else if (entry.count >= AUDIT_CADENCE && /-oob\.md$/i.test(entry.record)) {

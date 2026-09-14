@@ -525,10 +525,13 @@ export interface DataExportRecord {
   createdAt: string;
 }
 
+/** History as a customer may read it: customer-visible event types only, who acted by kind, never a staff id (closing audit FND-0101). */
+export type CustomerCaseEvent = Omit<CaseEvent, "actorId">;
+
 /** What a customer's export contains: only what that customer can see (public messages, their cases, their preferences). */
 export interface CustomerDataExport {
   record: DataExportRecord;
   customerId: string;
   preferences: CustomerPreferences;
-  cases: Array<CustomerCaseDetail & { events: CaseEvent[] }>;
+  cases: Array<CustomerCaseDetail & { events: CustomerCaseEvent[] }>;
 }

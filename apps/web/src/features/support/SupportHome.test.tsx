@@ -14,6 +14,7 @@ vi.mock("@/lib/sse", () => ({
 }));
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   streams.length = 0;
 });
@@ -80,6 +81,7 @@ describe("SupportHome", () => {
   });
 
   test("PH-5.4 / PH-10.1: shows availability from the configured schedule in the customer's own time zone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-16T10:00:00.000Z") }); // the window is on the customer's own day (FND-0111)
     const opensAt = "2026-09-16T12:00:00.000Z";
     const closesAt = "2026-09-16T21:00:00.000Z";
     const nextOpeningAt = "2026-09-17T12:00:00.000Z";
@@ -113,6 +115,7 @@ describe("SupportHome", () => {
   });
 
   test("PH-10.1: a day open around the clock in a narrowed week says so instead of 00:00–00:00", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-09-16T12:00:00.000Z") });
     mockFetch((request) =>
       request.url === "/api/support/availability"
         ? { body: { openNow: true, timezone: "America/Sao_Paulo", today: { open: "00:00", close: "24:00" }, nextOpening: { weekday: "sat", open: "09:00" }, alwaysOpen: false, todayWindow: { opensAt: "2026-09-16T03:00:00.000Z", closesAt: "2026-09-17T03:00:00.000Z" }, nextOpeningAt: "2026-09-19T12:00:00.000Z", workingDefault: false, checkedAt: "" } }

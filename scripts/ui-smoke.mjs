@@ -608,7 +608,7 @@ try {
     await complaintItem.click();
     await complaintStaff.getByTestId('complaint-locked').waitFor({ timeout: 5000 });
     if (await complaintStaff.getByRole('button', { name: 'Assumir caso' }).count()) throw new Error('An agent could take a formal complaint');
-    note('complaint-agent', `${complaintRef} opened as "Reclamação formal" from the customer's topic chips (with the 5-business-day note); in the queue it carries the tag and its deadline, and Ana (an agent) sees it locked: no "Assumir caso", no composer, the supervisor-only note (DEC-0039 g)`);
+    note('complaint-agent', `${complaintRef} opened as "Reclamação formal" from the customer's topic chips (its note names the supervisor, not the internal deadline — CLOSING FND-0102); in the queue it carries the tag and its deadline, and Ana (an agent) sees it locked: no "Assumir caso", no composer, the supervisor-only note (DEC-0039 g)`);
     await shot(complaintStaff, '32-staff-complaint-locked');
     await complaintStaff.getByLabel('Atendente simulado').selectOption('staff-carla');
     await complaintStaff.getByRole('button', { name: 'Supervisão' }).click();

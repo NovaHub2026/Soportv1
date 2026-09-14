@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: the PH-10 approval commit (child of `c75526f`)
+Verified against: the closing audit remediation commit (child of `33e8794`)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -40,7 +40,7 @@ Depends on: FEAT-CASE staff endpoints, FEAT-ORBIT identity headers (`x-simulated
 Used by / affects: supervision and metrics (PH-5) will extend the queue; FEAT-NOTIFY may add unread markers here. Staff copy is under `staff` in the dictionary; staff status labels differ deliberately from customer labels.
 
 ## Where to work
-- Layout and identity: `apps/web/src/features/staff/StaffWorkspace.tsx`; queue `StaffQueue.tsx`; case view `StaffCaseView.tsx` with `CaseActions.tsx` (state actions and their forms), `StaffComposer.tsx`, `StaffMessage.tsx` and `CaseContext.tsx` (context column, history wording) since PH-9.2; styles `staff.module.css`.
+- Layout and identity: `apps/web/src/features/staff/StaffWorkspace.tsx`; queue `StaffQueue.tsx`; case view `StaffCaseView.tsx` with `CaseActions.tsx` (state actions and their forms), `StaffComposer.tsx`, `StaffMessage.tsx` and `CaseContext.tsx` (context column, history wording) since PH-9.2; supervision `SupervisionPanel.tsx` (overview, settings, complaints) with `DataExportSection.tsx` (admin exports) since PH-10; the complaint deadline wording shared by queue, case and supervision in `complaint.ts`; styles `staff.module.css`.
 - API client: `apps/web/src/lib/staff-api.ts`.
 - Tests: `apps/web/src/features/staff/StaffWorkspace.test.tsx`. Browser evidence: `scripts/ui-smoke.mjs` (staff steps).
 
@@ -48,7 +48,7 @@ Used by / affects: supervision and metrics (PH-5) will extend the queue; FEAT-NO
 Take conflicts (someone else took it) surface as an error line, never silently. Send failures keep the draft. A refresh error never wipes a loaded case. Missing Orbit data is shown as unavailable, never as zero or success (RULE-SUP-07). Internal notes are only fetched through staff endpoints; the customer surface filters them server-side.
 
 ## Decisions and assumptions
-DEC-0007 (pt-BR staff copy by default; responsible shown by id until profiles exist), DEC-0021 (queue views and pagination), DEC-0022 (saved replies), DEC-0023 (settings and availability), DEC-0027 (time-zone validation), DEC-0029 (role model), DEC-0035 (waiting for a team — the queue view and supervision share one rule since Cycle Audit 3 FND-0084; note retry keys), DEC-0036 (workspace rules: `runAction`, tabs, number fields, content-keyed retries since FND-0087). Assumption: agents work on desktop-class screens; a narrow layout keeps queue + conversation only.
+DEC-0007 (pt-BR staff copy by default; responsible shown by id until profiles exist), DEC-0021 (queue views and pagination), DEC-0022 (saved replies), DEC-0023 (settings and availability), DEC-0027 (time-zone validation), DEC-0029 (role model), DEC-0035 (waiting for a team — the queue view and supervision share one rule since Cycle Audit 3 FND-0084; note retry keys), DEC-0036 (workspace rules: `runAction`, tabs, number fields, content-keyed retries since FND-0087), DEC-0040 (settings "24:00" and the "Dia inteiro" switch), DEC-0041 (complaint lock mirrored from `staffMayWorkComplaint`; transfer lists offer only supervisors/admins for a complaint), DEC-0044 (closing audit: a finished complaint is never "overdue"; the export says the download started and can be saved again without a new record; a 400 is the only export error blamed on the input). Assumption: agents work on desktop-class screens; a narrow layout keeps queue + conversation only.
 
 ## Verification and change checklist
 Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-5-phase-approval.md`, `docs/evidence/PH-5.4-verification.md`.

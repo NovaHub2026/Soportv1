@@ -297,7 +297,7 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect(created.unreadCount).toBe(0);
       expect((await service.listStaffCases(ana, 'unassigned'))[0].unreadCount).toBe(1); // the customer's first message
 
-      await service.markStaffRead(created.id);
+      await service.markStaffRead(ana, created.id);
       expect((await service.listStaffCases(ana, 'unassigned'))[0].unreadCount).toBe(0);
 
       await service.postStaffMessage(ana, created.id, { body: 'Olá' });
@@ -1159,6 +1159,29 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect((await service.getStaffCase(plain.id)).complaintDeadlineAt).toBeNull();
       await service.updateAttributes(carla, plain.id, { category: 'formal_complaint' });
       expect((await service.getStaffCase(plain.id)).complaintDeadlineAt).toEqual(expect.any(String));
+    });
+
+    it('closing audit FND-0106/0107: an agent-owned case that becomes a complaint is released to a supervisor; incident notes and the read marker respect the rule', async () => {
+      const owned = await service.createCase(bob, { category: 'other', message: 'Oi' });
+      await service.takeCase(ana, owned.id);
+      await service.updateAttributes(ana, owned.id, { category: 'formal_complaint' });
+      const view = await service.getStaffCase(owned.id);
+      expect(view.assignedAgentId).toBeNull();
+      expect(view.events.at(-2)).toMatchObject({ type: 'case_assigned', actorId: ana.id, data: { agentId: null, previousAgentId: ana.id, released: true, reason: 'formal_complaint' } });
+      expect(view.events.at(-1)).toMatchObject({ type: 'category_changed', data: { to: 'formal_complaint' } });
+      // A supervisor keeps an owner who may work complaints.
+      const kept = await service.createCase(bob, { category: 'other', message: 'Oi de novo' });
+      await service.takeCase(carla, kept.id);
+      await service.updateAttributes(carla, kept.id, { category: 'formal_complaint' });
+      expect((await service.getStaffCase(kept.id)).assignedAgentId).toBe(carla.id);
+      // An incident note from an agent skips the linked complaint; a supervisor's reaches it. The agent cannot move its read marker.
+      const incident = await service.createIncident(carla, { title: 'Provedor fora do ar' });
+      await service.linkIncident(carla, owned.id, incident.id);
+      expect(await service.broadcastIncidentNote(ana, incident.id, { body: 'Normalizado.' })).toEqual({ delivered: 0, skippedComplaints: 1 });
+      expect(await service.broadcastIncidentNote(carla, incident.id, { body: 'Normalizado.' })).toEqual({ delivered: 1, skippedComplaints: 0 });
+      expect((await service.getStaffCase(owned.id)).messages.filter((m) => m.visibility === 'internal').map((m) => m.authorId)).toEqual([carla.id]);
+      await expect(service.markStaffRead(ana, owned.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await service.markStaffRead(carla, owned.id);
     });
 
     it('supervision lists open complaints by deadline and counts the ones past it', async () => {

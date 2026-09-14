@@ -93,7 +93,7 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
       const claimed = await this.db
         .update(caseNotifications)
         .set({ emailedAt: now })
-        .where(and(eq(caseNotifications.id, n.id), isNull(caseNotifications.emailedAt)))
+        .where(and(eq(caseNotifications.id, n.id), isNull(caseNotifications.emailedAt), isNull(caseNotifications.emailFailedAt)))
         .returning({ id: caseNotifications.id });
       if (claimed.length === 0) continue;
       if (!address) continue; // opted out or no address: marked, not retried every tick
@@ -108,16 +108,24 @@ export class NotificationJob implements OnModuleInit, OnModuleDestroy {
         });
         sent += 1;
       } catch (error) {
-        // Released for the next tick; after the last allowed attempt the row is a dead letter (BL-028).
-        const attempts = n.emailAttempts + 1;
-        const dead = attempts >= positiveNumberEnv('SUPPORT_EMAIL_MAX_ATTEMPTS', DEFAULT_EMAIL_MAX_ATTEMPTS);
-        await this.db
+        // Released for the next tick; after the last allowed attempt the row is a dead letter (BL-028). The count and the
+        // parking decision come from the stored column in one statement, not from the row read before the send (CLOSING FND-0109).
+        const max = positiveNumberEnv('SUPPORT_EMAIL_MAX_ATTEMPTS', DEFAULT_EMAIL_MAX_ATTEMPTS);
+        const [after] = await this.db
           .update(caseNotifications)
-          .set({ emailedAt: null, emailAttempts: sql`${caseNotifications.emailAttempts} + 1`, ...(dead ? { emailFailedAt: now } : {}) })
-          .where(eq(caseNotifications.id, n.id));
+          .set({
+            emailedAt: null,
+            emailAttempts: sql`${caseNotifications.emailAttempts} + 1`,
+            emailFailedAt: sql`case when ${caseNotifications.emailAttempts} + 1 >= ${max} then ${now.toISOString()}::timestamptz else null end`,
+          })
+          .where(eq(caseNotifications.id, n.id))
+          .returning({ attempts: caseNotifications.emailAttempts, failedAt: caseNotifications.emailFailedAt });
+        const attempts = after?.attempts ?? n.emailAttempts + 1;
+        const dead = Boolean(after?.failedAt);
+        // The provider's message may quote the recipient: only the error's name reaches the log (the address is never logged).
         this.logger.error(
           dead ? `E-mail for notification ${n.id} failed ${attempts} times; parked as a dead letter (the in-product notification stays)` : `E-mail for notification ${n.id} failed (attempt ${attempts}); released for retry`,
-          error instanceof Error ? error.stack : String(error),
+          error instanceof Error ? `${error.name}: ${error.message.length > 200 ? `${error.message.slice(0, 200)}…` : error.message}` : String(error),
         );
       }
     }

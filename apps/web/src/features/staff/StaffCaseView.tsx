@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RecordCard } from "@/features/support/RecordCard";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
+import { complaintDeadlineLine } from "./complaint";
 import { ApiError, apiErrorCode } from "@/lib/api";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import { CaseActions } from "./CaseActions";
@@ -216,7 +217,11 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
           {detail.category === "formal_complaint" && (
             <p className={styles.readState} data-testid="complaint-deadline">
               <span className={styles.incidentTag}>{t.staff.complaint.tag}</span>{" "}
-              {detail.complaintDeadlineAt ? fill(t.staff.complaint.deadline, { when: formatMessageTime(detail.complaintDeadlineAt) }) : ""}
+              {complaintDeadlineLine(detail.status, detail.complaintDeadlineAt) && (
+                <span className={complaintDeadlineLine(detail.status, detail.complaintDeadlineAt)!.attention ? styles.attention : undefined}>
+                  {complaintDeadlineLine(detail.status, detail.complaintDeadlineAt)!.text}
+                </span>
+              )}
             </p>
           )}
           {complaintLocked && (
@@ -240,7 +245,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
             onAssign={(agentId) =>
               runAction(
                 () => staffApi.assign(identity, caseId, { agentId }),
-                (error) => (error instanceof ApiError && error.status === 403 ? t.staff.assignment.forbidden : t.staff.assignment.failed),
+                (error) => (apiErrorCode(error) === "supervisor_required" ? t.staff.complaint.supervisorOnly : error instanceof ApiError && error.status === 403 ? t.staff.assignment.forbidden : t.staff.assignment.failed),
               )
             }
             onConsult={(team, question) => runAction(() => staffApi.requestConsultation(identity, caseId, { team, question }), () => t.staff.consultations.failed)}
@@ -294,7 +299,8 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   );
 }
 
-/** A 403 on a case action means the role model refused it (PH-7.2): say so instead of "try again". */
+/** A 403 on a case action means the role model refused it (PH-7.2): say so instead of "try again" — a complaint's rule by name (FND-0112). */
 function forbiddenOr(error: unknown, fallback: string): string {
+  if (apiErrorCode(error) === "supervisor_required") return t.staff.complaint.supervisorOnly;
   return error instanceof ApiError && error.status === 403 ? t.staff.actions.notOwner : fallback;
 }

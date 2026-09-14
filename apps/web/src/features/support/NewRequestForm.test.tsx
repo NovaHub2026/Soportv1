@@ -161,10 +161,11 @@ describe("NewRequestForm", () => {
     expect(requests.filter((r) => r.url === "/api/support/cases")[1].body).not.toHaveProperty("attachmentIds");
   });
 
-  test("PH-10.2: choosing 'Reclamação formal' explains the supervisor and the 5-business-day deadline (DEC-0039 g)", () => {
+  test("PH-10.2: choosing 'Reclamação formal' explains the supervisor and promises no response time — the deadline is internal (DEC-0041, closing audit FND-0102)", () => {
     render(<NewRequestForm identity={identity} onCreated={() => {}} />);
     expect(screen.queryByTestId("complaint-hint")).toBeNull();
     fireEvent.click(screen.getByLabelText("Reclamação formal"));
-    expect(screen.getByTestId("complaint-hint").textContent).toContain("5 dias úteis");
+    expect(screen.getByTestId("complaint-hint").textContent).toContain("supervisor");
+    expect(screen.getByTestId("complaint-hint").textContent).not.toMatch(/dias|prazo/);
   });
 });

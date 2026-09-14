@@ -2,7 +2,24 @@
 
 import { type Availability, type CustomerCaseSummary, type EmailNotification, isAllDay, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
 import { useCallback, useEffect, useState } from "react";
-import { customerTimeZone, dictionary as t, fill, localOpening, formatMessageTime } from "@/i18n";
+import { customerTimeZone, dictionary as t, fill, isPast, localOpening, formatMessageTime } from "@/i18n";
+
+/**
+ * The operation's current day as the customer's clock reads it (DEC-0039 a). "Hoje" is only said when the window
+ * opens on the customer's own calendar day; otherwise the weekday is named; a window already behind the customer is
+ * omitted (the next opening follows) — closing audit FND-0111.
+ */
+function windowLine(window: Availability["todayWindow"], allDay: boolean): string {
+  if (!window) return ` ${t.support.home.closedToday}`;
+  if (isPast(window.closesAt)) return "";
+  const opens = localOpening(window.opensAt);
+  const closes = localOpening(window.closesAt);
+  const today = opens.weekday === localOpening(new Date().toISOString()).weekday;
+  const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  if (allDay) return ` ${today ? t.support.home.todayAllDay : fill(t.support.home.openUntil, { day: t.support.home.weekdays[closes.weekday], time: closes.time })}`;
+  if (today) return ` ${fill(t.support.home.todayHours, { open: opens.time, close: closes.time })}`;
+  return ` ${fill(t.support.home.dayHours, { day: capital(t.support.home.weekdays[opens.weekday]), open: opens.time, close: closes.time })}`;
+}
 import { type CustomerIdentity, customerApi, customerIdentityHeaders } from "@/lib/api";
 import { subscribeStream } from "@/lib/sse";
 import { StatusBadge } from "./StatusBadge";
@@ -108,12 +125,8 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
             t.support.home.alwaysOpen
           ) : (
             <>
-              {availability.openNow ? t.support.home.openNow : t.support.home.closedNow}{" "}
-              {availability.todayWindow && isAllDay(availability.today)
-                ? t.support.home.todayAllDay
-                : availability.todayWindow
-                ? fill(t.support.home.todayHours, { open: localOpening(availability.todayWindow.opensAt).time, close: localOpening(availability.todayWindow.closesAt).time })
-                : t.support.home.closedToday}
+              {availability.openNow ? t.support.home.openNow : t.support.home.closedNow}
+              {windowLine(availability.todayWindow, Boolean(availability.today && isAllDay(availability.today)))}
               {!availability.openNow && availability.nextOpeningAt
                 ? ` ${fill(t.support.home.nextOpening, { day: t.support.home.weekdays[localOpening(availability.nextOpeningAt).weekday], time: localOpening(availability.nextOpeningAt).time })}`
                 : ""}
