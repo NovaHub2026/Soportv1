@@ -19,6 +19,9 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 | verify | `npm run verify` | context + build:shared + static + unit, in that order | Before every commit; required CI check |
 | full | `npm run verify:full` | verify + production builds (`next build`, `nest build`) | Phase candidate or release candidate |
 | api e2e | `npm run test:e2e --workspace api` | Vitest + supertest against the Nest application | API contract changes; not part of CI yet |
+| ui smoke | `SUPPORT_DB_DIR=<scratch> node scripts/ui-smoke.mjs [outDir]` after `npm run build` | Headless Chromium (Playwright) drives the built customer panel end to end and saves screenshots | UI subphase/phase approval (OBSERVED evidence, §6.3); not in CI |
+
+UI smoke prerequisites: `npx playwright install chromium` (downloads ~115 MB). Chromium also needs system libraries; with sudo run `npx playwright install-deps chromium`. Without sudo (this Owner's WSL2, BL-007): `apt-get download libnspr4 libnss3 libasound2t64`, `dpkg -x` each into a scratch folder and export `LD_LIBRARY_PATH=<scratch>/usr/lib/x86_64-linux-gnu` before running the smoke. The smoke uses API port 3001 (baked into the web build's rewrites) and web port 3150 (`UI_WEB_PORT`). Always point `SUPPORT_DB_DIR` at a scratch directory.
 
 Exit codes propagate: the `verify` chain stops at the first failing layer. Vitest exits non-zero when it discovers no test files, so an empty suite cannot pass as green. The report of any run must name the profile that ran; a targeted pass is not a full-project pass.
 
@@ -26,7 +29,7 @@ Exit codes propagate: the `verify` chain stops at the first failing layer. Vites
 | App | Command | URL |
 |---|---|---|
 | API (NestJS) | `npm run dev:api` | http://localhost:3001/api/health (`PORT` overrides; CORS allows `WEB_ORIGIN`, default http://localhost:3000) |
-| Web (Next.js) | `npm run dev:web` | http://localhost:3000 |
+| Web (Next.js) | `npm run dev:web` | http://localhost:3000 — simulated Orbit shell with the customer "Suporte" panel; the browser calls `/api/*`, rewritten to `API_ORIGIN` (default http://localhost:3001) |
 
 Simulated identity (DEC-0003): the API resolves the caller from headers `x-simulated-customer-id`, or `x-simulated-staff-id` (+ optional `x-simulated-staff-role`, `x-simulated-staff-name`). Example: `curl -H 'x-simulated-customer-id: cust-1' http://localhost:3001/api/support/cases`.
 

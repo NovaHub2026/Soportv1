@@ -25,4 +25,4 @@ Limitations / reuse boundary: valid for this tree. Changes to `packages/shared/s
 `npm run verify`, 2026-09-14 00:17 UTC, on the completed PH-1.2 tree: `check-context: 14 documents, 125 links (2 gitignored skipped), 8 phases, 5 subphases, active: PH-1 — OK`; build:shared exit 0; lint exit 0; typecheck exit 0; Vitest shared 7/7, api 15/15, web 1/1; overall exit 0.
 
 ## CI
-Pending push.
+Run `34792266764` on `fd25efe` (PH-1.2 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 00:37 UTC. Claim 8 is EXECUTED for `fd25efe`.

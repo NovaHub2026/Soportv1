@@ -1,0 +1,154 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow-x: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  height: 56px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brandMark {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--color-accent), var(--color-primary));
+}
+
+.topbarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.accountPicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.simBadge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.accountSelect {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  max-width: 160px;
+}
+
+.supportButton {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.supportButton:hover {
+  background: var(--color-primary-hover);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+.trading {
+  flex: 1;
+  padding: 32px;
+  overflow: auto;
+}
+
+.tradingTitle {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.tradingHint,
+.simNote {
+  color: var(--color-text-muted);
+  max-width: 560px;
+}
+
+.simNote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 12px;
+}
+
+.panel {
+  width: 420px;
+  max-width: 100%;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Mobile: dedicated full-screen support view, toggled from the topbar (context §4.1). */
+@media (max-width: 899px) {
+  .panel {
+    display: none;
+    width: 100%;
+    min-width: 0;
+    border-left: none;
+  }
+
+  .shell[data-panel-open="true"] .panel {
+    display: flex;
+  }
+
+  .shell[data-panel-open="true"] .trading {
+    display: none;
+  }
+
+  .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  /* The badge is repeated inside the panel strip; the compact topbar keeps only the picker and the button. */
+  .simBadge {
+    display: none;
+  }
+
+  .accountSelect {
+    max-width: 120px;
+  }
+
+  .supportButton {
+    padding: 8px 12px;
+  }
+}

@@ -27,6 +27,8 @@ No feature context exists yet. Feature IDs are reserved here so phase documents 
 | Features | `docs/features/<FEAT-ID>/CONTEXT.md` | None yet |
 | Shared contracts | `packages/shared/src/cases.ts`, `packages/shared/src/identity.ts` | Vocabulary, zod schemas, types, reference formatting, simulated-identity headers |
 | API modules | `apps/api/src/cases/`, `apps/api/src/identity/`, `apps/api/src/database/` | Case service + controllers; Orbit identity boundary; Drizzle schema and PGlite factory (migrations in `apps/api/drizzle/`) |
+| Web modules | `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/`, `apps/web/src/i18n/` | Customer panel (home, new request, conversation); simulated Orbit shell; API client + simulated session; pt-BR dictionary |
+| UI evidence | `scripts/ui-smoke.mjs`, `docs/evidence/screenshots/` | Playwright browser smoke and its screenshots per subphase |
 | Architecture | `docs/architecture/` | Created when real structure exists |
 | Runbooks | `docs/runbooks/VERIFICATION.md` | Setup, gate profiles, running the apps, CI |
 | Controls | `scripts/check-context.mjs` | Link + lifecycle consistency; limits in the script header |

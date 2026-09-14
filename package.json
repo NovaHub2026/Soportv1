@@ -21,5 +21,8 @@
     "verify:full": "npm run verify && npm run build",
     "dev:web": "npm run dev --workspace web",
     "dev:api": "npm run start:dev --workspace api"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
   }
 }
