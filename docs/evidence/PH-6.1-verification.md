@@ -24,4 +24,4 @@ Not verified: a badge appearing while the panel is closed in a real browser (the
 `npm run build` exit 0 before the smoke; `npm run verify` exit 0 at commit time through the gate-then-commit script (check-context OK; lint/typecheck exit 0; Vitest shared 15/15, api 54/54, web 59/59, api e2e 28/28).
 
 ## CI
-Pending push. Previous commit `4b868e7` (PH-5.4): run 34816489000 **success**.
+Commit `4136176`: run 34817018198 — **success**. Previous commit `4b868e7` (PH-5.4): run 34816489000 **success**.

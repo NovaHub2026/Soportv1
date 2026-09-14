@@ -29,6 +29,7 @@ describe("availability from the configured schedule (RULE-SUP-08)", () => {
     expect(supportSettingsInputSchema.safeParse(DEFAULT_SUPPORT_SETTINGS).success).toBe(true);
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, schedule: { ...DEFAULT_SUPPORT_SETTINGS.schedule, mon: { open: "18:00", close: "09:00" } } }).success).toBe(false);
     expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, attentionThresholdHours: 0 }).success).toBe(false);
+    expect(supportSettingsInputSchema.safeParse({ ...DEFAULT_SUPPORT_SETTINGS, emailDelayMinutes: 0 }).success).toBe(true);
   });
 });
 

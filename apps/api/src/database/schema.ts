@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -215,6 +216,7 @@ export const supportSettings = pgTable('support_settings', {
   schedule: jsonb('schedule').$type<Record<string, unknown>>().notNull(),
   attentionThresholdHours: integer('attention_threshold_hours').notNull(),
   followUpWindowDays: integer('follow_up_window_days').notNull(),
+  emailDelayMinutes: integer('email_delay_minutes').notNull().default(15),
   updatedById: text('updated_by_id').notNull(),
   updatedByName: text('updated_by_name'),
   updatedAt: tz('updated_at').notNull().defaultNow(),
@@ -232,9 +234,37 @@ export const caseNotifications = pgTable(
     kind: text('kind').notNull(),
     createdAt: tz('created_at').notNull().defaultNow(),
     readAt: tz('read_at'),
+    /** When the e-mail about it was handed to the notifier (or skipped for an opted-out customer) — PH-6.2. */
+    emailedAt: tz('emailed_at'),
   },
   (t) => [index('case_notifications_customer_idx').on(t.customerId, t.readAt, t.createdAt), index('case_notifications_case_idx').on(t.caseId)],
 );
+
+/** What the (simulated) e-mail notifier sent (PH-6.2). The raw address is never stored; the body carries no case content. */
+export const emailOutbox = pgTable('email_outbox', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: text('customer_id').notNull(),
+  caseId: uuid('case_id')
+    .notNull()
+    .references(() => supportCases.id, { onDelete: 'cascade' }),
+  notificationId: uuid('notification_id').references(() => caseNotifications.id, { onDelete: 'set null' }),
+  kind: text('kind').notNull(),
+  toMasked: text('to_masked').notNull(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  link: text('link').notNull(),
+  delivery: text('delivery').notNull(),
+  createdAt: tz('created_at').notNull().defaultNow(),
+});
+
+/** Per-customer notification preferences (PH-6.2). Absent row = e-mails on. */
+export const customerPreferences = pgTable('customer_preferences', {
+  customerId: text('customer_id').primaryKey(),
+  emailNotifications: boolean('email_notifications').notNull().default(true),
+  updatedAt: tz('updated_at').notNull().defaultNow(),
+});
+
+export type EmailOutboxRow = typeof emailOutbox.$inferSelect;
 
 export type CaseNotificationRow = typeof caseNotifications.$inferSelect;
 export type SupportSettingsRow = typeof supportSettings.$inferSelect;

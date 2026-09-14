@@ -1,0 +1,129 @@
+import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { and, asc, eq, isNull, lt } from 'drizzle-orm';
+import { type CustomerPreferences, type EmailNotification, formatCaseReference, maskEmail, type NotificationKind } from '@orbit-support/shared';
+import { positiveNumberEnv } from '../common/env.js';
+import type { Db } from '../database/database.js';
+import { DB } from '../database/database.module.js';
+import { caseNotifications, customerPreferences, type EmailOutboxRow, emailOutbox, supportCases } from '../database/schema.js';
+import type { CustomerActor } from '../identity/identity.types.js';
+import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
+import { EMAIL_NOTIFIER, type EmailNotifierPort } from './email-notifier.js';
+import { SettingsService } from './settings.service.js';
+
+/** Customer-facing copy of the e-mails (pt-BR first, context §10.1). Never includes message content. */
+const SUBJECTS: Record<NotificationKind, (reference: string) => string> = {
+  staff_reply: (r) => `Nova resposta no seu caso ${r}`,
+  waiting_customer: (r) => `Precisamos da sua resposta no caso ${r}`,
+  resolved: (r) => `Seu caso ${r} foi marcado como resolvido`,
+  closed: (r) => `Seu caso ${r} foi encerrado`,
+  reminder: (r) => `Lembrete: seu caso ${r} aguarda sua resposta`,
+  outside_hours: (r) => `Recebemos sua mensagem no caso ${r}`,
+};
+
+/**
+ * E-mails unread notifications after the configured delay (PH-6.2, context §4.4): once per notification,
+ * only for customers who did not opt out and whose address the boundary knows. Runs in the API process
+ * (single instance until PH-8); `SUPPORT_NOTIFICATION_JOB=off` disables it, `SUPPORT_NOTIFICATION_INTERVAL_MS` sets the cadence.
+ */
+@Injectable()
+export class NotificationJob implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(NotificationJob.name);
+  private timer: ReturnType<typeof setInterval> | undefined;
+  private running = false;
+
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(EMAIL_NOTIFIER) private readonly notifier: EmailNotifierPort,
+    @Inject(ORBIT_RECORDS) private readonly orbit: OrbitRecordsPort,
+    private readonly settings: SettingsService,
+  ) {}
+
+  onModuleInit(): void {
+    if (process.env.SUPPORT_NOTIFICATION_JOB === 'off') return;
+    this.timer = setInterval(() => void this.tick(), positiveNumberEnv('SUPPORT_NOTIFICATION_INTERVAL_MS', 60_000));
+    this.timer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  async tick(): Promise<void> {
+    if (this.running) return;
+    this.running = true;
+    try {
+      const sent = await this.emailDue();
+      if (sent > 0) this.logger.log(`E-mailed ${sent} notification(s) (simulated delivery)`);
+    } catch (error) {
+      this.logger.error('Notification job failed', error instanceof Error ? error.stack : String(error));
+    } finally {
+      this.running = false;
+    }
+  }
+
+  /** E-mails every unread, not-yet-e-mailed notification older than the delay. Returns how many were sent. */
+  async emailDue(now = new Date()): Promise<number> {
+    const delayMinutes = (await this.settings.get()).emailDelayMinutes;
+    const cutoff = new Date(now.getTime() - delayMinutes * 60_000);
+    const due = await this.db
+      .select({ n: caseNotifications, referenceNumber: supportCases.referenceNumber })
+      .from(caseNotifications)
+      .innerJoin(supportCases, eq(supportCases.id, caseNotifications.caseId))
+      .where(and(isNull(caseNotifications.readAt), isNull(caseNotifications.emailedAt), lt(caseNotifications.createdAt, cutoff)))
+      .orderBy(asc(caseNotifications.createdAt))
+      .limit(200);
+    let sent = 0;
+    for (const { n, referenceNumber } of due) {
+      const preferences = await this.preferences({ kind: 'customer', id: n.customerId, source: 'simulated' });
+      const address = preferences.emailNotifications ? await this.orbit.contactEmail(n.customerId) : null;
+      if (address) {
+        const reference = formatCaseReference(referenceNumber);
+        const link = `/?case=${n.caseId}`;
+        await this.notifier.send({
+          to: address,
+          subject: SUBJECTS[n.kind as NotificationKind](reference),
+          body: `Há uma atualização no seu caso ${reference}. Abra a conversa no Orbit para ver os detalhes: ${link}\n\nPor segurança, este e-mail não contém o conteúdo da conversa.`,
+          context: { customerId: n.customerId, caseId: n.caseId, notificationId: n.id, kind: n.kind as NotificationKind, caseReference: reference, link, toMasked: maskEmail(address) },
+        });
+        sent += 1;
+      }
+      // Marked either way: an opted-out or address-less customer is not retried every tick.
+      await this.db.update(caseNotifications).set({ emailedAt: now }).where(eq(caseNotifications.id, n.id));
+    }
+    return sent;
+  }
+
+  async preferences(customer: CustomerActor): Promise<CustomerPreferences> {
+    const [row] = await this.db.select().from(customerPreferences).where(eq(customerPreferences.customerId, customer.id)).limit(1);
+    return { emailNotifications: row ? row.emailNotifications : true, updatedAt: row ? row.updatedAt.toISOString() : null };
+  }
+
+  async updatePreferences(customer: CustomerActor, input: { emailNotifications: boolean }): Promise<CustomerPreferences> {
+    const now = new Date();
+    const [row] = await this.db
+      .insert(customerPreferences)
+      .values({ customerId: customer.id, emailNotifications: input.emailNotifications, updatedAt: now })
+      .onConflictDoUpdate({ target: customerPreferences.customerId, set: { emailNotifications: input.emailNotifications, updatedAt: now } })
+      .returning();
+    return { emailNotifications: row.emailNotifications, updatedAt: row.updatedAt.toISOString() };
+  }
+
+  /** The customer's own simulated outbox (labeled evidence surface). */
+  async outbox(customer: CustomerActor, limit = 20): Promise<EmailNotification[]> {
+    const rows = await this.db.select().from(emailOutbox).where(eq(emailOutbox.customerId, customer.id)).orderBy(asc(emailOutbox.createdAt)).limit(limit);
+    return rows.reverse().map(toEmailNotification);
+  }
+}
+
+function toEmailNotification(row: EmailOutboxRow): EmailNotification {
+  return {
+    id: row.id,
+    caseId: row.caseId,
+    kind: row.kind as NotificationKind,
+    toMasked: row.toMasked,
+    subject: row.subject,
+    link: row.link,
+    delivery: 'simulated',
+    createdAt: row.createdAt.toISOString(),
+  };
+}

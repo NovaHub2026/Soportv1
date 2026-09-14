@@ -6,6 +6,9 @@ import {
   type CustomerCaseDetail,
   type CustomerCaseSummary,
   type CustomerNotification,
+  type CustomerPreferences,
+  type CustomerPreferencesInput,
+  type EmailNotification,
   type MarkNotificationsReadInput,
   type FollowUpInput,
   type OrbitLookup,
@@ -116,6 +119,12 @@ export const customerApi = {
     apiRequest<{ records: OrbitLookup<OrbitRecordListItem[]> }>("/support/records", customerHeaders(identity), { signal }),
   /** Availability computed from the configured schedule (PH-5.4, §4.4) — never a promise of response time. */
   availability: (identity: CustomerIdentity, signal?: AbortSignal) => apiRequest<Availability>("/support/availability", customerHeaders(identity), { signal }),
+  getPreferences: (identity: CustomerIdentity, signal?: AbortSignal) => apiRequest<CustomerPreferences>("/support/preferences", customerHeaders(identity), { signal }),
+  updatePreferences: (identity: CustomerIdentity, input: CustomerPreferencesInput) =>
+    apiRequest<CustomerPreferences>("/support/preferences", customerHeaders(identity), { method: "PUT", body: input }),
+  /** The simulated e-mail outbox (labeled Simulação in the UI) — evidence that an e-mail would have gone out. */
+  listEmails: (identity: CustomerIdentity, signal?: AbortSignal) =>
+    apiRequest<{ emails: EmailNotification[]; delivery: "simulated" }>("/support/emails", customerHeaders(identity), { signal }),
   listNotifications: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<{ notifications: CustomerNotification[]; unread: number }>("/support/notifications", customerHeaders(identity), { signal }),
   markNotificationsRead: (identity: CustomerIdentity, input: MarkNotificationsReadInput) =>

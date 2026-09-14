@@ -19,9 +19,9 @@ export function OrbitShell() {
   const [panelOpen, setPanelOpen] = useState(false);
   const desktop = useMediaQuery(DESKTOP_QUERY);
   const [entry, setEntry] = useState<SupportEntry | null>(null);
-  const [openCase, setOpenCase] = useState<{ caseId: string; seq: number } | null>(null);
+  const [openCase, setOpenCase] = useState<{ caseId: string; seq: number; customerId: string } | null>(null);
   const openFromNotification = (caseId: string) => {
-    setOpenCase((current) => ({ caseId, seq: (current?.seq ?? 0) + 1 }));
+    setOpenCase((current) => ({ caseId, seq: (current?.seq ?? 0) + 1, customerId: customer.id }));
     setPanelOpen(true);
   };
   const [records, setRecords] = useState<OrbitLookup<OrbitRecordListItem[]> | null>(null);
@@ -42,7 +42,7 @@ export function OrbitShell() {
   }, [customer.id, panelOpen]);
 
   const askAbout = (record: OrbitRecordListItem) => {
-    setEntry((current) => ({ record, seq: (current?.seq ?? 0) + 1 }));
+    setEntry((current) => ({ record, seq: (current?.seq ?? 0) + 1, customerId: customer.id }));
     setPanelOpen(true);
   };
 
@@ -60,7 +60,12 @@ export function OrbitShell() {
             <select
               className={styles.accountSelect}
               value={customer.id}
-              onChange={(event) => selectCustomer(event.target.value)}
+              onChange={(event) => {
+                // A new identity starts clean: no pending contextual entry or notification open from the previous one (FND-0029).
+                setEntry(null);
+                setOpenCase(null);
+                selectCustomer(event.target.value);
+              }}
               aria-label={t.shell.account}
             >
               {SIMULATED_CUSTOMERS.map((c) => (

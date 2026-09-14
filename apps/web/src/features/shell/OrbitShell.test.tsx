@@ -66,4 +66,20 @@ describe("OrbitShell", () => {
     expect(await screen.findByText("Resposta da Ana")).toBeDefined();
   });
 
+  test("FND-0029: a 'Preciso de ajuda' entry never carries over when the simulated customer changes", async () => {
+    const withdrawal = { kind: "withdrawal", reference: "WD-48213", title: "Saque 250 USDT", status: "Em processamento", occurredAt: new Date().toISOString(), amount: "250.00", currency: "USDT", facts: [], activeCaseId: null, activeCaseReference: null };
+    mockFetch((request) => {
+      const customer = request.headers["x-simulated-customer-id"];
+      if (request.url === "/api/support/records") return { body: { records: { state: "available", source: "simulated", fetchedAt: "", data: customer === "cust-alice" ? [withdrawal] : [] } } };
+      return { body: [] };
+    });
+    render(<OrbitShell />);
+    fireEvent.click(await screen.findByRole("button", { name: "Preciso de ajuda: Saque 250 USDT" }));
+    expect(await screen.findByTestId("request-record")).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Conta simulada"), { target: { value: "cust-bruno" } });
+    await waitFor(() => expect(screen.queryByTestId("request-record")).toBeNull());
+    expect(await screen.findByText("Você ainda não falou com o suporte.")).toBeDefined();
+    expect(screen.queryByText(/WD-48213/)).toBeNull();
+  });
+
 });

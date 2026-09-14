@@ -112,6 +112,15 @@ export const ptBR = {
       closed: "Sem conexão",
       retryingPending: "Reenviando mensagens pendentes…",
     },
+    emails: {
+      preference: "Receber e-mail quando houver resposta e eu não tiver visto",
+      preferenceHint: "O e-mail traz só a referência do caso e um link para a conversa; nunca o conteúdo.",
+      outboxTitle: "E-mails que seriam enviados",
+      outboxHint: "Simulação: nenhum e-mail real é enviado nesta versão. Esta lista mostra o que o serviço de e-mail receberia.",
+      outboxEmpty: "Nenhum e-mail ainda.",
+      to: "para {to}",
+      open: "Abrir conversa",
+    },
     notifications: {
       label: "Notificações",
       unreadLabel: "Notificações: {n} não lidas",
@@ -220,6 +229,7 @@ export const ptBR = {
       closesAt: "Fecha em {day}",
       threshold: "Horas sem resposta para considerar atraso",
       followUpWindow: "Dias para encerrar um caso resolvido",
+      emailDelay: "Minutos sem ler uma notificação antes de enviar e-mail (0 = imediato)",
       saveSettings: "Salvar configuração",
       settingsSaved: "Configuração salva.",
       forbidden: "Só supervisores podem ver ou alterar isto.",

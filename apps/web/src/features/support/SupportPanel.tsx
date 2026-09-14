@@ -16,6 +16,8 @@ type View = { name: "home" } | { name: "new"; record?: OrbitRecordListItem | nul
 export interface SupportEntry {
   record: OrbitRecordListItem;
   seq: number;
+  /** The customer the record belongs to: an entry never carries over to another identity (FND-0029). */
+  customerId: string;
 }
 
 interface SupportPanelProps {
@@ -26,7 +28,7 @@ interface SupportPanelProps {
   /** Contextual entry from a record in the host (context §4.2). */
   entry?: SupportEntry | null;
   /** A case the host wants opened (a notification was clicked — PH-6.1). */
-  openCase?: { caseId: string; seq: number } | null;
+  openCase?: { caseId: string; seq: number; customerId: string } | null;
 }
 
 /**
@@ -39,11 +41,11 @@ export function SupportPanel({ customer, onClose, visible = true, entry = null, 
 
   // "Preciso de ajuda" on a record opens the new-request form about it.
   useEffect(() => {
-    if (entry) queueMicrotask(() => setView({ name: "new", record: entry.record }));
-  }, [entry]);
+    if (entry && entry.customerId === customer.id) queueMicrotask(() => setView({ name: "new", record: entry.record }));
+  }, [entry, customer.id]);
   useEffect(() => {
-    if (openCase) queueMicrotask(() => setView({ name: "case", caseId: openCase.caseId }));
-  }, [openCase]);
+    if (openCase && openCase.customerId === customer.id) queueMicrotask(() => setView({ name: "case", caseId: openCase.caseId }));
+  }, [openCase, customer.id]);
 
   return (
     <section className={styles.panel} data-testid="support-panel">

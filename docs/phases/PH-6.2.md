@@ -1,6 +1,6 @@
 # PH-6.2 — E-mail notifications through a boundary port
 Type: SUBPHASE TECHNICAL PLAN
-Status: PLANNED
+Status: APPROVED
 Parent: `PH-6.md`
 Feature context: `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-ORBIT/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`
 
@@ -17,11 +17,16 @@ When a reply stays unread for the configured delay, the customer receives an e-m
 ## Required behavior, failures and acceptance evidence
 - An unread notification older than the delay is e-mailed exactly once; a read one is never e-mailed; opting out stops e-mails; a customer without an address gets none (no error).
 - The outbox body contains the reference and the link, and never the reply text (e2e negative); customers see only their own outbox; staff → 403.
-Acceptance evidence: `../evidence/PH-6.2-verification.md` (to be created).
+Acceptance evidence: `../evidence/PH-6.2-verification.md`.
 
 ## Work performed and important decisions
-Filled at approval.
+- Boundary: `EmailNotifierPort` + `SimulatedEmailNotifier` (`email_outbox`); `OrbitRecordsPort.contactEmail` (raw address for the notifier only).
+- `NotificationJob`: e-mails unread, not-yet-e-mailed notifications older than `emailDelayMinutes` once each (`emailed_at`), respecting `customer_preferences`; `PreferencesController` (`GET/PUT /api/support/preferences`, `GET /api/support/emails`); migration `0013`.
+- Web: preference toggle and the labeled "E-mails que seriam enviados" section on the home; the delay field in the supervision settings.
+- FND-0029 (found by the smoke, fixed here): a contextual entry or a notification open no longer carries over to another simulated customer in the same browser (entries are bound to the customer id; regression test).
+- DEC-0025: e-mail is a notification-only channel through a port; the simulated adapter records an outbox with the masked address, subject, link and no case content; a notification is e-mailed at most once and only while unread.
 
 ## Verification, limitations and context updates
-Evidence: `../evidence/PH-6.2-verification.md` (to be created). Limitations: simulated delivery only; the link is the panel's `?case=` deep link on the simulated host.
-Context updated at approval: `PH-6.md`, `ROADMAP.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-ORBIT/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../runbooks/VERIFICATION.md`.
+Evidence: `../evidence/PH-6.2-verification.md`. Limitations: simulated delivery only; the link is the panel's `?case=` deep link on the simulated host.
+Context updated: `PH-6.md`, `ROADMAP.md`, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-ORBIT/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../decisions/DECISION_LOG.md`, `../runbooks/VERIFICATION.md`.
+Approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review).

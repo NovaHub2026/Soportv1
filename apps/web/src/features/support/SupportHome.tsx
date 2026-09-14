@@ -1,6 +1,6 @@
 "use client";
 
-import { type Availability, type CustomerCaseSummary, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
+import { type Availability, type CustomerCaseSummary, type EmailNotification, isStreamEvent, OPEN_CASE_STATUSES } from "@orbit-support/shared";
 import { useCallback, useEffect, useState } from "react";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
 import { type CustomerIdentity, customerApi, customerIdentityHeaders } from "@/lib/api";
@@ -25,6 +25,27 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const [availability, setAvailability] = useState<Availability | null>(null);
+  const [emailPreference, setEmailPreference] = useState<boolean | null>(null);
+  const [emails, setEmails] = useState<EmailNotification[]>([]);
+
+  // Preference and the labeled simulated outbox (PH-6.2); a failure just hides them.
+  useEffect(() => {
+    const controller = new AbortController();
+    customerApi
+      .getPreferences(identity, controller.signal)
+      .then((p) => setEmailPreference(typeof p?.emailNotifications === "boolean" ? p.emailNotifications : null))
+      .catch(() => undefined);
+    customerApi
+      .listEmails(identity, controller.signal)
+      .then((result) => setEmails(Array.isArray(result?.emails) ? result.emails : []))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [identity, attempt]);
+
+  const toggleEmails = (value: boolean) => {
+    setEmailPreference(value);
+    customerApi.updatePreferences(identity, { emailNotifications: value }).catch(() => setEmailPreference(!value));
+  };
 
   // Availability comes from the configured schedule (RULE-SUP-08); without it, only the neutral copy is shown.
   useEffect(() => {
@@ -103,6 +124,38 @@ export function SupportHome({ identity, onNewRequest, onOpenCase }: SupportHomeP
 
       {active.length > 0 && <CaseList title={t.support.home.active} cases={active} onOpenCase={onOpenCase} />}
       {previous.length > 0 && <CaseList title={t.support.home.previous} cases={previous} onOpenCase={onOpenCase} />}
+
+      {emailPreference !== null && (
+        <label className={styles.preference}>
+          <input type="checkbox" checked={emailPreference} onChange={(event) => toggleEmails(event.target.checked)} />
+          <span>
+            {t.support.emails.preference}
+            <span className={styles.muted}> {t.support.emails.preferenceHint}</span>
+          </span>
+        </label>
+      )}
+      <section className={styles.listSection} aria-label={t.support.emails.outboxTitle} data-testid="email-outbox">
+        <h3 className={styles.listTitle}>
+          {t.support.emails.outboxTitle} <span className={styles.simBadge}>{t.app.simulationBadge}</span>
+        </h3>
+        <p className={styles.muted}>{t.support.emails.outboxHint}</p>
+        {emails.length === 0 ? (
+          <p className={styles.muted}>{t.support.emails.outboxEmpty}</p>
+        ) : (
+          <ul className={styles.caseList}>
+            {emails.map((email) => (
+              <li key={email.id}>
+                <button type="button" className={styles.caseItem} onClick={() => onOpenCase(email.caseId)}>
+                  <span className={styles.caseSubject}>{email.subject}</span>
+                  <span className={styles.caseItemMeta}>
+                    {fill(t.support.emails.to, { to: email.toMasked })} · {formatMessageTime(email.createdAt)} · {t.support.emails.open}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

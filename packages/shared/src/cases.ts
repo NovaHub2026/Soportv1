@@ -232,6 +232,26 @@ export interface CustomerNotification {
   readAt: string | null;
 }
 
+/** A simulated (or, later, real) e-mail sent about a notification: reference and link only (§4.4). */
+export interface EmailNotification {
+  id: string;
+  caseId: string;
+  kind: NotificationKind;
+  toMasked: string;
+  subject: string;
+  link: string;
+  delivery: "simulated";
+  createdAt: string;
+}
+
+export const customerPreferencesInputSchema = z.object({
+  emailNotifications: z.boolean(),
+});
+export type CustomerPreferencesInput = z.infer<typeof customerPreferencesInputSchema>;
+export interface CustomerPreferences extends CustomerPreferencesInput {
+  updatedAt: string | null;
+}
+
 export const markNotificationsReadSchema = z.object({
   ids: z.array(z.uuid()).max(100).optional(),
   caseId: z.uuid().optional(),

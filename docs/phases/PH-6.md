@@ -27,7 +27,7 @@ Scenarios: (a) staff reply → badge "1" on the host's "Suporte" button and a no
 | ID | Block | Status |
 |---|---|---|
 | PH-6.1 | In-product notifications: table, creation on customer-facing events, read state, endpoints, host badge and list, live refresh — `PH-6.1.md`, approved 2026-09-14 | APPROVED |
-| PH-6.2 | E-mail through a boundary port with a simulated labeled outbox, delay job, per-customer preference | PLANNED |
+| PH-6.2 | E-mail through a boundary port with a simulated labeled outbox, delay job, per-customer preference — `PH-6.2.md`, approved 2026-09-14 | APPROVED |
 | PH-6.3 | Outside-hours notice from the schedule, waiting-for-customer reminders, metrics exclusion check; phase closure | PLANNED |
 
 ## Verification and operational readiness

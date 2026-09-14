@@ -12,6 +12,8 @@ import { ORBIT_RECORDS } from '../identity/orbit-records.js';
 import { SimulatedOrbitRecords } from '../identity/simulated-orbit-records.js';
 import { SimulatedStaffDirectory, STAFF_DIRECTORY } from '../identity/staff-directory.js';
 import { CasesService } from './cases.service.js';
+import { EMAIL_NOTIFIER, SimulatedEmailNotifier } from './email-notifier.js';
+import { NotificationJob } from './notification.job.js';
 import { NotificationsService } from './notifications.service.js';
 import { SettingsService } from './settings.service.js';
 import { SupervisionService } from './supervision.service.js';
@@ -39,6 +41,8 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
         SettingsService,
         SupervisionService,
         NotificationsService,
+        NotificationJob,
+        { provide: EMAIL_NOTIFIER, useClass: SimulatedEmailNotifier },
       ],
     }).compile();
     await moduleRef.init();
@@ -743,6 +747,42 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       await service.markCustomerRead(alice, created.id);
       expect(await notifications.unreadCount(alice)).toBe(0);
       expect((await notifications.list(alice)).every((n) => n.readAt !== null)).toBe(true);
+    });
+  });
+
+
+  describe('e-mail notifications through the boundary (PH-6.2, §4.4)', () => {
+    it('e-mails an unread notification once after the delay, never a read one, respects the opt-out, and carries no message content', async () => {
+      const job = moduleRef.get(NotificationJob);
+      const notifications = moduleRef.get(NotificationsService);
+      const created = await service.createCase(alice, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, created.id, { body: 'SEGREDO: resposta completa' });
+      // Not due yet (default delay 15 min).
+      expect(await job.emailDue(new Date())).toBe(0);
+      const later = new Date(Date.now() + 16 * 60_000);
+      expect(await job.emailDue(later)).toBe(1);
+      expect(await job.emailDue(later)).toBe(0); // once
+      const [email] = await job.outbox(alice);
+      expect(email).toMatchObject({ kind: 'staff_reply', toMasked: 'a***@e***.com', delivery: 'simulated', link: `/?case=${created.id}` });
+      expect(email.subject).toContain(created.reference);
+      expect(JSON.stringify(await job.outbox(alice))).not.toContain('SEGREDO');
+      expect(await job.outbox(bob)).toHaveLength(0);
+
+      // A notification read before the delay is never e-mailed.
+      await service.setStatus(ana, created.id, 'waiting_customer');
+      await notifications.markRead(alice, { caseId: created.id });
+      expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0);
+
+      // Opt-out: due notifications are skipped (and not retried); a customer unknown to Orbit has no address.
+      await job.updatePreferences(alice, { emailNotifications: false });
+      await service.resolve(ana, created.id, { reason: 'solved', explanation: 'Feito' });
+      expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0);
+      expect(await job.outbox(alice)).toHaveLength(1);
+      const ghost: CustomerActor = { kind: 'customer', id: 'cust-ghost', source: 'simulated' };
+      const ghostCase = await service.createCase(ghost, { category: 'other', message: 'Oi' });
+      await service.postStaffMessage(ana, ghostCase.id, { body: 'Olá' });
+      expect(await job.emailDue(new Date(Date.now() + 60 * 60_000))).toBe(0);
+      expect(await job.outbox(ghost)).toHaveLength(0);
     });
   });
 

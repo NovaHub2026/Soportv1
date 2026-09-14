@@ -92,4 +92,24 @@ describe("SupportHome", () => {
     expect(line.textContent).toContain("ainda não configurado pela operação");
   });
 
+
+  test("PH-6.2: shows the e-mail preference and the labeled simulated outbox, and saves the preference", async () => {
+    const { requests } = mockFetch((request) => {
+      if (request.url === "/api/support/preferences") return { body: { emailNotifications: true, updatedAt: null } };
+      if (request.url === "/api/support/emails") return { body: { delivery: "simulated", emails: [{ id: "e1", caseId: "a", kind: "staff_reply", toMasked: "a***@e***.com", subject: "Nova resposta no seu caso SUP-000001", link: "/?case=a", delivery: "simulated", createdAt: new Date().toISOString() }] } };
+      return { body: [] };
+    });
+    const onOpenCase = vi.fn();
+    render(<SupportHome identity={identity} onNewRequest={() => {}} onOpenCase={onOpenCase} />);
+    const outbox = await screen.findByTestId("email-outbox");
+    expect(outbox.textContent).toContain("Simulação");
+    expect(outbox.textContent).toContain("para a***@e***.com");
+    fireEvent.click(screen.getByRole("button", { name: /Nova resposta no seu caso SUP-000001/ }));
+    expect(onOpenCase).toHaveBeenCalledWith("a");
+    const toggle = (await screen.findByRole("checkbox", { name: /Receber e-mail/ })) as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(requests.some((r) => r.method === "PUT" && r.url === "/api/support/preferences" && (r.body as { emailNotifications: boolean }).emailNotifications === false)).toBe(true));
+  });
+
 });

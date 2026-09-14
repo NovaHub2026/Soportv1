@@ -122,7 +122,8 @@ let exitCode = 0;
 try {
   await assertPortFree(API_PORT);
   await assertPortFree(WEB_PORT);
-  let apiChild = start('api', 'node', ['apps/api/dist/main.js'], ROOT, { PORT: String(API_PORT) });
+  // PH-6.2: fast notification job so the simulated e-mail shows up during the run (delay is set to 0 through settings below).
+  let apiChild = start('api', 'node', ['apps/api/dist/main.js'], ROOT, { PORT: String(API_PORT), SUPPORT_NOTIFICATION_INTERVAL_MS: '2000' });
   // The JS entry, not the .bin shim: the shim is a shell script Windows cannot spawn.
   start('web', process.execPath, [`${ROOT}/node_modules/next/dist/bin/next`, 'start', '-p', String(WEB_PORT)], `${ROOT}/apps/web`);
   await waitForHttp(`${API}/api/health`);
@@ -449,6 +450,7 @@ try {
     await supPage.getByText(/Não há metas definidas/).waitFor();
     // The threshold is lowered to 1 h so the overdue list is exercised on today's data if any case qualifies; then saved.
     await supPage.getByLabel('Horas sem resposta para considerar atraso').fill('1');
+    await supPage.getByLabel('Minutos sem ler uma notificação antes de enviar e-mail (0 = imediato)').fill('0');
     await supPage.getByLabel('Atende em Sábado').check();
     await supPage.getByRole('button', { name: 'Salvar configuração' }).click();
     await supPage.getByText('Configuração salva.').waitFor({ timeout: 5000 });
@@ -461,6 +463,7 @@ try {
     const configured = await desktop.getByTestId('availability').textContent();
     if (!/Horário configurado/.test(configured)) throw new Error(`Customer copy did not pick up the configured schedule: ${configured}`);
     note('availability-configured', 'after the supervisor saved the schedule, the customer home says "Horário configurado (America/Sao_Paulo)" instead of the working-default note (RULE-SUP-08)');
+
 
     // Contextual entry from a record (PH-4.2, §4.2): "Preciso de ajuda" on a withdrawal in the host.
     if (await desktop.getByRole('button', { name: 'Voltar' }).count()) await desktop.getByRole('button', { name: 'Voltar' }).click();
@@ -503,17 +506,43 @@ try {
     await desktop.getByText(/Referência SUP-000003/).waitFor();
     note('record-continue', 'asking for help about the same record again offered to continue SUP-000003, and "Continuar conversa" opened it');
 
+    // PH-6.2: Bruno has no panel open; a staff reply to his case is unread, so the job e-mails it (simulated outbox).
+    const brunoCase = await fetch(`${API}/api/support/cases`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-simulated-customer-id': 'cust-bruno' }, body: JSON.stringify({ category: 'operations', message: 'Minha operação não liquidou.' }) });
+    if (brunoCase.status !== 201) throw new Error('Bruno case not created');
+    const brunoCaseBody = await brunoCase.json();
+    const staffReply = await fetch(`${API}/api/staff/cases/${brunoCaseBody.id}/messages`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-simulated-staff-id': 'staff-ana', 'x-simulated-staff-name': 'Ana Ribeiro' }, body: JSON.stringify({ body: 'Verifiquei: a operação liquidou às 15:31 com perda.' }) });
+    if (staffReply.status !== 201) throw new Error('Staff reply to Bruno not created');
+    const outboxDeadline = Date.now() + 15_000;
+    let outbox = [];
+    while (Date.now() < outboxDeadline) {
+      const res = await fetch(`${API}/api/support/emails`, { headers: { 'x-simulated-customer-id': 'cust-bruno' } });
+      outbox = (await res.json()).emails;
+      if (outbox.length > 0) break;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    if (outbox.length !== 1) throw new Error('Simulated e-mail was not produced for the unread reply');
+    if (outbox[0].subject.indexOf(brunoCaseBody.reference) === -1 || JSON.stringify(outbox).indexOf('liquidou') !== -1) throw new Error('E-mail content is wrong or leaks the reply');
+    await desktop.getByLabel('Conta simulada').selectOption('cust-bruno');
+    await desktop.getByTestId('email-outbox').getByText(new RegExp(`Nova resposta no seu caso ${brunoCaseBody.reference}`)).waitFor({ timeout: 5000 });
+    await desktop.getByTestId('notifications-badge').waitFor({ timeout: 5000 });
+    note('email-simulated', `a staff reply to Bruno (panel closed) stayed unread; within seconds the notification job produced the simulated e-mail "Nova resposta no seu caso ${brunoCaseBody.reference}" to b***@e***.com with a link and no reply text; Bruno's home lists it under "E-mails que seriam enviados" (Simulação) and the host shows the unread badge (PH-6.1/6.2)`);
+    await shot(desktop, '24-customer-email-outbox');
+    await desktop.getByLabel('Conta simulada').selectOption('cust-alice');
+    await desktop.getByText('Conversas em andamento').waitFor();
+
     // Continuity: reload, history still there.
     await desktop.reload();
     await desktop.getByText('Conversas em andamento').waitFor();
-    await desktop.getByRole('button', { name: new RegExp(reference) }).waitFor();
+    // The outbox may also mention the reference (PH-6.2), so match the first case item only.
+    await desktop.getByRole('button', { name: new RegExp(reference) }).first().waitFor();
     note('continuity', 'after reload the case is listed under "Conversas em andamento" with its reference');
     await shot(desktop, '05-home-with-case');
 
     // Privacy at the UI: another simulated customer sees nothing (RULE-SUP-01).
     await desktop.getByLabel('Conta simulada').selectOption('cust-bruno');
-    await desktop.getByText('Você ainda não falou com o suporte.').waitFor();
-    note('privacy', 'switching to another simulated customer shows an empty history, not Alice\'s case');
+    await desktop.getByRole('button', { name: new RegExp(brunoCaseBody.reference) }).first().waitFor();
+    if (await desktop.getByText(new RegExp(reference)).count()) throw new Error('Another customer can see Alice\'s case');
+    note('privacy', 'switching to another simulated customer shows only his own history (Bruno\'s case), never Alice\'s case');
     await shot(desktop, '06-other-customer-empty');
     await desktop.close();
 

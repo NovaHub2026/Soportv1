@@ -444,4 +444,20 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(marked.body).toEqual({ marked: 1, unread: 0 });
   });
 
+
+  it('PH-6.2: customers manage their e-mail preference and see only their own simulated outbox; staff cannot', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/support/emails').set(asStaff('staff-ana', 'Ana')).expect(403);
+    const prefs = await request(server).get('/api/support/preferences').set(asCustomer('cust-alice')).expect(200);
+    expect(prefs.body).toMatchObject({ emailNotifications: true, updatedAt: null });
+    await request(server).put('/api/support/preferences').set(asCustomer('cust-alice')).send({ emailNotifications: 'yes' }).expect(400);
+    const off = await request(server).put('/api/support/preferences').set(asCustomer('cust-alice')).send({ emailNotifications: false }).expect(200);
+    expect(off.body.emailNotifications).toBe(false);
+    await request(server).put('/api/support/preferences').set(asCustomer('cust-alice')).send({ emailNotifications: true }).expect(200);
+    const outbox = await request(server).get('/api/support/emails').set(asCustomer('cust-alice')).expect(200);
+    expect(outbox.body).toMatchObject({ delivery: 'simulated' });
+    expect(Array.isArray(outbox.body.emails)).toBe(true);
+    expect(outbox.text).not.toContain('alice.souza@');
+  });
+
 });

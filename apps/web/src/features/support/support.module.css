@@ -754,3 +754,12 @@
   gap: 12px;
   margin-top: 8px;
 }
+
+/* ---- E-mail preference (PH-6.2) ---- */
+
+.preference {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+}
