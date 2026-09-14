@@ -92,7 +92,18 @@ export function OrbitCustomerSection({ identity, caseId }: OrbitCustomerSectionP
           )}
         </div>
       )}
-      <p className={styles.consultationMeta}>{o.recordsPending}</p>
+      {/* Subjects the boundary does not serve yet are listed as unavailable — never as an empty or zero value (RULE-SUP-07). */}
+      <div data-testid="orbit-not-integrated">
+        <h4 className={styles.contextTitle}>{o.notIntegratedTitle}</h4>
+        <p className={styles.consultationMeta}>{o.notIntegratedHint}</p>
+        <ul className={styles.notIntegratedList}>
+          {o.notIntegrated.map((subject) => (
+            <li key={subject}>
+              {subject} · <span className={styles.consultationMeta}>{o.reasons.not_integrated}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

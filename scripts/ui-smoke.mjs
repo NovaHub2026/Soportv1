@@ -55,19 +55,32 @@ function start(name, cmd, args, cwd, env = {}) {
   return child;
 }
 
-function stopAll(signal) {
-  for (const child of children) {
-    if (child.exitCode !== null || !child.pid) continue;
-    if (WINDOWS) {
-      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-      continue;
-    }
-    try {
-      process.kill(-child.pid, signal);
-    } catch {
-      child.kill(signal);
-    }
+function stopChild(child, signal) {
+  if (child.exitCode !== null || !child.pid) return;
+  if (WINDOWS) {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    return;
   }
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    child.kill(signal);
+  }
+}
+
+function stopAll(signal) {
+  for (const child of children) stopChild(child, signal);
+}
+
+async function waitForExit(child, timeoutMs = 10_000) {
+  if (child.exitCode !== null) return;
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, timeoutMs);
+    child.once('exit', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 async function assertPortFree(port) {
@@ -109,7 +122,7 @@ let exitCode = 0;
 try {
   await assertPortFree(API_PORT);
   await assertPortFree(WEB_PORT);
-  start('api', 'node', ['apps/api/dist/main.js'], ROOT, { PORT: String(API_PORT) });
+  let apiChild = start('api', 'node', ['apps/api/dist/main.js'], ROOT, { PORT: String(API_PORT) });
   // The JS entry, not the .bin shim: the shim is a shell script Windows cannot spawn.
   start('web', process.execPath, [`${ROOT}/node_modules/next/dist/bin/next`, 'start', '-p', String(WEB_PORT)], `${ROOT}/apps/web`);
   await waitForHttp(`${API}/api/health`);
@@ -454,6 +467,55 @@ try {
     note('mobile', 'on a 390px viewport the panel is hidden until "Suporte" is tapped, then fills the screen');
     await shot(mobile, '07-mobile-panel');
     await mobile.close();
+
+    // ---- PH-4.3: honesty when Orbit cannot answer (RULE-SUP-07, §14 item 7) ----
+    // (f) A record the boundary cannot find still opens the case — as an investigation, with the reason on the card.
+    const ghost = await fetch(`${API}/api/support/cases`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-simulated-customer-id': 'cust-alice' },
+      body: JSON.stringify({ category: 'deposits_withdrawals', message: 'Não encontro este saque na minha conta.', record: { kind: 'withdrawal', reference: 'WD-000000' } }),
+    });
+    if (ghost.status !== 201) throw new Error(`Ghost-record case not created: ${ghost.status}`);
+    const ghostCase = await ghost.json();
+    if (ghostCase.record?.lookupReason !== 'not_found') throw new Error('Ghost record should be marked not_found');
+    const honest = await browser.newPage({ viewport: { width: 1280, height: 800 }, locale: 'pt-BR' });
+    await honest.goto(WEB);
+    await honest.getByLabel('Conta simulada').selectOption('cust-alice');
+    await honest.getByRole('button', { name: new RegExp(ghostCase.reference) }).click();
+    await honest.getByTestId('case-record').getByText(/Registro não encontrado no Orbit/).waitFor({ timeout: 5000 });
+    note('record-not-found', `a case about a record the simulated Orbit cannot find (WD-000000, ${ghostCase.reference}) shows "Registro não encontrado no Orbit… A equipe vai investigar." on the card instead of an assumed state`);
+    await shot(honest, '20-customer-record-not-found');
+    const honestStaff = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await honestStaff.goto(`${WEB}/staff`);
+    await honestStaff.getByRole('tab', { name: 'Não atribuídos' }).click();
+    await honestStaff.getByRole('button', { name: new RegExp(ghostCase.reference) }).click();
+    await honestStaff.getByTestId('staff-case-record').getByText(/Registro não encontrado no Orbit/).waitFor({ timeout: 5000 });
+    await honestStaff.getByTestId('orbit-record-current').getByText(/cliente não encontrado no Orbit|Estado atual indisponível/).waitFor({ timeout: 5000 });
+    await honestStaff.getByTestId('orbit-not-integrated').getByText('Saldos e movimentos').waitFor();
+    note('record-not-found-staff', 'staff see the same not-found card, "Estado atual indisponível" for the record, and the subjects not integrated yet listed as unavailable — never as zero');
+
+    // (b) Orbit outage: restart the API with the simulated adapter in outage mode; cases and snapshots stay usable.
+    stopChild(apiChild, 'SIGTERM');
+    await waitForExit(apiChild);
+    apiChild = start('api', 'node', ['apps/api/dist/main.js'], ROOT, { PORT: String(API_PORT), SUPPORT_SIMULATED_ORBIT: 'unavailable' });
+    await waitForHttp(`${API}/api/health`);
+    await honestStaff.reload();
+    await honestStaff.getByRole('tab', { name: 'Não atribuídos' }).click();
+    await honestStaff.getByRole('button', { name: /SUP-000003/ }).click();
+    await honestStaff.getByText(/Dados do Orbit indisponíveis: Orbit sem resposta/).waitFor({ timeout: 10_000 });
+    await honestStaff.getByRole('button', { name: 'Tentar novamente' }).first().waitFor();
+    await honestStaff.getByTestId('staff-case-record').getByText('TX7f…9k2Q').waitFor();
+    await honestStaff.getByText('Meu saque em USDT ainda não chegou na carteira.').first().waitFor({ timeout: 5000 }).catch(() => {});
+    note('orbit-outage-staff', 'with the simulated Orbit down, the staff context says "Dados do Orbit indisponíveis: Orbit sem resposta." with "Tentar novamente", while the case, its conversation and the snapshot captured at opening stay usable');
+    await shot(honestStaff, '21-staff-orbit-outage');
+    await honest.reload();
+    await honest.getByText('Registros indisponíveis no momento.').waitFor({ timeout: 10_000 });
+    await honest.getByRole('button', { name: /SUP-000003/ }).click();
+    await honest.getByTestId('case-record').getByText('Saque 250 USDT').waitFor();
+    note('orbit-outage-customer', 'the host says "Registros indisponíveis no momento." instead of an empty list, and the customer still opens SUP-000003 with the card from the snapshot');
+    await shot(honest, '22-customer-orbit-outage');
+    await honestStaff.close();
+    await honest.close();
   } catch (error) {
     await captureFailure();
     throw error;

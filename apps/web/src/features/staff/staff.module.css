@@ -671,3 +671,9 @@
     grid-column: span 1;
   }
 }
+
+.notIntegratedList {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}

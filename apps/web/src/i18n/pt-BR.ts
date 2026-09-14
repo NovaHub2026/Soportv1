@@ -318,7 +318,9 @@ export const ptBR = {
         real: "Conta real",
         demo: "Conta demo",
       } satisfies Record<OrbitEnvironment, string>,
-      recordsPending: "Saldos, bônus e indicações ainda não estão integrados nesta versão.",
+      notIntegratedTitle: "Ainda não integrado",
+      notIntegratedHint: "Estes assuntos ainda não chegam pelo Orbit; a equipe deve tratá-los como informação indisponível, não como zero.",
+      notIntegrated: ["Saldos e movimentos", "Bônus e promoções", "Eventos P2P", "Indicações e afiliados", "Erros do produto"],
       record: {
         title: "Registro vinculado",
         current: "Estado atual no Orbit",

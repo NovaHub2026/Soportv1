@@ -1,21 +1,21 @@
 # CURRENT STATE
 Type: CURRENT STATE
 Synchronized on: 2026-09-14
-Derived from: `docs/phases/ROADMAP.md`, `docs/phases/PH-4.md`; base checkpoint: `4e77a99` on `main` (PH-4.2) plus this CI-verdict record
+Derived from: `docs/phases/ROADMAP.md`, `docs/phases/PH-4.md`; base checkpoint: the PH-4.3 commit on `main` (child of `4c06c5c`, PH-4 phase candidate)
 
 | Field | Value |
 |---|---|
-| Active objective / feature | PH-4 Orbit context integration (OBJ-SUP-02): staff see the customer's Orbit summary and record context, masked and honestly available/unavailable, through a labeled simulated adapter behind the ADR-0002 boundary. Cycle Audit 1 CLOSED 2026-09-14 (`docs/audits/CYCLE-1.md`). |
-| Active phase / subphase | PH-4 `ACTIVE` (`docs/phases/PH-4.md`, Orbit context integration). PH-4.1 `APPROVED` 2026-09-14 (`docs/phases/PH-4.1.md`); PH-4.2 `APPROVED` 2026-09-14 (`docs/phases/PH-4.2.md`); PH-4.3 `PLANNED` (unavailable and not-found flows end to end, masking review, phase closure). PH-1, PH-2, PH-3 `APPROVED` 2026-09-13. |
-| Audit | Cycle 1: 3/3 — CLOSED. Cycle 2: 0/3, open cycle, no debt. |
+| Active objective / feature | PH-4 delivered and approved (Orbit summary, record cards, contextual entry, honest unavailable states — all simulated behind the ADR-0002 boundary). Next: PH-5 staff workspace completeness and supervision (views for waiting/resolved/closed cases — BL-011 —, filters/search, saved replies, schedule/config, oversight, metrics). |
+| Active phase / subphase | None active. PH-4 `APPROVED` 2026-09-14 (PH-4.1, PH-4.2, PH-4.3 approved). PH-1, PH-2, PH-3 `APPROVED` 2026-09-13. PH-5 `PLANNED` — next to start (`docs/phases/PH-5.md`, to be created). |
+| Audit | Cycle 1: 3/3 — CLOSED. Cycle 2: 1/3 (PH-4), open cycle, no debt. |
 | Blocking decisions / dependencies | None. PH-4 depends on ADR-0002 (boundary) and BL-001 (resolved: everything simulated, DEC-0003). |
-| Integration / CI / release | Candidate: `4e77a99` on `main` (PH-4.2). Local: `npm run verify` exit 0, `npm run build` exit 0, browser smoke 36/36; CI run 34812497217 success — `docs/evidence/PH-4.2-verification.md`. Release: none, not authorized. |
+| Integration / CI / release | Candidate: the PH-4.3 commit on `main` (PH-4 phase candidate). Local: `npm run verify:full` exit 0, browser smoke 40/40 — `docs/evidence/PH-4.3-verification.md`, `docs/evidence/PH-4-phase-approval.md` (CI verdict recorded in the PH-4.3 record when known). Release: none, not authorized. |
 | Environment (observed 2026-09-14) | Windows 11 native, Git Bash / PowerShell, Node v24.19.0, npm 11.17.0; earlier sessions ran on WSL2. The repo-local git author (DEC-0002) must be re-set on every fresh clone — see `docs/runbooks/VERIFICATION.md` "Setup". |
 | Context route | `CONTEXT_INDEX.md` → four live feature contexts (all re-verified against the remediation commit); audit record `docs/audits/CYCLE-1.md`; commands in `docs/runbooks/VERIFICATION.md` |
 
 ## Next valid action
-Action: Plan and run PH-4.3 (`docs/phases/PH-4.3.md`, to be created): exercise the unavailable and not-found flows end to end in the browser smoke (outage mode `SUPPORT_SIMULATED_ORBIT=unavailable` for the summary and the records list; a not-found record card), review masking on every surface (customer projection, staff card, context section), decide the "not integrated" presentation for balances/bonus/referral subjects, extend the smoke with scenarios (b) and (f), then close PH-4 with a phase approval record.
-Why now: PH-4.1 and PH-4.2 delivered the boundary, the summary and the cards; PH-4.3 is the closing block of the active phase.
-Preconditions: CI green on HEAD (`4e77a99` is: run 34812497217); tree clean; `npm run verify` passes.
-Evidence/read first: `docs/phases/PH-4.md` (scenarios b and f, "Verification"); `docs/features/FEAT-ORBIT/CONTEXT.md`; `PROJECT_CONTEXT.md` §6.2, §10.2, §14 items 7 and 10.
+Action: Plan PH-5 (`docs/phases/PH-5.md`, to be created; ROADMAP: staff workspace completeness and supervision) into subphases, starting with the queue views for waiting, resolved and closed cases plus the overdue signal (BL-011, the PH-3 limitation FND-0023), then filters/search, saved replies, schedule/config, supervision oversight and service metrics (`PROJECT_CONTEXT.md` §5.2, §14 item 9, §13.2 unknowns — metrics must not invent targets, BL-002).
+Why now: PH-4 is approved; PH-5 depends on PH-3 (approved) and is the next `PLANNED` phase in `docs/phases/ROADMAP.md`; BL-011 has PH-5 as its blocking condition.
+Preconditions: CI green on the PH-4.3 commit (`gh run list --limit 3`, record it in `docs/evidence/PH-4.3-verification.md`); tree clean; `npm run verify` passes.
+Evidence/read first: `docs/BACKLOG.md` BL-011, BL-013, BL-014 (PH-5 items); `docs/features/FEAT-STAFF/CONTEXT.md`; `PROJECT_CONTEXT.md` §5.2, §5.5 (if present), §13.2, §14 item 9.
 If preconditions fail: CI red → diagnose before any PH-4 work (§9.2). Unknown local changes → attribute and preserve (§4.3).

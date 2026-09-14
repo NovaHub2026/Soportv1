@@ -104,7 +104,9 @@ describe("StaffCaseView", () => {
     expect(facts.textContent).toContain("Verificada");
     expect(facts.textContent).toContain("Conta real");
     expect(facts.textContent).not.toContain("example.com");
-    expect(screen.getByText(/ainda não estão integrados/)).toBeDefined();
+    const notIntegrated = screen.getByTestId("orbit-not-integrated");
+    expect(notIntegrated.textContent).toContain("Saldos e movimentos");
+    expect(notIntegrated.textContent).toContain("integração ainda não construída");
   });
 
   test("shows the Orbit summary as unavailable with its reason and a retry, never as an assumed value (RULE-SUP-07)", async () => {

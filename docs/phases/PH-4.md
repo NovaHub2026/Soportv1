@@ -1,6 +1,6 @@
 # PH-4 — Orbit context integration
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-02, OBJ-SUP-04; FEAT-ORBIT, FEAT-STAFF, FEAT-CHAT, FEAT-CASE
 Cycle: 2 (see `ROADMAP.md`; cycle 1 closed with Cycle Audit 1 — `../audits/CYCLE-1.md`)
 
@@ -29,10 +29,13 @@ Scenarios (context §14 items 1, 7): (a) staff open a case and see the customer'
 |---|---|---|
 | PH-4.1 | Orbit records boundary and customer summary: `OrbitRecordsPort`, simulated adapter with masking and outage mode, `GET /api/staff/cases/:id/orbit`, staff context column section with available/unavailable states — `PH-4.1.md`, approved 2026-09-14 | APPROVED |
 | PH-4.2 | Record cards and contextual entry: simulated records per customer, record snapshot on the case, "Preciso de ajuda" from the shell, card in both conversations, removal and continue-existing-case suggestion — `PH-4.2.md`, approved 2026-09-14 | APPROVED |
-| PH-4.3 | Unavailable and not-found flows end to end, masking review, browser smoke for scenarios (a)–(f), phase closure | PLANNED |
+| PH-4.3 | Unavailable and not-found flows end to end, masking review, browser smoke for scenarios (b) and (f), phase closure — `PH-4.3.md`, approved 2026-09-14 | APPROVED |
 
 ## Verification and operational readiness
 Per subphase: unit tests on the adapter (fixtures, not-found, outage), e2e on the endpoints (403 for customers, 404 for unknown cases, masked payloads — raw contact never in JSON), web tests on the states; browser smoke extended with the summary and, in PH-4.2, the contextual entry. `npm run verify` before each commit; `npm run verify:full` and the smoke on the phase candidate. Operational note: the simulated adapter is selected by `SUPPORT_ORBIT_RECORDS=simulated` (only value) and its outage mode by `SUPPORT_SIMULATED_ORBIT=unavailable`.
 
 ## Completion evidence, findings and context updated
-Pending — filled at phase approval. Everything runs on simulated identity and simulated records (DEC-0003); no demonstration in this phase proves a connected Orbit capability (context §11).
+Approved 2026-09-14 — `../evidence/PH-4-phase-approval.md`: scenarios (a)–(f) mapped to executed tests and browser observations on the phase candidate (screenshots `../evidence/screenshots/ph-4/`). Subphase evidence: `../evidence/PH-4.1-verification.md`, `../evidence/PH-4.2-verification.md`, `../evidence/PH-4.3-verification.md`.
+Findings: none open from this phase. Backlog: BL-016 (role-gated unmasking, PH-7) unchanged.
+Context updated: feature contexts FEAT-ORBIT / FEAT-CHAT / FEAT-CASE / FEAT-STAFF; `ROADMAP.md` ledger (cycle 2, 1/3); `../../CURRENT_STATE.md`; DEC-0019, DEC-0020.
+Everything runs on simulated identity and simulated records (DEC-0003); no demonstration in this phase proves a connected Orbit capability (context §11).
