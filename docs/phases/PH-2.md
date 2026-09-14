@@ -1,6 +1,6 @@
 # PH-2 — Conversation reliability and continuity
 Type: PHASE CONTEXT
-Status: ACTIVE
+Status: APPROVED
 Objective / Feature IDs: OBJ-SUP-01, OBJ-SUP-04; FEAT-CHAT, FEAT-CASE, FEAT-STAFF
 Cycle: 1 (see `ROADMAP.md`; PH-1 counted 1/3)
 
@@ -30,10 +30,13 @@ Scenarios: (1) staff reply appears in the open customer conversation within ~2 s
 | PH-2.1 | Live updates: in-process case event bus, SSE endpoints for customer case stream and staff stream (internal notes filtered for customers), web stream client with reconnect + resync, polling reduced to a safety net — `PH-2.1.md`, approved 2026-09-13 | APPROVED |
 | PH-2.2 | Delivery and unread states: read markers, unread counts in lists, connection indicator, pending queue with retry on reconnect, sent/failed semantics documented — `PH-2.2.md`, approved 2026-09-13 | APPROVED |
 | PH-2.3 | Attachments: `case_attachments`, storage port (local disk), upload with type/size limits, protected download, acceptance state, UI for customer and staff — `PH-2.3.md`, approved 2026-09-13 | APPROVED |
-| PH-2.4 | Reliability evidence and phase closure: disconnect/resync and duplicate-suppression tests, browser smoke for live delivery and attachments, feature contexts updated, phase approval | PLANNED |
+| PH-2.4 | Reliability evidence and phase closure: disconnect/resync and duplicate-suppression tests, browser smoke for live delivery and attachments, feature contexts updated, phase approval — `PH-2.4.md`, approved 2026-09-13 | APPROVED |
 
 ## Verification and operational readiness
 Unit + e2e per subphase (including a negative test that the customer stream never carries internal notes); browser smoke extended for live delivery; `npm run verify` and `npm run build` on the phase candidate. Operational note for PH-8: the event bus is in-process — a second API instance needs a shared channel.
 
 ## Completion evidence, findings and context updated
-Pending.
+Approved 2026-09-13 — `../evidence/PH-2-phase-approval.md`: scenarios (1)–(5) mapped to executed tests and browser observations on the phase candidate (screenshots `../evidence/screenshots/ph-2/`). Subphase evidence: `../evidence/PH-2.1-verification.md` … `../evidence/PH-2.4-verification.md`.
+Findings: FND-0003, FND-0004, FND-0005 found and fixed inside the phase; none open. Backlog: BL-009, BL-010.
+Context updated: feature contexts FEAT-CASE / FEAT-CHAT / FEAT-STAFF (freshness and behavior), `ROADMAP.md` ledger (cycle 1, 2/3), `../../CURRENT_STATE.md`, `../../CONTEXT_INDEX.md`, `../runbooks/VERIFICATION.md`, ADR-0004, DEC-0009.
+Everything runs on simulated identity and no Orbit records (DEC-0003).

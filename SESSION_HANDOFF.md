@@ -1,24 +1,24 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-13
-Checkpoint: branch `main`; PH-2.3 commit (attachments: migration 0002, storage port, sniffing, endpoints, web composer/list, tests, smoke); no intended local delta after it
+Checkpoint: branch `main`; PH-2.4 commit (concurrency fix FND-0005, reliability tests, PH-2 approval evidence, ledger 2/3); no intended local delta after it
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
 None observed. The UI smoke stops its own servers (3001, 3150). Other Node processes on this machine (`apps/recorder`, `apps/settlement`, `next start … -p 3011/3012`, port 3100) belong to another project — do not touch them.
 
 ## Unfinished work
-None in code. PH-2.4 not started. Owner instruction in force (2026-09-13): «Continua hasta el final sin parar».
+None in code. PH-3 not started (no phase document yet). Owner instruction in force (2026-09-13): «Continua hasta el final sin parar». Audit debt: 2/3 — plan the Cycle Audit right after PH-3's approval.
 
 ## Evidence and limits
-- `docs/evidence/PH-2.3-verification.md`: 26 api unit + 13 e2e + 33 web tests EXECUTED; 20 browser observations incl. attachment accepted/refused. CI verdict for this commit recorded there when available.
+- `docs/evidence/PH-2.4-verification.md`, `docs/evidence/PH-2-phase-approval.md`. CI verdict for this commit recorded in the PH-2.4 file when available.
 - Browser-environment workaround (BL-007) lives in the scratchpad; recreate per `docs/runbooks/VERIFICATION.md` if missing.
 
 ## Resume here
 1. `git status -sb`; `gh run list --limit 3`.
-2. Validate `CURRENT_STATE.md`; then start PH-2.4 as described there.
+2. Validate `CURRENT_STATE.md`; then start PH-3 as described there (phase document first).
 
 ## Temporary environment notes
 - Git author is repo-local: `NovaHub2026 <orbitmarket.pro@gmail.com>` (DEC-0002).
-- Dev database: `apps/api/.data/pglite`; dev uploads: `apps/api/.data/uploads` (both gitignored). UI smoke must point `SUPPORT_DB_DIR` and `SUPPORT_UPLOADS_DIR` at scratch.
+- Dev database: `apps/api/.data/pglite`; dev uploads: `apps/api/.data/uploads` (gitignored). UI smoke must point `SUPPORT_DB_DIR` and `SUPPORT_UPLOADS_DIR` at scratch.
 - Playwright 1.63 / Chromium 1243; missing system libs extracted in the scratchpad folder `browser-libs`, exported via `LD_LIBRARY_PATH`.

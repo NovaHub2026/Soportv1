@@ -24,4 +24,4 @@ Limitations / reuse boundary: valid for this tree. Changes under `apps/api/src/a
 `npm run verify`, 2026-09-14 01:31 UTC, on the completed PH-2.3 tree: `check-context: 26 documents, 355 links (2 gitignored skipped), 8 phases, 9 subphases, active: PH-2 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 26/26, web 33/33; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34796212124` on `88ee96c` (PH-2.3 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 01:34 UTC. Claim 7 is EXECUTED for `88ee96c`.

@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CASE
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `c628d8b` plus the PH-2.3 change (attachments)
+Verified against: `88ee96c` plus the PH-2.4 change (idempotency under concurrent retries)
 Verified on: 2026-09-13
 Scope: `packages/shared/src/cases.ts`, `packages/shared/src/stream.ts`, `apps/api/src/cases/`, `apps/api/src/events/`, `apps/api/src/attachments/`, `apps/api/src/database/schema.ts`, `apps/api/drizzle/`
 
@@ -17,7 +17,7 @@ Implemented (PH-1.2):
 - Statuses: `new`, `in_progress`, `waiting_customer`, `waiting_internal`, `resolved`, `closed`; priority default `normal`; five categories.
 - Staff **take**: assigns, `new → in_progress`, events `case_assigned` + `status_changed`; 409 `case_assigned_to_other` if owned by someone else; idempotent for the owner. A staff reply on an unowned case takes it.
 - Customer message: on `resolved` → `in_progress` + `case_reopened` (§7.2 simple rule); on `waiting_customer` → `in_progress`; on `closed` → 409 `case_closed`.
-- Idempotency: `clientMessageId` unique per author (partial unique index); a retry returns the stored case/message.
+- Idempotency: `clientMessageId` unique per author (partial unique index); a retry returns the stored case/message — including concurrent retries, where the unique-index loser returns the winner's message (`onceByClientMessageId`, FND-0005).
 - Read markers (PH-2.2): `customer_last_read_at` / `staff_last_read_at` set by `POST /support/cases/:id/read` and `POST /staff/cases/:id/read`; `unreadCount` on every summary/detail = messages from the other side newer than the viewer's marker (customers count only public non-customer messages); `GET /support/cases/stream` covers all of a customer's cases.
 - Attachments (PH-2.3, DEC-0009): `case_attachments` uploaded via `POST …/:id/attachments` (bytes sniffed: PNG/JPEG/WebP/PDF, ≤ 10 MB) and linked on send through `attachmentIds` (same actor, same case, unattached, ≤ 3); `GET …/:id/attachments/:attachmentId` authorizes from the row (customer: own upload or public message; staff: all); messages carry `attachments[]`.
 - Live events (PH-2.1, ADR-0004): after each committed write the service publishes `case.updated` (with summary) and `message.created` (with message) on the in-process `CaseEventBus`; `GET /support/cases/:id/stream` (ownership checked first, internal messages filtered) and `GET /staff/cases/stream` expose them as SSE with a 15 s heartbeat.

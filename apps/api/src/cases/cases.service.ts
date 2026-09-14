@@ -133,6 +133,10 @@ export class CasesService {
       const duplicate = await this.findMessageByClientId(customer.id, input.clientMessageId);
       if (duplicate) return this.messageWithAttachments(duplicate);
     }
+    return this.onceByClientMessageId(customer.id, input.clientMessageId, () => this.insertCustomerMessage(customer, row, input));
+  }
+
+  private async insertCustomerMessage(customer: CustomerActor, row: SupportCaseRow, input: PostMessageInput): Promise<CaseMessage> {
     const { message, updated, linked } = await this.db.transaction(async (tx) => {
       const now = new Date();
       const [inserted] = await tx
@@ -231,6 +235,10 @@ export class CasesService {
       const duplicate = await this.findMessageByClientId(staff.id, input.clientMessageId);
       if (duplicate) return this.messageWithAttachments(duplicate);
     }
+    return this.onceByClientMessageId(staff.id, input.clientMessageId, () => this.insertStaffMessage(staff, row, input));
+  }
+
+  private async insertStaffMessage(staff: StaffActor, row: SupportCaseRow, input: PostMessageInput): Promise<CaseMessage> {
     const { message, updated, linked } = await this.db.transaction(async (tx) => {
       const now = new Date();
       const [inserted] = await tx
@@ -260,6 +268,22 @@ export class CasesService {
     this.publishMessage(updated, dto);
     this.publishCaseUpdated(updated);
     return dto;
+  }
+
+  /**
+   * Concurrent retries of the same send can both pass the duplicate lookup; the unique index keeps one row
+   * and the loser returns the winner's message instead of failing (RULE-SUP-03, FND-0005).
+   */
+  private async onceByClientMessageId(authorId: string, clientMessageId: string | undefined, insert: () => Promise<CaseMessage>): Promise<CaseMessage> {
+    try {
+      return await insert();
+    } catch (error) {
+      if (clientMessageId && isUniqueViolation(error)) {
+        const existing = await this.findMessageByClientId(authorId, clientMessageId);
+        if (existing) return this.messageWithAttachments(existing);
+      }
+      throw error;
+    }
   }
 
   // ---------- Rows for controllers that need the case before acting (attachments) ----------

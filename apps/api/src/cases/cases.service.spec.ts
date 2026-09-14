@@ -229,6 +229,26 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       expect((await service.getCustomerCase(alice, created.id)).messages).toHaveLength(2);
     });
 
+    it('stores exactly one message when the same clientMessageId is sent concurrently (RULE-SUP-03, PH-2.4)', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      const input = { body: 'Enviado duas vezes ao mesmo tempo', clientMessageId: 'race-1' };
+      const results = await Promise.all([
+        service.postCustomerMessage(alice, created.id, input),
+        service.postCustomerMessage(alice, created.id, input),
+        service.postCustomerMessage(alice, created.id, input),
+      ]);
+      expect(new Set(results.map((m) => m.id)).size).toBe(1);
+      expect((await service.getCustomerCase(alice, created.id)).messages).toHaveLength(2);
+
+      const staffInput = { body: 'Resposta dupla', clientMessageId: 'race-staff-1' };
+      const staffResults = await Promise.all([
+        service.postStaffMessage(ana, created.id, staffInput),
+        service.postStaffMessage(ana, created.id, staffInput),
+      ]);
+      expect(new Set(staffResults.map((m) => m.id)).size).toBe(1);
+      expect((await service.getStaffCase(created.id)).messages).toHaveLength(3);
+    });
+
     it('refuses messages on a closed case until linked follow-ups exist (PH-3)', async () => {
       const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
       await db.update(supportCases).set({ status: 'closed', closedAt: new Date() }).where(eq(supportCases.id, created.id));

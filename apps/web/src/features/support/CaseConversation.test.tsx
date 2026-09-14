@@ -134,6 +134,25 @@ describe("CaseConversation", () => {
     expect(screen.getAllByText("Ainda estou aqui")).toHaveLength(1);
   });
 
+  test("resyncs on every (re)connect and never shows a pushed message twice (PH-2.4)", async () => {
+    const { requests } = mockFetch(() => ({ body: detail }));
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    await screen.findByText(/SUP-000001/);
+    const getsBefore = requests.filter((r) => r.method === "GET").length;
+
+    act(() => streams[0].handlers.onStatus?.("connected"));
+    await waitFor(() => expect(requests.filter((r) => r.method === "GET").length).toBeGreaterThan(getsBefore));
+
+    // The same message pushed twice (e.g. once before and once after a reconnect) renders once.
+    const pushed = message({ id: "m-dup", authorType: "staff", authorId: "staff-ana", authorName: "Ana", body: "Só uma vez" });
+    const event = { type: "message.created", caseId: detail.id, customerId: identity.customerId, message: pushed, at: new Date().toISOString() };
+    act(() => {
+      streams[0].handlers.onEvent("message.created", event);
+      streams[0].handlers.onEvent("message.created", event);
+    });
+    expect(screen.getAllByText("Só uma vez")).toHaveLength(1);
+  });
+
   test("a closed case shows the closure notice instead of the composer", async () => {
     mockFetch(() => ({ body: { ...detail, status: "closed" } }));
     render(<CaseConversation identity={identity} caseId={detail.id} />);
