@@ -166,6 +166,22 @@ export const ptBR = {
       failed: "Não foi possível aplicar a ação. Tente novamente.",
       resolvedAs: "Resolvido · {reason}",
     },
+    assignment: {
+      transfer: "Transferir",
+      transferTo: "Transferir para",
+      confirm: "Confirmar transferência",
+      release: "Devolver à fila",
+      cancel: "Cancelar",
+      forbidden: "Só o responsável ou um supervisor pode transferir este caso.",
+      failed: "Não foi possível alterar o responsável.",
+      transferredEvent: "Transferido para {agent} por {by}",
+      releasedEvent: "Devolvido à fila por {by}",
+    },
+    attributes: {
+      priority: "Prioridade",
+      category: "Assunto",
+      failed: "Não foi possível atualizar o caso.",
+    },
     notes: {
       modeLabel: "Tipo de mensagem",
       replyMode: "Responder ao cliente",

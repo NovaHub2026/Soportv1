@@ -91,6 +91,30 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(customerView.body.messages.at(-1).body).toContain('liquidada às 10:31');
   });
 
+  it('assignment respects ownership and roles; attribute edits are validated (PH-3.3)', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-otto'))
+      .send({ category: 'other', message: 'Transferir' })
+      .expect(201);
+    const id: string = created.body.id;
+    const supervisor = { ...asStaff('staff-carla', 'Carla'), [SIMULATED_IDENTITY_HEADERS.staffRole]: 'supervisor' };
+
+    await request(server).post(`/api/staff/cases/${id}/take`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    await request(server).post(`/api/staff/cases/${id}/assign`).set(asStaff('staff-bruno', 'Bruno')).send({ agentId: 'staff-bruno' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/assign`).set(asCustomer('cust-otto')).send({ agentId: 'staff-bruno' }).expect(403);
+    const bySupervisor = await request(server).post(`/api/staff/cases/${id}/assign`).set(supervisor).send({ agentId: 'staff-bruno' }).expect(200);
+    expect(bySupervisor.body.assignedAgentId).toBe('staff-bruno');
+    const released = await request(server).post(`/api/staff/cases/${id}/assign`).set(asStaff('staff-bruno', 'Bruno')).send({ agentId: null }).expect(200);
+    expect(released.body.assignedAgentId).toBeNull();
+
+    await request(server).patch(`/api/staff/cases/${id}`).set(asStaff('staff-ana', 'Ana')).send({}).expect(400);
+    await request(server).patch(`/api/staff/cases/${id}`).set(asStaff('staff-ana', 'Ana')).send({ priority: 'critical' }).expect(400);
+    const patched = await request(server).patch(`/api/staff/cases/${id}`).set(asStaff('staff-ana', 'Ana')).send({ priority: 'high' }).expect(200);
+    expect(patched.body.priority).toBe('high');
+  });
+
   it('notes and consultations are staff-only and drive the waiting_internal status (PH-3.2)', async () => {
     const server = app.getHttpServer();
     const created = await request(server)

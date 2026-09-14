@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-ORBIT
 Lifecycle: PARTIAL (identity boundary only; records pending)
 Freshness: CURRENT
-Verified against: `b5d3890` plus the PH-1.5 change
+Verified against: `2562555` plus the PH-3.3 change (first role-based check)
 Verified on: 2026-09-13
 Scope: `apps/api/src/identity/`, `packages/shared/src/identity.ts`, `apps/web/src/lib/simulated-session.ts`, identity headers in `apps/web/src/lib/api.ts` and `apps/web/src/lib/staff-api.ts`
 
@@ -16,6 +16,7 @@ Implemented (PH-1.2, hardened in PH-1.5):
 - `OrbitIdentityPort.resolve(headers) → Actor | null` with `CustomerActor { id, source }` and `StaffActor { id, role, displayName, source }`; every actor carries `source: 'simulated'`.
 - `SimulatedOrbitIdentity`: reads `x-simulated-customer-id` or `x-simulated-staff-id` (+ `-role`, `-name`); refuses ambiguous (both), malformed ids and unknown roles.
 - Guards `CustomerGuard`, `StaffGuard`, `AnyActorGuard`, decorator `@CurrentActor()`; `GET /api/identity/me` echoes the actor.
+- Roles in use (PH-3.3): `StaffActor.role` decides reassignment authority (`supervisor` / `admin` may reassign any case — DEC-0012); every other staff action is role-neutral until PH-7.
 - Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008).
 - Web: simulated customer/staff pickers persisted in `localStorage`, always labeled **Simulação**; `/api/health` reports `identity: simulated`.
 Not implemented (PH-4): customer summary (username, status, language, country, registration, masked contact, verification), record lookups (operations, P2P orders/rounds, Pix deposits, withdrawals, balances, bonuses, verification, referral), contextual entry cards, masking, "unavailable" states per record, and the real Orbit session adapter.

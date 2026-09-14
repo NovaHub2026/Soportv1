@@ -1,22 +1,28 @@
 "use client";
 
 import {
+  CASE_CATEGORIES,
+  CASE_PRIORITIES,
+  type CaseCategory,
   type CaseConsultation,
   type CaseEvent,
   type CaseMessage,
+  type CasePriority,
   CONSULTATION_TEAMS,
   type ConsultationTeam,
   RESOLUTION_REASONS,
   type ResolutionReason,
   type StaffCaseDetail,
   type StaffStatusTarget,
+  type UpdateCaseInput,
 } from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentComposer } from "@/features/support/AttachmentComposer";
 import { AttachmentList } from "@/features/support/AttachmentList";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
-import { type AttachmentClient, newClientMessageId } from "@/lib/api";
+import { ApiError, type AttachmentClient, newClientMessageId } from "@/lib/api";
+import { SIMULATED_STAFF } from "@/lib/simulated-session";
 import { type StaffIdentity, staffApi } from "@/lib/staff-api";
 import styles from "./staff.module.css";
 
@@ -54,6 +60,8 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const [consulting, setConsulting] = useState(false);
   const [consultTeam, setConsultTeam] = useState<ConsultationTeam>("finance");
   const [consultQuestion, setConsultQuestion] = useState("");
+  const [transferring, setTransferring] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<string>("");
   const logRef = useRef<HTMLOListElement>(null);
   const attachmentClient = useMemo(() => staffApi.attachments(identity, caseId), [identity, caseId]);
   // Monotonic request counter: a poll that started before an action must not overwrite the action's result.
@@ -146,6 +154,33 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
     } catch (error) {
       console.warn("staff: could not resolve case", error);
       setAction({ status: "error", message: t.staff.actions.failed });
+    }
+  }
+
+  async function handleAssign(agentId: string | null) {
+    setAction({ status: "busy" });
+    try {
+      await staffApi.assign(identity, caseId, { agentId });
+      setTransferring(false);
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not assign case", error);
+      setAction({ status: "error", message: error instanceof ApiError && error.status === 403 ? t.staff.assignment.forbidden : t.staff.assignment.failed });
+    }
+  }
+
+  async function handleAttributes(input: UpdateCaseInput) {
+    setAction({ status: "busy" });
+    try {
+      await staffApi.update(identity, caseId, input);
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not update case", error);
+      setAction({ status: "error", message: t.staff.attributes.failed });
     }
   }
 
@@ -295,12 +330,52 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
                   {t.staff.consultations.request}
                 </button>
               )}
+              {!transferring && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => setTransferring(true)}>
+                  {t.staff.assignment.transfer}
+                </button>
+              )}
+              {detail.assignedAgentId && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => void handleAssign(null)}>
+                  {t.staff.assignment.release}
+                </button>
+              )}
               {detail.status !== "resolved" && !resolving && (
                 <button type="button" className={styles.resolveButton} disabled={action.status === "busy"} onClick={() => setResolving(true)}>
                   {t.staff.actions.resolve}
                 </button>
               )}
             </div>
+          )}
+          {transferring && (
+            <form
+              className={styles.transferForm}
+              aria-label={t.staff.assignment.transfer}
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (transferTarget) void handleAssign(transferTarget);
+              }}
+            >
+              <label className={styles.composerLabel} htmlFor="transfer-target">
+                {t.staff.assignment.transferTo}
+              </label>
+              <select id="transfer-target" className={styles.select} value={transferTarget} onChange={(event) => setTransferTarget(event.target.value)}>
+                <option value="">—</option>
+                {SIMULATED_STAFF.filter((s) => s.id !== identity.staffId).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} · {s.role}
+                  </option>
+                ))}
+              </select>
+              <div className={styles.composerActions}>
+                <button type="button" className={styles.secondaryButton} onClick={() => setTransferring(false)}>
+                  {t.staff.assignment.cancel}
+                </button>
+                <button type="submit" className={styles.primaryButton} disabled={!transferTarget || action.status === "busy"}>
+                  {t.staff.assignment.confirm}
+                </button>
+              </div>
+            </form>
           )}
           {consulting && (
             <form className={styles.consultForm} onSubmit={handleConsult} aria-label={t.staff.consultations.request}>
@@ -428,7 +503,7 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         )}
       </section>
 
-      <CaseContext detail={detail} onAnswer={handleAnswer} busy={action.status === "busy"} />
+      <CaseContext detail={detail} onAnswer={handleAnswer} onAttributes={handleAttributes} busy={action.status === "busy"} />
     </>
   );
 }
@@ -510,6 +585,10 @@ function describeEvent(event: CaseEvent): string {
   const str = (key: string) => (typeof data[key] === "string" ? (data[key] as string) : "");
   switch (event.type) {
     case "case_assigned":
+      if (data.released === true) return fill(t.staff.assignment.releasedEvent, { by: str("releasedByName") || event.actorId });
+      if (str("transferredByName")) {
+        return fill(t.staff.assignment.transferredEvent, { agent: str("agentName") || str("agentId"), by: str("transferredByName") });
+      }
       return fill(t.staff.events.case_assigned, { agent: str("agentName") || str("agentId") });
     case "case_resolved": {
       const reason = str("reason") as ResolutionReason;
@@ -521,6 +600,16 @@ function describeEvent(event: CaseEvent): string {
     }
     case "consultation_answered":
       return fill(t.staff.events.consultation_answered, { agent: str("answeredByName") || event.actorId });
+    case "priority_changed": {
+      const from = str("from") as CasePriority;
+      const to = str("to") as CasePriority;
+      return fill(t.staff.events.priority_changed, { from: t.staff.priority[from] ?? from, to: t.staff.priority[to] ?? to });
+    }
+    case "category_changed": {
+      const from = str("from") as CaseCategory;
+      const to = str("to") as CaseCategory;
+      return fill(t.staff.events.category_changed, { from: t.category[from] ?? from, to: t.category[to] ?? to });
+    }
     case "status_changed": {
       const from = str("from") as keyof typeof t.staff.status;
       const to = str("to") as keyof typeof t.staff.status;
@@ -531,7 +620,17 @@ function describeEvent(event: CaseEvent): string {
   }
 }
 
-function CaseContext({ detail, onAnswer, busy }: { detail: StaffCaseDetail; onAnswer: (c: CaseConsultation, answer: string) => void; busy: boolean }) {
+function CaseContext({
+  detail,
+  onAnswer,
+  onAttributes,
+  busy,
+}: {
+  detail: StaffCaseDetail;
+  onAnswer: (c: CaseConsultation, answer: string) => void;
+  onAttributes: (input: UpdateCaseInput) => void;
+  busy: boolean;
+}) {
   const c = t.staff.context;
   const dash = c.none;
   const openConsultations = detail.consultations.filter((x) => x.status === "open").length;
@@ -567,10 +666,50 @@ function CaseContext({ detail, onAnswer, busy }: { detail: StaffCaseDetail; onAn
 
       <h3 className={styles.contextTitle}>{c.caseSection}</h3>
       <dl className={styles.facts}>
-        <dt>{c.category}</dt>
-        <dd>{t.category[detail.category]}</dd>
-        <dt>{c.priority}</dt>
-        <dd>{t.staff.priority[detail.priority]}</dd>
+        <dt>
+          <label htmlFor="case-category">{c.category}</label>
+        </dt>
+        <dd>
+          {detail.status === "closed" ? (
+            t.category[detail.category]
+          ) : (
+            <select
+              id="case-category"
+              className={styles.inlineSelect}
+              value={detail.category}
+              disabled={busy}
+              onChange={(event) => onAttributes({ category: event.target.value as CaseCategory })}
+            >
+              {CASE_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {t.category[category]}
+                </option>
+              ))}
+            </select>
+          )}
+        </dd>
+        <dt>
+          <label htmlFor="case-priority">{c.priority}</label>
+        </dt>
+        <dd>
+          {detail.status === "closed" ? (
+            t.staff.priority[detail.priority]
+          ) : (
+            <select
+              id="case-priority"
+              className={styles.inlineSelect}
+              value={detail.priority}
+              disabled={busy}
+              onChange={(event) => onAttributes({ priority: event.target.value as CasePriority })}
+            >
+              {CASE_PRIORITIES.map((priority) => (
+                <option key={priority} value={priority}>
+                  {t.staff.priority[priority]}
+                </option>
+              ))}
+            </select>
+          )}
+        </dd>
         <dt>{c.createdAt}</dt>
         <dd>{formatMessageTime(detail.createdAt)}</dd>
         <dt>{c.lastCustomerMessage}</dt>

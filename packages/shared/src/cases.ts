@@ -113,6 +113,22 @@ export const answerConsultationSchema = z.object({
 });
 export type AnswerConsultationInput = z.infer<typeof answerConsultationSchema>;
 
+// ---- Assignment and attributes (PH-3.3, context §5.2, §5.4) ----
+
+/** `agentId: null` releases the case back to the unassigned queue. */
+export const assignCaseSchema = z.object({
+  agentId: z.string().trim().min(1).max(64).nullable(),
+});
+export type AssignCaseInput = z.infer<typeof assignCaseSchema>;
+
+export const updateCaseSchema = z
+  .object({
+    priority: z.enum(CASE_PRIORITIES).optional(),
+    category: z.enum(CASE_CATEGORIES).optional(),
+  })
+  .refine((value) => value.priority !== undefined || value.category !== undefined, { message: "nothing_to_update" });
+export type UpdateCaseInput = z.infer<typeof updateCaseSchema>;
+
 export const setStatusSchema = z.object({
   status: z.enum(STAFF_STATUS_TARGETS),
 });

@@ -202,6 +202,45 @@ describe("StaffCaseView", () => {
     await waitFor(() => expect(screen.queryByText("1 consulta pendente")).toBeNull());
   });
 
+  test("transfer, release and attribute edits call their endpoints and surface a forbidden transfer (PH-3.3)", async () => {
+    let assigned: string | null = "staff-ana";
+    let priority = "normal";
+    let forbidOnce = true;
+    const { requests } = mockFetch((request) => {
+      if (request.url.endsWith("/assign")) {
+        if (forbidOnce) {
+          forbidOnce = false;
+          return { status: 403, body: { message: "not_case_owner" } };
+        }
+        assigned = (request.body as { agentId: string | null }).agentId;
+        return { body: summary({ assignedAgentId: assigned }) };
+      }
+      if (request.method === "PATCH") {
+        priority = (request.body as { priority: string }).priority;
+        return { body: summary({ priority: priority as "high" }) };
+      }
+      return { body: { ...detail, assignedAgentId: assigned, priority } };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+
+    fireEvent.click(screen.getByRole("button", { name: "Transferir" }));
+    fireEvent.change(screen.getByLabelText("Transferir para"), { target: { value: "staff-bruno" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar transferência" }));
+    expect(await screen.findByText("Só o responsável ou um supervisor pode transferir este caso.")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar transferência" }));
+    await waitFor(() => expect(assigned).toBe("staff-bruno"));
+    expect(requests.filter((r) => r.url.endsWith("/assign"))).toHaveLength(2);
+    expect(await screen.findByText("staff-bruno")).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText("Prioridade"), { target: { value: "high" } });
+    await waitFor(() => expect(priority).toBe("high"));
+    const patch = requests.find((r) => r.method === "PATCH");
+    expect(patch?.url).toBe(`/api/staff/cases/${detail.id}`);
+    expect(patch?.body).toEqual({ priority: "high" });
+  });
+
   test("a public reply is posted and then shown in the conversation", async () => {
     let replied = false;
     mockFetch((request) => {

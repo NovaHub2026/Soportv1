@@ -309,6 +309,31 @@ try {
     await staffPage.getByText('Sim, liquidado às 14:02.').waitFor({ timeout: 5000 });
     await desktop.getByText('Em atendimento').waitFor({ timeout: 5000 });
     note('consultation-answered', 'answering the consultation returns the case to "Em atendimento" for the customer');
+
+    // Ownership and attributes (PH-3.3): transfer to Bruno, priority to Alta, then Bruno releases and Ana takes it back.
+    await staffPage.getByRole('button', { name: 'Transferir', exact: true }).click();
+    await staffPage.getByLabel('Transferir para').selectOption('staff-bruno');
+    await staffPage.getByRole('button', { name: 'Confirmar transferência' }).click();
+    await staffPage.getByText('staff-bruno').first().waitFor({ timeout: 5000 });
+    await staffPage.getByText('Transferido para staff-bruno por Ana Ribeiro').waitFor({ timeout: 5000 });
+    await staffPage.getByLabel('Prioridade').selectOption('high');
+    await staffPage.getByText('Prioridade: Normal → Alta').waitFor({ timeout: 5000 });
+    note('transfer-priority', 'Ana transferred the case to Bruno (history: "Transferido para staff-bruno por Ana Ribeiro") and raised the priority to Alta with history');
+    await shot(staffPage, '15-staff-transferred');
+
+    await staffPage.getByLabel('Atendente simulado').selectOption('staff-bruno');
+    await staffPage.getByRole('tab', { name: 'Meus casos' }).click();
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).waitFor({ timeout: 10_000 });
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).click();
+    await staffPage.getByRole('button', { name: 'Devolver à fila' }).click();
+    await staffPage.getByText('Devolvido à fila por Bruno Costa').waitFor({ timeout: 5000 });
+    await staffPage.getByLabel('Atendente simulado').selectOption('staff-ana');
+    await staffPage.getByRole('tab', { name: 'Não atribuídos' }).click();
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).waitFor({ timeout: 10_000 });
+    await staffPage.getByRole('button', { name: new RegExp(reference) }).click();
+    await staffPage.getByRole('button', { name: 'Assumir caso' }).click();
+    await staffPage.getByText('staff-ana').first().waitFor({ timeout: 5000 });
+    note('release-retake', 'as Bruno the case appeared under "Meus casos" and was returned to the queue; as Ana it reappeared under "Não atribuídos" and was taken again — history preserved throughout');
     await staffPage.close();
 
     // Continuity: reload, history still there.

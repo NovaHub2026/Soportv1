@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../database/database.js';
@@ -14,6 +14,7 @@ const alice: CustomerActor = { kind: 'customer', id: 'cust-alice', source: 'simu
 const bob: CustomerActor = { kind: 'customer', id: 'cust-bob', source: 'simulated' };
 const ana: StaffActor = { kind: 'staff', id: 'staff-ana', role: 'agent', displayName: 'Ana', source: 'simulated' };
 const bruno: StaffActor = { kind: 'staff', id: 'staff-bruno', role: 'agent', displayName: 'Bruno', source: 'simulated' };
+const carla: StaffActor = { kind: 'staff', id: 'staff-carla', role: 'supervisor', displayName: 'Carla', source: 'simulated' };
 
 describe('CasesService (embedded PostgreSQL, in memory)', () => {
   let moduleRef: TestingModule;
@@ -86,6 +87,46 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       await db.update(supportCases).set({ status: 'closed', closedAt: new Date() }).where(eq(supportCases.id, created.id));
       await expect(service.setStatus(ana, created.id, 'in_progress')).rejects.toBeInstanceOf(ConflictException);
       await expect(service.resolve(ana, created.id, { reason: 'solved', explanation: 'x' })).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('assignment and attributes (PH-3.3, RULE-SUP-02, RULE-SUP-09)', () => {
+    it('the owner transfers with history preserved; another agent cannot; a supervisor can; release returns the case to the queue', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      await service.takeCase(ana, created.id);
+      await service.requestConsultation(ana, created.id, { team: 'finance', question: 'Pendente?' });
+
+      await expect(service.assignCase(bruno, created.id, { agentId: bruno.id })).rejects.toBeInstanceOf(ForbiddenException);
+
+      const transferred = await service.assignCase(ana, created.id, { agentId: bruno.id });
+      expect(transferred.assignedAgentId).toBe(bruno.id);
+      const view = await service.getStaffCase(created.id);
+      expect(view.consultations).toHaveLength(1); // nothing lost
+      expect(view.status).toBe('waiting_internal');
+      expect(view.events.at(-1)).toMatchObject({ type: 'case_assigned', actorId: ana.id, data: { agentId: bruno.id, previousAgentId: ana.id } });
+      expect((await service.listStaffCases(bruno, 'mine')).map((c) => c.id)).toEqual([created.id]);
+
+      const reassigned = await service.assignCase(carla, created.id, { agentId: ana.id }); // supervisor
+      expect(reassigned.assignedAgentId).toBe(ana.id);
+
+      const released = await service.assignCase(ana, created.id, { agentId: null });
+      expect(released.assignedAgentId).toBeNull();
+      expect((await service.listStaffCases(bruno, 'unassigned')).map((c) => c.id)).toEqual([created.id]);
+      const last = (await service.getStaffCase(created.id)).events.at(-1);
+      expect(last).toMatchObject({ type: 'case_assigned', data: { agentId: null, released: true, previousAgentId: ana.id } });
+    });
+
+    it('priority and category corrections record from → to events; closed cases refuse both', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Conta bloqueada' });
+      const updated = await service.updateAttributes(ana, created.id, { priority: 'urgent', category: 'account_verification' });
+      expect(updated).toMatchObject({ priority: 'urgent', category: 'account_verification' });
+      const events = (await service.getStaffCase(created.id)).events;
+      expect(events.map((e) => e.type)).toEqual(expect.arrayContaining(['priority_changed', 'category_changed']));
+      expect(events.find((e) => e.type === 'priority_changed')?.data).toEqual({ from: 'normal', to: 'urgent' });
+
+      await db.update(supportCases).set({ status: 'closed', closedAt: new Date() }).where(eq(supportCases.id, created.id));
+      await expect(service.updateAttributes(ana, created.id, { priority: 'low' })).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.assignCase(carla, created.id, { agentId: bruno.id })).rejects.toBeInstanceOf(ConflictException);
     });
   });
 

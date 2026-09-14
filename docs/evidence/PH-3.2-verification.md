@@ -21,4 +21,4 @@ Not verified: notifications to the consulted team (no routing exists — BL-002)
 `npm run verify`, 2026-09-14 01:51 UTC, on the completed PH-3.2 tree: `check-context: 30 documents, 407 links (2 gitignored skipped), 8 phases, 14 subphases, active: PH-3 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 32/32, web 37/37; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34797274207` on `2562555` (PH-3.2 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 01:56 UTC. Claim 6 is EXECUTED for `2562555`.

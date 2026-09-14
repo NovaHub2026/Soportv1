@@ -1,7 +1,8 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, count, desc, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm';
 import {
   type AnswerConsultationInput,
+  type AssignCaseInput,
   type CaseConsultation,
   type CaseEvent,
   type CaseMessage,
@@ -20,6 +21,7 @@ import {
   type StaffCaseDetail,
   type StaffQueueView,
   type StaffStatusTarget,
+  type UpdateCaseInput,
 } from '@orbit-support/shared';
 import { AttachmentsService, toAttachment } from '../attachments/attachments.service.js';
 import { type Db, isUniqueViolation } from '../database/database.js';
@@ -412,6 +414,77 @@ export class CasesService {
       }
       throw error;
     }
+  }
+
+  // ---------- Assignment and attributes (PH-3.3): ownership changes keep everything else (RULE-SUP-02) ----------
+
+  /**
+   * Transfer to a colleague or release to the queue (`agentId: null`). Allowed for the current owner, for
+   * anyone when the case is unowned, and for supervisors/admins (someone became unavailable — context §5.2).
+   */
+  async assignCase(staff: StaffActor, caseId: string, input: AssignCaseInput): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    const mayReassign = row.assignedAgentId === null || row.assignedAgentId === staff.id || staff.role !== 'agent';
+    if (!mayReassign) throw new ForbiddenException('not_case_owner');
+    if (row.assignedAgentId === input.agentId) return toSummary(row);
+    const updated = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      await tx.insert(caseEvents).values({
+        caseId: row.id,
+        type: 'case_assigned',
+        actorType: 'staff',
+        actorId: staff.id,
+        data: input.agentId
+          ? { agentId: input.agentId, previousAgentId: row.assignedAgentId, transferredByName: staff.displayName }
+          : { agentId: null, previousAgentId: row.assignedAgentId, released: true, releasedByName: staff.displayName },
+        createdAt: now,
+      });
+      const [changed] = await tx
+        .update(supportCases)
+        .set({ assignedAgentId: input.agentId, updatedAt: now })
+        .where(eq(supportCases.id, row.id))
+        .returning();
+      return changed;
+    });
+    this.publishCaseUpdated(updated);
+    return toSummary(updated);
+  }
+
+  /** Priority and category corrections, each recorded as an attributable event (§5.4, RULE-SUP-09). */
+  async updateAttributes(staff: StaffActor, caseId: string, input: UpdateCaseInput): Promise<CaseSummary> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    const updated = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const patch: Partial<SupportCaseRow> = { updatedAt: now };
+      if (input.priority && input.priority !== row.priority) {
+        patch.priority = input.priority;
+        await tx.insert(caseEvents).values({
+          caseId: row.id,
+          type: 'priority_changed',
+          actorType: 'staff',
+          actorId: staff.id,
+          data: { from: row.priority, to: input.priority },
+          createdAt: now,
+        });
+      }
+      if (input.category && input.category !== row.category) {
+        patch.category = input.category;
+        await tx.insert(caseEvents).values({
+          caseId: row.id,
+          type: 'category_changed',
+          actorType: 'staff',
+          actorId: staff.id,
+          data: { from: row.category, to: input.category },
+          createdAt: now,
+        });
+      }
+      const [changed] = await tx.update(supportCases).set(patch).where(eq(supportCases.id, row.id)).returning();
+      return changed;
+    });
+    this.publishCaseUpdated(updated);
+    return toSummary(updated);
   }
 
   // ---------- Lifecycle (PH-3.1): status means "work still required" (§7) ----------

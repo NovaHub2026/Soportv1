@@ -1,5 +1,6 @@
 import {
   type AnswerConsultationInput,
+  type AssignCaseInput,
   type CaseConsultation,
   type CaseMessage,
   type CaseSummary,
@@ -12,6 +13,7 @@ import {
   type StaffQueueView,
   type StaffRole,
   type StaffStatusTarget,
+  type UpdateCaseInput,
 } from "@orbit-support/shared";
 import { apiRequest, type AttachmentClient, fetchBlob, uploadFile } from "./api";
 
@@ -44,6 +46,10 @@ export const staffApi = {
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/status`, staffHeaders(identity), { method: "POST", body: { status } }),
   resolve: (identity: StaffIdentity, caseId: string, input: ResolveCaseInput) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/resolve`, staffHeaders(identity), { method: "POST", body: input }),
+  assign: (identity: StaffIdentity, caseId: string, input: AssignCaseInput) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}/assign`, staffHeaders(identity), { method: "POST", body: input }),
+  update: (identity: StaffIdentity, caseId: string, input: UpdateCaseInput) =>
+    apiRequest<CaseSummary>(`/staff/cases/${caseId}`, staffHeaders(identity), { method: "PATCH", body: input }),
   postNote: (identity: StaffIdentity, caseId: string, input: PostNoteInput) =>
     apiRequest<CaseMessage>(`/staff/cases/${caseId}/notes`, staffHeaders(identity), { method: "POST", body: input }),
   requestConsultation: (identity: StaffIdentity, caseId: string, input: RequestConsultationInput) =>

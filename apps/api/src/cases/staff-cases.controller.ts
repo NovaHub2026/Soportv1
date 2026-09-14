@@ -6,6 +6,7 @@ import {
   type MessageEvent,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Res,
@@ -20,6 +21,8 @@ import type { Observable } from 'rxjs';
 import {
   answerConsultationSchema,
   type AnswerConsultationInput,
+  assignCaseSchema,
+  type AssignCaseInput,
   type CaseAttachment,
   type CaseConsultation,
   type CaseMessage,
@@ -37,6 +40,8 @@ import {
   type StaffCaseDetail,
   type StaffQueueView,
   staffQueueViewSchema,
+  updateCaseSchema,
+  type UpdateCaseInput,
 } from '@orbit-support/shared';
 import { sendAttachment, UPLOAD_LIMITS } from '../attachments/attachments.controller-support.js';
 import { AttachmentsService, type UploadedFileLike } from '../attachments/attachments.service.js';
@@ -103,6 +108,27 @@ export class StaffCasesController {
   @HttpCode(200)
   take(@CurrentActor() actor: StaffActor, @Param('id', ParseUUIDPipe) id: string): Promise<CaseSummary> {
     return this.cases.takeCase(actor, id);
+  }
+
+  /** Transfer or release (PH-3.3): owner, unowned case, or supervisor/admin. */
+  @Post(':id/assign')
+  @HttpCode(200)
+  assign(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(assignCaseSchema)) input: AssignCaseInput,
+  ): Promise<CaseSummary> {
+    return this.cases.assignCase(actor, id, input);
+  }
+
+  /** Priority / category corrections with history (PH-3.3). */
+  @Patch(':id')
+  update(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(updateCaseSchema)) input: UpdateCaseInput,
+  ): Promise<CaseSummary> {
+    return this.cases.updateAttributes(actor, id, input);
   }
 
   /** What the case is waiting for (PH-3.1): in_progress | waiting_customer | waiting_internal. */
