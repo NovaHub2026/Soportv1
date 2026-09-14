@@ -1,7 +1,7 @@
 # Release runbook
 Type: RUNBOOK
 Scope: how a release candidate is verified, authorized and released (`GOVERNANCE.md` §9.2–9.3, §1.1); PH-8.3
-Verified on: 2026-09-14 (used for the internal demos `v0.1.0-demo`, superseded, and `v0.1.1-demo` — `../evidence/RELEASE-2026-09-14.md`, `../evidence/RELEASE-2026-09-14b.md`; no production release is authorized)
+Verified on: 2026-09-14 (used for the internal demos `v0.1.0-demo`, superseded, `v0.1.1-demo` and `v0.2.0-demo` — `../evidence/RELEASE-2026-09-14.md`, `../evidence/RELEASE-2026-09-14b.md`, `../evidence/RELEASE-2026-09-14c.md`; no production release is authorized)
 
 ## Authorization first
 A production release is an Owner decision (`GOVERNANCE.md` §1.1, `CLAUDE.md` bindings). The Development Agent prepares the candidate, the evidence and this checklist; it does not deploy to production, register a domain, buy hosting or choose a paid provider. Record the authorization (who, when, which commit, which environment, conditions) in `docs/evidence/RELEASE-<date>.md` before step 4.
