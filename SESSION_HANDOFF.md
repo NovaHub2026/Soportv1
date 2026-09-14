@@ -1,24 +1,23 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-13
-Checkpoint: branch `main` at `a80e7ae` (PH-1.1 `b38f54b` + checker fix) plus this CI-verdict record as the following commit; no intended local delta after it
+Checkpoint: branch `main`; PH-1.2 commit (shared contracts package, database, identity boundary, cases API, tests, ADR-0003, approval metadata); no intended local delta after it
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
-None observed. Dev servers were never started in this session. Builds ran to completion; `apps/api/dist/` and `apps/web/.next/` are ignored artifacts and safe to delete.
+None observed. A smoke API instance (port 3101, scratch data dir) was started and stopped during PH-1.2 evidence; `pgrep -af 'node dist/main.js'` should list nothing.
 
 ## Unfinished work
-None in code. PH-1.2 not started. Local `node_modules/` came from `npm install`; a fresh environment should use `npm ci`.
+None in code. PH-1.3 not started. Owner instruction in force (2026-09-13): «Continua hasta el final sin parar» — keep delivering subphases without pausing for routine approval; stop only at Owner-authority boundaries or an explicit stop.
 
 ## Evidence and limits
-- `docs/evidence/PH-1.1-verification.md`: all local layers EXECUTED, exit 0. CI: first run on `b38f54b` failed (FND-0001 — checker depended on local build artifacts), fixed in `a80e7ae`; CI run `34790518842` on `a80e7ae` success.
-- Post-approval context check: `npm run check:context` after the approval-only edits — result recorded in the `b38f54b` commit message.
-- Warning, not a failure: npm 11 `allow-scripts` reports the `unrs-resolver` postinstall as not allowed; ESLint still passes (BL-006).
+- `docs/evidence/PH-1.2-verification.md`: service (15) and e2e (5) tests EXECUTED; persisted restart OBSERVED; CI verdict recorded there once available.
+- Still open from PH-1.1: BL-004..BL-006 (low).
 
 ## Resume here
-1. `git status -sb`; `gh run list --limit 3` to see CI for HEAD.
-2. Validate `CURRENT_STATE.md`; then start PH-1.2 as described there (persistence ADR first).
+1. `git status -sb`; `gh run list --limit 3`.
+2. Validate `CURRENT_STATE.md`; then start PH-1.3 as described there. Read `apps/web/AGENTS.md` first — Next.js 16 differs from older versions.
 
 ## Temporary environment notes
 - Git author is repo-local: `NovaHub2026 <orbitmarket.pro@gmail.com>` (DEC-0002).
-- API dev port 3001, web 3000 (`docs/runbooks/VERIFICATION.md`).
+- Dev database: `apps/api/.data/pglite` (gitignored) is created on first `npm run dev:api`; delete the directory to reset.

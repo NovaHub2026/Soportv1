@@ -25,6 +25,8 @@ No feature context exists yet. Feature IDs are reserved here so phase documents 
 | Decisions | `docs/decisions/DECISION_LOG.md`, `docs/decisions/ADR-NNNN-*.md` | |
 | Backlog | `docs/BACKLOG.md` | Repository fallback (DEC-0001) |
 | Features | `docs/features/<FEAT-ID>/CONTEXT.md` | None yet |
+| Shared contracts | `packages/shared/src/cases.ts`, `packages/shared/src/identity.ts` | Vocabulary, zod schemas, types, reference formatting, simulated-identity headers |
+| API modules | `apps/api/src/cases/`, `apps/api/src/identity/`, `apps/api/src/database/` | Case service + controllers; Orbit identity boundary; Drizzle schema and PGlite factory (migrations in `apps/api/drizzle/`) |
 | Architecture | `docs/architecture/` | Created when real structure exists |
 | Runbooks | `docs/runbooks/VERIFICATION.md` | Setup, gate profiles, running the apps, CI |
 | Controls | `scripts/check-context.mjs` | Link + lifecycle consistency; limits in the script header |

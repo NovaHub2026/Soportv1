@@ -1,12 +1,22 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service.js';
 
-@Controller()
+export interface HealthReport {
+  status: 'ok';
+  database: string;
+  identity: string;
+  time: string;
+}
+
+@Controller('health')
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
+  /** Liveness plus an honest label of what backs this instance (simulation is never hidden — DEC-0003). */
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  health(): HealthReport {
+    return {
+      status: 'ok',
+      database: 'pglite (embedded PostgreSQL)',
+      identity: 'simulated',
+      time: new Date().toISOString(),
+    };
   }
 }

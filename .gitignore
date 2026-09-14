@@ -8,6 +8,9 @@ out/
 coverage/
 *.tsbuildinfo
 
+# local development data (embedded database files)
+.data/
+
 # environment (never commit secrets — GOVERNANCE.md §11)
 .env
 .env.*

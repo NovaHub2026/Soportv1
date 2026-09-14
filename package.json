@@ -7,16 +7,17 @@
     "node": ">=24"
   },
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "check:context": "node scripts/check-context.mjs",
+    "build:shared": "npm run build --workspace @orbit-support/shared",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
-    "verify": "npm run check:context && npm run lint && npm run typecheck && npm run test",
+    "verify": "npm run check:context && npm run build:shared && npm run lint && npm run typecheck && npm run test",
     "verify:full": "npm run verify && npm run build",
     "dev:web": "npm run dev --workspace web",
     "dev:api": "npm run start:dev --workspace api"

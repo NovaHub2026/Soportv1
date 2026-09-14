@@ -5,8 +5,10 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 
 ## Setup
 - Node ≥ 24 (`.nvmrc`), npm ≥ 11. Observed locally: Node v24.19.0, npm 11.17.0.
-- `npm ci` at the repository root. npm workspaces: `apps/*`, `packages/*`. Do not install inside an app directory.
-- No database, environment variables or external services are required yet.
+- `npm ci` at the repository root. npm workspaces: `packages/*`, `apps/*`. Do not install inside an app directory.
+- `@orbit-support/shared` must be built before the apps type-check or test: `npm run build:shared` (the `verify` chain does it). After editing `packages/shared/src`, rebuild.
+- Database: embedded PostgreSQL (PGlite, ADR-0003). No server or Docker needed. Dev data lives in `apps/api/.data/pglite` (gitignored; delete to reset). `SUPPORT_DB_DIR` overrides the directory; unset means in memory (tests).
+- Schema change: edit `apps/api/src/database/schema.ts`, run `npm run db:generate -w api`, commit the new file under `apps/api/drizzle/`. Migrations apply automatically when the API opens the database.
 
 ## Profiles (`GOVERNANCE.md` §7.2–7.3)
 | Profile | Command | Layers | Use when |
@@ -14,7 +16,7 @@ Verified on: 2026-09-13 (PH-1.1 evidence in `docs/evidence/`)
 | context | `npm run check:context` | Link and lifecycle consistency of live context documents | Any documentation or state change; approval-only edits |
 | static | `npm run lint && npm run typecheck` | ESLint (web), oxlint (api); `tsc --noEmit` in both apps (web runs `next typegen` first) | Any code change |
 | unit | `npm test` | Vitest in `apps/web` (jsdom + Testing Library) and `apps/api` | Behavior change |
-| verify | `npm run verify` | context + static + unit, in that order | Before every commit; required CI check |
+| verify | `npm run verify` | context + build:shared + static + unit, in that order | Before every commit; required CI check |
 | full | `npm run verify:full` | verify + production builds (`next build`, `nest build`) | Phase candidate or release candidate |
 | api e2e | `npm run test:e2e --workspace api` | Vitest + supertest against the Nest application | API contract changes; not part of CI yet |
 
@@ -23,8 +25,10 @@ Exit codes propagate: the `verify` chain stops at the first failing layer. Vites
 ## Running the applications
 | App | Command | URL |
 |---|---|---|
-| API (NestJS) | `npm run dev:api` | http://localhost:3001 (`PORT` overrides) |
+| API (NestJS) | `npm run dev:api` | http://localhost:3001/api/health (`PORT` overrides; CORS allows `WEB_ORIGIN`, default http://localhost:3000) |
 | Web (Next.js) | `npm run dev:web` | http://localhost:3000 |
+
+Simulated identity (DEC-0003): the API resolves the caller from headers `x-simulated-customer-id`, or `x-simulated-staff-id` (+ optional `x-simulated-staff-role`, `x-simulated-staff-name`). Example: `curl -H 'x-simulated-customer-id: cust-1' http://localhost:3001/api/support/cases`.
 
 `next dev` regenerates `apps/web/AGENTS.md`; commit that change with your work if it appears.
 

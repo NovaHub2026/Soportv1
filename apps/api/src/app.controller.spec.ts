@@ -1,22 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
 
 describe('AppController', () => {
-  let appController: AppController;
-
-  beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
-      controllers: [AppController],
-      providers: [AppService],
-    }).compile();
-
-    appController = app.get<AppController>(AppController);
-  });
-
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
-    });
+  it('reports liveness and labels the simulated backing honestly', () => {
+    const report = new AppController().health();
+    expect(report.status).toBe('ok');
+    expect(report.identity).toBe('simulated');
+    expect(report.database).toContain('pglite');
+    expect(() => new Date(report.time).toISOString()).not.toThrow();
   });
 });

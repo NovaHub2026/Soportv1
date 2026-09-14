@@ -21,7 +21,7 @@ Dependencies: none external. ADR-0002 (dedicated project with explicit Orbit bou
 Acceptance: context §14 situation 2, demonstrated in both UIs — API success alone is not the screen (`GOVERNANCE.md` §6.3).
 
 ## Important uncertainties and decision references
-- Package manager, monorepo layout, database/ORM and test runner: decided in PH-1.1 (decision log; ADR for the database, which is durable).
+- Package manager, monorepo layout and test runner: DEC-0004 (PH-1.1). Database: ADR-0003 — PostgreSQL dialect via Drizzle, embedded PGlite for dev/tests (PH-1.2).
 - Real-time transport: deferred to PH-2; PH-1 may poll.
 - Orbit identity: no Orbit code or API is available (BL-001). Simulated provider behind an interface, clearly labeled in UI and docs (ADR-0002).
 
@@ -29,7 +29,7 @@ Acceptance: context §14 situation 2, demonstrated in both UIs — API success a
 | ID | Block | Status |
 |---|---|---|
 | PH-1.1 | Workspace scaffold, verification gate (lint, typecheck, unit tests), CI workflow, verification runbook, state/link checker (BL-003) — `PH-1.1.md`, approved 2026-09-13 | APPROVED |
-| PH-1.2 | Case domain and API: create case with first message, list own cases, read conversation, staff unassigned queue, take, reply; persistence | PLANNED |
+| PH-1.2 | Case domain and API: create case with first message, list own cases, read conversation, staff unassigned queue, take, reply; persistence — `PH-1.2.md`, approved 2026-09-13 | APPROVED |
 | PH-1.3 | Customer "Suporte" panel (Next.js, pt-BR): entry, new request, conversation, own cases | PLANNED |
 | PH-1.4 | Minimal staff workspace: unassigned queue, conversation view, take, reply | PLANNED |
 | PH-1.5 | Identity boundary: simulated Orbit identity/roles behind an interface; customer/staff access checks; feature contexts FEAT-CASE / FEAT-CHAT / FEAT-STAFF written | PLANNED |

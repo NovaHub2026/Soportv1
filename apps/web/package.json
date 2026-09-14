@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@orbit-support/shared": "*",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"

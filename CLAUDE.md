@@ -33,5 +33,6 @@ Canonical entrypoint for this repository (`GOVERNANCE.md` §0.2, §3.1). Other p
 ## Local constraints
 - Toolchain observed 2026-09-13: Node v24.19.0, npm 11.17.0; pnpm not installed. Runs under WSL2.
 - Orbit does not exist yet as a system (Owner, 2026-09-13, DEC-0003). All Orbit identity/record context is simulated behind an explicit boundary (ADR-0002) and must be labeled as simulation in UI and docs.
-- Monorepo with npm workspaces: install with `npm ci` at the root, never inside an app. Dev ports: API 3001, web 3000.
+- Monorepo with npm workspaces: install with `npm ci` at the root, never inside an app. Build `packages/shared` before the apps (`npm run build:shared`). Dev ports: API 3001, web 3000.
+- Database: embedded PostgreSQL (PGlite) with Drizzle (ADR-0003); schema changes need `npm run db:generate -w api` and the migration committed.
 - Never commit secrets, real customer data or probe code (§11).
