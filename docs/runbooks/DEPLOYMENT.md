@@ -39,6 +39,9 @@ Every variable with its default is listed in `.env.example`. Rules that matter i
 - `docker compose -f docker/compose.yml logs -f api` — job activity ("E-mailed n notification(s)", "Sent n reminder(s)"), env warnings, refused starts (production without the simulated-identity switch).
 - The web has no server state; restart it freely.
 
+## Single-host demo without containers
+When no Docker engine is available, `npm run build` then `node scripts/demo-local.mjs` starts the same two servers on loopback with PGlite (`apps/api/.data/demo`); `--check` verifies health, headers, a case round-trip, the notification and customer isolation, then stops. Used for the internal demo `v0.1.0-demo` (`../evidence/RELEASE-2026-09-14.md`).
+
 ## Known limits of this shape
 - One API instance (event bus, limits and jobs are in-process). Scaling out needs a shared channel and a shared limit store — a later decision.
 - No mail provider: the e-mail channel writes the labeled outbox only (DEC-0025); choosing a provider is a paid-service decision of the Owner.

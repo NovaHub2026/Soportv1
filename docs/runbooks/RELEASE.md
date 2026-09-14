@@ -24,5 +24,8 @@ A production release is an Owner decision (`GOVERNANCE.md` §1.1, `CLAUDE.md` bi
 3. Post-release checks: open a case from the customer host and answer it from the workspace (§14 item 2); confirm the notification and the outbox; confirm `database: postgres (server)`.
 4. Record the outcome in the release record; on failure roll back (previous tag) and record that too.
 
+## Local demo (no containers)
+`node scripts/demo-local.mjs` runs the built API and web on 127.0.0.1 (ports 3001 and 3000) with `NODE_ENV=production`, the demo switch and embedded PostgreSQL under `apps/api/.data/demo`; `--check` runs the post-release checks and stops. First recorded use: `../evidence/RELEASE-2026-09-14.md` (tag `v0.1.0-demo`).
+
 ## What this repository cannot promise
 The product today is a complete, verified simulation of the support service (identity, records and e-mail delivery are labeled stand-ins). Releasing it to real customers requires Orbit's identity and records adapters (BL-001) and the operating policies (BL-002). Until then the honest release is an internal, access-restricted demo.
