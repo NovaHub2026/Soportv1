@@ -29,4 +29,4 @@ Not verified: the claim-then-send behaviour under two API instances (PGlite is s
 `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (the first commit produced by the repository copy of the script, with the `pre-commit` hook running `check:context`): check-context OK — 81 documents, ledger echo cycle-specific, no placeholder token; lint (0 warnings) and typecheck exit 0; Vitest shared 17/17, api 59/59, web 65/65, api e2e 30/30. `npm run build` (shared, nest, next) exit 0 before the smoke.
 
 ## CI
-Pending push (recorded in the closure commit).
+Remediation commit `e3d843a`: run 34822158367 — **success** (`verify` and, for the first time, the production builds in CI).

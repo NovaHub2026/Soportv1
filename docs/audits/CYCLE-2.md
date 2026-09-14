@@ -1,11 +1,11 @@
 # Cycle Audit 2
 Type: CYCLE AUDIT
-Status: OPEN
+Status: CLOSED
 Cycle / phase membership: cycle 2 — PH-4 (approved 2026-09-14), PH-5 (approved 2026-09-14), PH-6 (approved 2026-09-14); see `../phases/ROADMAP.md` ledger
 Audited revision: `70630c4` on `main` (PH-6.3 commit, phase candidate of PH-6; CI run 34818714979 success)
-Remediation revision: the commit that carries this record (child of `70630c4`); gate, smoke and CI in `../evidence/CYCLE-2-verification.md`
+Remediation revision: `e3d843a` (child of `70630c4`); gate, smoke and CI (run 34822158367, success) in `../evidence/CYCLE-2-verification.md`
 Method: INDEPENDENT — five reviewer agents in this runtime that did not author PH-4..PH-6, each with the product context, read access to the tree and an isolated runtime (own API port, scratch database and upload directories, probe scripts outside the repository); the lead consolidated, challenged, remediated and re-verified. No area was reviewed only by the lead.
-Opened: 2026-09-14 at ledger 3/3 (§6.4). Closure: see "Closure".
+Opened: 2026-09-14 at ledger 3/3 (§6.4). Closed: 2026-09-14.
 
 ## Scope, methods and limits
 Areas examined (§8.1) and reviewer independence:
@@ -105,4 +105,4 @@ A fresh reviewer following `CLAUDE.md` reached the objective, the mode of work (
 - Cost: five reviewer agents (≈ 1.0 M tokens) plus a fresh-clone verify; remediation in three waves (API/shared, web, process/docs) and one re-verification ≈ one session. The Owner's «Continua automáticamente hasta finalizar todos los ciclos» instruction covered the audit.
 
 ## Closure
-Not closed yet: the remediation commit carrying this record is awaiting CI corroboration (§9.2). Closure conditions under §8.4 are otherwise met — every required area was examined independently with limits documented; the MATERIAL findings FND-0030..FND-0041 are fixed with regression tests or, for the documentation ones, repaired with new guards; MINOR findings are fixed, documented or carried with backlog items, containment and a revisit event (BL-021..BL-024); no critical or potentially critical inconclusive claim remains. The closure entry (CI run, Status CLOSED, ledger row) is written in the following commit.
+Closed 2026-09-14 under §8.4: every required area was examined independently with limits documented; the MATERIAL findings FND-0030..FND-0041 are fixed with regression tests or, for the documentation ones, repaired with new guards (gate script, cycle-specific ledger echo, placeholder check); MINOR findings are fixed, documented or carried with backlog items, containment and a revisit event (BL-021..BL-024); no critical or potentially critical inconclusive claim remains. Verified candidate: `e3d843a` — gate (`npm run verify` through `scripts/gate-commit.sh`), builds, browser smoke 49/49 and CI run 34822158367 **success** (`../evidence/CYCLE-2-verification.md`). Context synchronized: five feature contexts, `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `CONTEXT_INDEX.md`, `ROADMAP.md` ledger (cycle 2 closed; cycle 3 opens with the next first-time phase approval), DEC-0027, BL-020 closed, BL-021..BL-024 opened. Ordinary development resumes with PH-7.
