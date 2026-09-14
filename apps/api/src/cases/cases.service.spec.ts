@@ -89,6 +89,49 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
     });
   });
 
+  describe('internal notes and consultations (PH-3.2, RULE-SUP-04)', () => {
+    it('an internal note is visible to staff only and never counts as unread for the customer', async () => {
+      const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });
+      const note = await service.postInternalNote(ana, created.id, { body: 'Verificar com Finance antes de responder.' });
+      expect(note.visibility).toBe('internal');
+
+      const customerView = await service.getCustomerCase(alice, created.id);
+      expect(customerView.messages.some((m) => m.body.includes('Finance'))).toBe(false);
+      expect((await service.listCustomerCases(alice))[0].unreadCount).toBe(0);
+      const staffView = await service.getStaffCase(created.id);
+      expect(staffView.messages.at(-1)).toMatchObject({ visibility: 'internal', authorName: 'Ana' });
+      // Notes never appear as customer-facing activity.
+      expect(staffView.lastStaffMessageAt).toBeNull();
+    });
+
+    it('a consultation moves the case to waiting_internal and the answer brings it back when nothing else is pending', async () => {
+      const created = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Saque atrasado' });
+      const first = await service.requestConsultation(ana, created.id, { team: 'finance', question: 'O saque #123 foi enviado?' });
+      expect(first).toMatchObject({ team: 'finance', status: 'open', requestedById: ana.id });
+      let view = await service.getStaffCase(created.id);
+      expect(view).toMatchObject({ status: 'waiting_internal', assignedAgentId: ana.id });
+      expect(view.consultations).toHaveLength(1);
+
+      const second = await service.requestConsultation(ana, created.id, { team: 'security', question: 'Há alerta na conta?' });
+      // A customer reply keeps the internal dependency (§7.2).
+      await service.postCustomerMessage(alice, created.id, { body: 'Novidades?' });
+      expect((await service.getStaffCase(created.id)).status).toBe('waiting_internal');
+
+      await service.answerConsultation(bruno, created.id, first.id, { answer: 'Enviado às 14:02, hash 0xabc.' });
+      expect((await service.getStaffCase(created.id)).status).toBe('waiting_internal'); // security still open
+      const answered = await service.answerConsultation(bruno, created.id, second.id, { answer: 'Sem alertas.' });
+      expect(answered).toMatchObject({ status: 'answered', answeredById: bruno.id, answeredByName: 'Bruno' });
+      view = await service.getStaffCase(created.id);
+      expect(view.status).toBe('in_progress');
+      expect(view.events.map((e) => e.type)).toEqual(expect.arrayContaining(['consultation_requested', 'consultation_answered']));
+
+      await expect(service.answerConsultation(bruno, created.id, first.id, { answer: 'de novo' })).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.answerConsultation(bruno, created.id, '00000000-0000-4000-8000-000000000000', { answer: 'x' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
   describe('read markers and unread counts (PH-2.2)', () => {
     it('counts staff replies as unread for the customer until they mark the case read, and vice versa', async () => {
       const created = await service.createCase(alice, { category: 'other', message: 'Ajuda' });

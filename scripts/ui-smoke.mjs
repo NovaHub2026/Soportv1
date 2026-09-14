@@ -284,6 +284,31 @@ try {
     await staffPage.getByText('Reaberto pelo cliente').waitFor({ timeout: 5000 });
     await staffPage.getByText('Em atendimento').first().waitFor();
     note('reopened', '"Ainda preciso de ajuda" reactivated the same case: "Em atendimento" on both sides and "Reaberto pelo cliente" in the history');
+
+    // Internal collaboration (PH-3.2): a note stays with the team; a consultation puts the case "Em análise" for the customer.
+    const noteText = 'NOTA INTERNA: confirmar hash do saque com o Financeiro.';
+    await staffPage.getByLabel('Nota interna', { exact: true }).check({ force: true });
+    await staffPage.getByLabel('Nota interna (só a equipe vê)').fill(noteText);
+    await staffPage.getByRole('button', { name: 'Salvar nota' }).click();
+    await staffPage.getByText(noteText).waitFor({ timeout: 5000 });
+    await desktop.waitForTimeout(2000);
+    if ((await desktop.getByText(noteText).count()) !== 0) throw new Error('Internal note leaked to the customer panel');
+    note('internal-note', 'an internal note appears in the staff conversation and never in the customer panel (checked after a live-update window)');
+    await shot(staffPage, '14-staff-note');
+    await staffPage.getByLabel('Responder ao cliente', { exact: true }).check({ force: true });
+
+    await staffPage.getByRole('button', { name: 'Consultar equipe' }).click();
+    await staffPage.getByLabel('Equipe', { exact: true }).selectOption('finance');
+    await staffPage.getByLabel('Pergunta para a equipe').fill('O saque SUP-000001 foi liquidado na rede?');
+    await staffPage.getByRole('button', { name: 'Enviar consulta' }).click();
+    await staffPage.getByText('1 consulta pendente').waitFor({ timeout: 5000 });
+    await desktop.getByText('Em análise').waitFor({ timeout: 5000 });
+    note('consultation', 'a consultation to Financeiro shows as pending for staff and the customer sees "Em análise"');
+    await staffPage.getByLabel('Resposta da equipe').fill('Sim, liquidado às 14:02.');
+    await staffPage.getByRole('button', { name: 'Responder consulta' }).click();
+    await staffPage.getByText('Sim, liquidado às 14:02.').waitFor({ timeout: 5000 });
+    await desktop.getByText('Em atendimento').waitFor({ timeout: 5000 });
+    note('consultation-answered', 'answering the consultation returns the case to "Em atendimento" for the customer');
     await staffPage.close();
 
     // Continuity: reload, history still there.

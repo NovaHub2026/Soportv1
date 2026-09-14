@@ -22,4 +22,4 @@ Environment: as in `PH-2.3-verification.md`. Sequential runs.
 `npm run verify`, 2026-09-14 01:43 UTC, on the completed PH-3.1 tree: `check-context: 29 documents, 392 links (2 gitignored skipped), 8 phases, 14 subphases, active: PH-3 — OK`; build:shared, lint and typecheck exit 0; Vitest shared 7/7, api 30/30, web 36/36; overall exit 0. `npm run build` exit 0 on the same tree (before the smoke).
 
 ## CI
-Pending push.
+Run `34796862416` on `3fc99b0` (PH-3.1 commit): **success** — `npm ci` and `npm run verify` green on ubuntu-latest, Node 24. Recorded 2026-09-14 01:51 UTC. Claim 6 is EXECUTED for `3fc99b0`.

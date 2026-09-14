@@ -13,6 +13,8 @@ import {
 import {
   ATTACHMENT_STATUSES,
   CASE_CATEGORIES,
+  CONSULTATION_STATUSES,
+  CONSULTATION_TEAMS,
   CASE_EVENT_TYPES,
   CASE_PRIORITIES,
   CASE_STATUSES,
@@ -28,6 +30,8 @@ export const actorTypeEnum = pgEnum('actor_type', MESSAGE_AUTHOR_TYPES);
 export const messageVisibilityEnum = pgEnum('message_visibility', MESSAGE_VISIBILITIES);
 export const caseEventTypeEnum = pgEnum('case_event_type', CASE_EVENT_TYPES);
 export const attachmentStatusEnum = pgEnum('attachment_status', ATTACHMENT_STATUSES);
+export const consultationTeamEnum = pgEnum('consultation_team', CONSULTATION_TEAMS);
+export const consultationStatusEnum = pgEnum('consultation_status', CONSULTATION_STATUSES);
 
 const tz = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -129,7 +133,33 @@ export const caseAttachments = pgTable(
   (t) => [index('case_attachments_case_idx').on(t.caseId, t.createdAt), index('case_attachments_message_idx').on(t.messageId)],
 );
 
+/**
+ * A question from the support owner to another team (PH-3.2, context §5.3). The owner stays responsible
+ * for the customer; the case waits for the internal team until every open consultation is answered.
+ */
+export const caseConsultations = pgTable(
+  'case_consultations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    caseId: uuid('case_id')
+      .notNull()
+      .references(() => supportCases.id, { onDelete: 'cascade' }),
+    team: consultationTeamEnum('team').notNull(),
+    question: text('question').notNull(),
+    status: consultationStatusEnum('status').notNull().default('open'),
+    requestedById: text('requested_by_id').notNull(),
+    requestedByName: text('requested_by_name'),
+    requestedAt: tz('requested_at').notNull().defaultNow(),
+    answeredById: text('answered_by_id'),
+    answeredByName: text('answered_by_name'),
+    answeredAt: tz('answered_at'),
+    answer: text('answer'),
+  },
+  (t) => [index('case_consultations_case_idx').on(t.caseId, t.status)],
+);
+
 export type SupportCaseRow = typeof supportCases.$inferSelect;
 export type CaseAttachmentRow = typeof caseAttachments.$inferSelect;
+export type CaseConsultationRow = typeof caseConsultations.$inferSelect;
 export type CaseMessageRow = typeof caseMessages.$inferSelect;
 export type CaseEventRow = typeof caseEvents.$inferSelect;

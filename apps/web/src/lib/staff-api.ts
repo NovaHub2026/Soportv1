@@ -1,7 +1,11 @@
 import {
+  type AnswerConsultationInput,
+  type CaseConsultation,
   type CaseMessage,
   type CaseSummary,
   type PostMessageInput,
+  type PostNoteInput,
+  type RequestConsultationInput,
   type ResolveCaseInput,
   SIMULATED_IDENTITY_HEADERS,
   type StaffCaseDetail,
@@ -40,6 +44,15 @@ export const staffApi = {
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/status`, staffHeaders(identity), { method: "POST", body: { status } }),
   resolve: (identity: StaffIdentity, caseId: string, input: ResolveCaseInput) =>
     apiRequest<CaseSummary>(`/staff/cases/${caseId}/resolve`, staffHeaders(identity), { method: "POST", body: input }),
+  postNote: (identity: StaffIdentity, caseId: string, input: PostNoteInput) =>
+    apiRequest<CaseMessage>(`/staff/cases/${caseId}/notes`, staffHeaders(identity), { method: "POST", body: input }),
+  requestConsultation: (identity: StaffIdentity, caseId: string, input: RequestConsultationInput) =>
+    apiRequest<CaseConsultation>(`/staff/cases/${caseId}/consultations`, staffHeaders(identity), { method: "POST", body: input }),
+  answerConsultation: (identity: StaffIdentity, caseId: string, consultationId: string, input: AnswerConsultationInput) =>
+    apiRequest<CaseConsultation>(`/staff/cases/${caseId}/consultations/${consultationId}/answer`, staffHeaders(identity), {
+      method: "POST",
+      body: input,
+    }),
   attachments: (identity: StaffIdentity, caseId: string): AttachmentClient => ({
     upload: (file) => uploadFile(`/staff/cases/${caseId}/attachments`, staffHeaders(identity), file),
     fetchBlob: (attachmentId, signal) => fetchBlob(`/staff/cases/${caseId}/attachments/${attachmentId}`, staffHeaders(identity), signal),

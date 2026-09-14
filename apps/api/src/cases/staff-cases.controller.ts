@@ -18,11 +18,18 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import type { Observable } from 'rxjs';
 import {
+  answerConsultationSchema,
+  type AnswerConsultationInput,
   type CaseAttachment,
+  type CaseConsultation,
   type CaseMessage,
   type CaseSummary,
   postMessageSchema,
   type PostMessageInput,
+  postNoteSchema,
+  type PostNoteInput,
+  requestConsultationSchema,
+  type RequestConsultationInput,
   resolveCaseSchema,
   type ResolveCaseInput,
   setStatusSchema,
@@ -118,6 +125,39 @@ export class StaffCasesController {
     @Body(new ZodValidationPipe(resolveCaseSchema)) input: ResolveCaseInput,
   ): Promise<CaseSummary> {
     return this.cases.resolve(actor, id, input);
+  }
+
+  /** Internal note: staff-only message (RULE-SUP-04). */
+  @Post(':id/notes')
+  @HttpCode(201)
+  postNote(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(postNoteSchema)) input: PostNoteInput,
+  ): Promise<CaseMessage> {
+    return this.cases.postInternalNote(actor, id, input);
+  }
+
+  /** Refer a question to another team; the case waits for the internal team (context §5.3). */
+  @Post(':id/consultations')
+  @HttpCode(201)
+  requestConsultation(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(requestConsultationSchema)) input: RequestConsultationInput,
+  ): Promise<CaseConsultation> {
+    return this.cases.requestConsultation(actor, id, input);
+  }
+
+  @Post(':id/consultations/:consultationId/answer')
+  @HttpCode(200)
+  answerConsultation(
+    @CurrentActor() actor: StaffActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('consultationId', ParseUUIDPipe) consultationId: string,
+    @Body(new ZodValidationPipe(answerConsultationSchema)) input: AnswerConsultationInput,
+  ): Promise<CaseConsultation> {
+    return this.cases.answerConsultation(actor, id, consultationId, input);
   }
 
   /** Staff have the conversation open: customer messages received so far count as read. */

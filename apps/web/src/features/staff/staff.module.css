@@ -178,6 +178,138 @@
   max-width: 320px;
 }
 
+.consultForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  background: rgba(255, 121, 0, 0.06);
+}
+
+/* ---- Composer mode: reply vs internal note look unmistakably different ---- */
+
+.modeSwitch {
+  display: flex;
+  gap: 6px;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.modeOption {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.modeOption[data-selected="true"] {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: rgba(0, 72, 255, 0.18);
+}
+
+.modeOption[data-note="true"][data-selected="true"] {
+  border-color: var(--color-warning);
+  background: rgba(255, 181, 71, 0.16);
+}
+
+.composer[data-mode="note"] .composerInput {
+  border-style: dashed;
+  border-color: var(--color-warning);
+  background: rgba(255, 181, 71, 0.06);
+}
+
+.noteButton {
+  background: var(--color-warning);
+  color: #1a1000;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  font-weight: 600;
+}
+
+.noteButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- Consultations ---- */
+
+.contextTitleSpaced {
+  margin-top: 20px;
+}
+
+.consultationPending {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
+.consultationList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.consultation {
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.consultation[data-status="open"] {
+  border-color: var(--color-accent);
+}
+
+.consultationHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.consultationStatus {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.consultationText {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.consultationAnswer {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--color-success);
+  white-space: pre-wrap;
+}
+
+.consultationMeta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.answerForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .hint {
   margin: 0;
   font-size: 12px;

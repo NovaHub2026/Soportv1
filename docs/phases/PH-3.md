@@ -29,7 +29,7 @@ Scenarios (context §14 items 3, 5, 9): (a) agent asks for information → "Agua
 | ID | Block | Status |
 |---|---|---|
 | PH-3.1 | Status transitions by staff (waiting for customer / internal team / resume), resolution with reason + customer-facing explanation, customer "Ainda preciso de ajuda" — `PH-3.1.md`, approved 2026-09-13 | APPROVED |
-| PH-3.2 | Internal notes composer and specialist consultation (team, question, pending indicator, answer) | PLANNED |
+| PH-3.2 | Internal notes composer and specialist consultation (team, question, pending indicator, answer) — `PH-3.2.md`, approved 2026-09-13 | APPROVED |
 | PH-3.3 | Assignment: transfer, release to queue, supervisor reassignment; priority and category edits | PLANNED |
 | PH-3.4 | Closure after the follow-up window (scheduled job) and linked follow-up from a closed case | PLANNED |
 | PH-3.5 | Shared incidents (simple association, coordinated notes) and phase closure | PLANNED |

@@ -1,6 +1,8 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, count, desc, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm';
 import {
+  type AnswerConsultationInput,
+  type CaseConsultation,
   type CaseEvent,
   type CaseMessage,
   type CaseStatus,
@@ -11,6 +13,8 @@ import {
   formatCaseReference,
   OPEN_CASE_STATUSES,
   type PostMessageInput,
+  type PostNoteInput,
+  type RequestConsultationInput,
   type ResolutionReason,
   type ResolveCaseInput,
   type StaffCaseDetail,
@@ -22,6 +26,8 @@ import { type Db, isUniqueViolation } from '../database/database.js';
 import { DB } from '../database/database.module.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
 import {
+  type CaseConsultationRow,
+  caseConsultations,
   type CaseEventRow,
   caseEvents,
   type CaseMessageRow,
@@ -198,12 +204,130 @@ export class CasesService {
 
   async getStaffCase(caseId: string): Promise<StaffCaseDetail> {
     const row = await this.requireCase(caseId);
-    const [messages, events, unread] = await Promise.all([
+    const [messages, events, unread, consultations] = await Promise.all([
       this.loadMessages(row.id, false),
       this.loadEvents(row.id),
       this.unreadCounts([row.id], 'staff'),
+      this.loadConsultations(row.id),
     ]);
-    return { ...toSummary(row, unread.get(row.id) ?? 0), messages, events };
+    return { ...toSummary(row, unread.get(row.id) ?? 0), messages, events, consultations };
+  }
+
+  // ---------- Internal collaboration (PH-3.2): never visible to customers (RULE-SUP-04) ----------
+
+  /** An internal note: a message only staff can see. It does not change the case's customer-facing timeline. */
+  async postInternalNote(staff: StaffActor, caseId: string, input: PostNoteInput): Promise<CaseMessage> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    const now = new Date();
+    const [note] = await this.db
+      .insert(caseMessages)
+      .values({
+        caseId: row.id,
+        authorType: 'staff',
+        authorId: staff.id,
+        authorName: staff.displayName,
+        visibility: 'internal',
+        body: input.body,
+        createdAt: now,
+      })
+      .returning();
+    const [updated] = await this.db.update(supportCases).set({ updatedAt: now }).where(eq(supportCases.id, row.id)).returning();
+    const dto = toMessage(note);
+    this.publishMessage(updated, dto); // customer streams filter internal visibility
+    return dto;
+  }
+
+  /** Ask another team; the owner stays responsible for the customer and the case waits for the internal team. */
+  async requestConsultation(staff: StaffActor, caseId: string, input: RequestConsultationInput): Promise<CaseConsultation> {
+    const row = await this.requireCase(caseId);
+    if (row.status === 'closed') throw new ConflictException('case_closed');
+    const { consultation, updated } = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const current = row.assignedAgentId ? row : (await this.assign(tx, row, staff, now))[0];
+      const [created] = await tx
+        .insert(caseConsultations)
+        .values({
+          caseId: current.id,
+          team: input.team,
+          question: input.question,
+          requestedById: staff.id,
+          requestedByName: staff.displayName,
+          requestedAt: now,
+        })
+        .returning();
+      await tx.insert(caseEvents).values({
+        caseId: current.id,
+        type: 'consultation_requested',
+        actorType: 'staff',
+        actorId: staff.id,
+        data: { consultationId: created.id, team: input.team },
+        createdAt: now,
+      });
+      let changed = current;
+      if (current.status !== 'waiting_internal') {
+        await tx.insert(caseEvents).values(statusChange(current, 'waiting_internal', staff.id, 'staff', now));
+        [changed] = await tx
+          .update(supportCases)
+          .set({ status: 'waiting_internal', updatedAt: now })
+          .where(eq(supportCases.id, current.id))
+          .returning();
+      }
+      return { consultation: created, updated: changed };
+    });
+    this.publishCaseUpdated(updated);
+    return toConsultation(consultation);
+  }
+
+  /** The specialist answers; when nothing else is pending internally, the case returns to the owner's attention. */
+  async answerConsultation(staff: StaffActor, caseId: string, consultationId: string, input: AnswerConsultationInput): Promise<CaseConsultation> {
+    const row = await this.requireCase(caseId);
+    const [existing] = await this.db
+      .select()
+      .from(caseConsultations)
+      .where(and(eq(caseConsultations.id, consultationId), eq(caseConsultations.caseId, row.id)))
+      .limit(1);
+    if (!existing) throw new NotFoundException('consultation_not_found');
+    if (existing.status === 'answered') throw new ConflictException('consultation_already_answered');
+    const { consultation, updated } = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [answered] = await tx
+        .update(caseConsultations)
+        .set({ status: 'answered', answer: input.answer, answeredById: staff.id, answeredByName: staff.displayName, answeredAt: now })
+        .where(eq(caseConsultations.id, existing.id))
+        .returning();
+      await tx.insert(caseEvents).values({
+        caseId: row.id,
+        type: 'consultation_answered',
+        actorType: 'staff',
+        actorId: staff.id,
+        data: { consultationId: existing.id, team: existing.team, answeredByName: staff.displayName },
+        createdAt: now,
+      });
+      const [{ open }] = await tx
+        .select({ open: count() })
+        .from(caseConsultations)
+        .where(and(eq(caseConsultations.caseId, row.id), eq(caseConsultations.status, 'open')));
+      let changed = row;
+      if (Number(open) === 0 && row.status === 'waiting_internal') {
+        await tx.insert(caseEvents).values(statusChange(row, 'in_progress', staff.id, 'staff', now));
+        [changed] = await tx.update(supportCases).set({ status: 'in_progress', updatedAt: now }).where(eq(supportCases.id, row.id)).returning();
+      } else {
+        [changed] = await tx.update(supportCases).set({ updatedAt: now }).where(eq(supportCases.id, row.id)).returning();
+      }
+      return { consultation: answered, updated: changed };
+    });
+    this.publishCaseUpdated(updated);
+    return toConsultation(consultation);
+  }
+
+  private async loadConsultations(caseId: string): Promise<CaseConsultation[]> {
+    const rows = await this.db
+      .select()
+      .from(caseConsultations)
+      .where(eq(caseConsultations.caseId, caseId))
+      .orderBy(asc(caseConsultations.requestedAt));
+    return rows.map(toConsultation);
   }
 
   /** Staff opened the conversation: customer messages received so far count as read. */
@@ -556,6 +680,23 @@ function toMessage(row: CaseMessageRow, attachments: CaseMessage['attachments'] 
     clientMessageId: row.clientMessageId,
     createdAt: row.createdAt.toISOString(),
     attachments,
+  };
+}
+
+function toConsultation(row: CaseConsultationRow): CaseConsultation {
+  return {
+    id: row.id,
+    caseId: row.caseId,
+    team: row.team,
+    question: row.question,
+    status: row.status,
+    requestedById: row.requestedById,
+    requestedByName: row.requestedByName,
+    requestedAt: row.requestedAt.toISOString(),
+    answeredById: row.answeredById,
+    answeredByName: row.answeredByName,
+    answeredAt: iso(row.answeredAt),
+    answer: row.answer,
   };
 }
 

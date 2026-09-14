@@ -71,6 +71,48 @@ export const RESOLUTION_REASONS = [
 ] as const;
 export type ResolutionReason = (typeof RESOLUTION_REASONS)[number];
 
+// ---- Internal collaboration (PH-3.2, context §5.3) ----
+
+/** Teams a case can be referred to. Fixed list until Orbit's organisation exists (BL-002). */
+export const CONSULTATION_TEAMS = ["finance", "operations", "security", "verification", "product"] as const;
+export type ConsultationTeam = (typeof CONSULTATION_TEAMS)[number];
+
+export const CONSULTATION_STATUSES = ["open", "answered"] as const;
+export type ConsultationStatus = (typeof CONSULTATION_STATUSES)[number];
+
+export const caseConsultationSchema = z.object({
+  id: z.string(),
+  caseId: z.string(),
+  team: z.enum(CONSULTATION_TEAMS),
+  question: z.string(),
+  status: z.enum(CONSULTATION_STATUSES),
+  requestedById: z.string(),
+  requestedByName: z.string().nullable(),
+  requestedAt: z.string(),
+  answeredById: z.string().nullable(),
+  answeredByName: z.string().nullable(),
+  answeredAt: z.string().nullable(),
+  answer: z.string().nullable(),
+});
+export type CaseConsultation = z.infer<typeof caseConsultationSchema>;
+
+/** Internal notes are messages with `internal` visibility; they never reach customer surfaces (RULE-SUP-04). */
+export const postNoteSchema = z.object({
+  body: z.string().trim().min(1, "note_required").max(5000, "note_too_long"),
+});
+export type PostNoteInput = z.infer<typeof postNoteSchema>;
+
+export const requestConsultationSchema = z.object({
+  team: z.enum(CONSULTATION_TEAMS),
+  question: z.string().trim().min(1, "question_required").max(5000, "question_too_long"),
+});
+export type RequestConsultationInput = z.infer<typeof requestConsultationSchema>;
+
+export const answerConsultationSchema = z.object({
+  answer: z.string().trim().min(1, "answer_required").max(5000, "answer_too_long"),
+});
+export type AnswerConsultationInput = z.infer<typeof answerConsultationSchema>;
+
 export const setStatusSchema = z.object({
   status: z.enum(STAFF_STATUS_TARGETS),
 });
@@ -218,5 +260,6 @@ export type CustomerCaseDetail = z.infer<typeof customerCaseDetailSchema>;
 
 export const staffCaseDetailSchema = customerCaseDetailSchema.extend({
   events: z.array(caseEventSchema),
+  consultations: z.array(caseConsultationSchema),
 });
 export type StaffCaseDetail = z.infer<typeof staffCaseDetailSchema>;

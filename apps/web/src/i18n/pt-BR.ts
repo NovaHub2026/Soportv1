@@ -1,4 +1,12 @@
-import type { CaseCategory, CaseEventType, CasePriority, CaseStatus, ResolutionReason, StaffQueueView } from "@orbit-support/shared";
+import type {
+  CaseCategory,
+  CaseEventType,
+  CasePriority,
+  CaseStatus,
+  ConsultationTeam,
+  ResolutionReason,
+  StaffQueueView,
+} from "@orbit-support/shared";
 
 /** Customer-facing copy, Brazilian Portuguese first (PROJECT_CONTEXT.md §10.1). */
 export const ptBR = {
@@ -158,6 +166,41 @@ export const ptBR = {
       failed: "Não foi possível aplicar a ação. Tente novamente.",
       resolvedAs: "Resolvido · {reason}",
     },
+    notes: {
+      modeLabel: "Tipo de mensagem",
+      replyMode: "Responder ao cliente",
+      noteMode: "Nota interna",
+      noteLabel: "Nota interna (só a equipe vê)",
+      notePlaceholder: "Escreva uma nota para a equipe…",
+      save: "Salvar nota",
+      saving: "Salvando…",
+      failed: "Não foi possível salvar a nota.",
+    },
+    consultations: {
+      title: "Consultas a outras equipes",
+      request: "Consultar equipe",
+      team: "Equipe",
+      question: "Pergunta para a equipe",
+      submit: "Enviar consulta",
+      cancel: "Cancelar",
+      pending: "Aguardando resposta",
+      answered: "Respondida",
+      answerLabel: "Resposta da equipe",
+      answerSubmit: "Responder consulta",
+      requestedBy: "Pedida por {agent} · {time}",
+      answeredBy: "Respondida por {agent} · {time}",
+      none: "Nenhuma consulta neste caso.",
+      openOne: "1 consulta pendente",
+      openMany: "{n} consultas pendentes",
+      failed: "Não foi possível registrar a consulta.",
+    },
+    teams: {
+      finance: "Financeiro",
+      operations: "Operações",
+      security: "Segurança",
+      verification: "Verificação",
+      product: "Produto",
+    } satisfies Record<ConsultationTeam, string>,
     reasons: {
       solved: "Problema resolvido",
       answered: "Dúvida respondida",

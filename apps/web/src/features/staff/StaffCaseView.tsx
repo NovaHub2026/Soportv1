@@ -1,6 +1,16 @@
 "use client";
 
-import { type CaseEvent, type CaseMessage, RESOLUTION_REASONS, type ResolutionReason, type StaffCaseDetail, type StaffStatusTarget } from "@orbit-support/shared";
+import {
+  type CaseConsultation,
+  type CaseEvent,
+  type CaseMessage,
+  CONSULTATION_TEAMS,
+  type ConsultationTeam,
+  RESOLUTION_REASONS,
+  type ResolutionReason,
+  type StaffCaseDetail,
+  type StaffStatusTarget,
+} from "@orbit-support/shared";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentComposer } from "@/features/support/AttachmentComposer";
 import { AttachmentList } from "@/features/support/AttachmentList";
@@ -40,6 +50,10 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
   const [resolving, setResolving] = useState(false);
   const [resolveReason, setResolveReason] = useState<ResolutionReason>("solved");
   const [resolveExplanation, setResolveExplanation] = useState("");
+  const [composerMode, setComposerMode] = useState<"reply" | "note">("reply");
+  const [consulting, setConsulting] = useState(false);
+  const [consultTeam, setConsultTeam] = useState<ConsultationTeam>("finance");
+  const [consultQuestion, setConsultQuestion] = useState("");
   const logRef = useRef<HTMLOListElement>(null);
   const attachmentClient = useMemo(() => staffApi.attachments(identity, caseId), [identity, caseId]);
   // Monotonic request counter: a poll that started before an action must not overwrite the action's result.
@@ -135,27 +149,62 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
     }
   }
 
+  async function handleConsult(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const question = consultQuestion.trim();
+    if (!question) return;
+    setAction({ status: "busy" });
+    try {
+      await staffApi.requestConsultation(identity, caseId, { team: consultTeam, question });
+      setConsulting(false);
+      setConsultQuestion("");
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not request consultation", error);
+      setAction({ status: "error", message: t.staff.consultations.failed });
+    }
+  }
+
+  async function handleAnswer(consultation: CaseConsultation, answer: string) {
+    setAction({ status: "busy" });
+    try {
+      await staffApi.answerConsultation(identity, caseId, consultation.id, { answer });
+      await refresh();
+      setAction({ status: "idle" });
+      onChanged();
+    } catch (error) {
+      console.warn("staff: could not answer consultation", error);
+      setAction({ status: "error", message: t.staff.consultations.failed });
+    }
+  }
+
   async function handleReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const body = draft.trim();
     if (!body) return;
     setReply({ status: "busy" });
     try {
-      await staffApi.postMessage(identity, caseId, {
-        body,
-        clientMessageId,
-        ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
-      });
+      if (composerMode === "note") {
+        await staffApi.postNote(identity, caseId, { body });
+      } else {
+        await staffApi.postMessage(identity, caseId, {
+          body,
+          clientMessageId,
+          ...(attachmentIds.length > 0 ? { attachmentIds } : {}),
+        });
+        setAttachmentIds([]);
+        setAttachClearToken((n) => n + 1);
+        setClientMessageId(newClientMessageId());
+      }
       setDraft("");
-      setAttachmentIds([]);
-      setAttachClearToken((n) => n + 1);
-      setClientMessageId(newClientMessageId());
       await refresh();
       setReply({ status: "idle" });
       onChanged();
     } catch (error) {
-      console.warn("staff: could not send reply", error);
-      setReply({ status: "error", message: t.staff.sendFailed });
+      console.warn("staff: could not send", error);
+      setReply({ status: "error", message: composerMode === "note" ? t.staff.notes.failed : t.staff.sendFailed });
     }
   }
 
@@ -241,12 +290,50 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
                   {t.staff.actions.resume}
                 </button>
               )}
+              {!consulting && (
+                <button type="button" className={styles.secondaryButton} disabled={action.status === "busy"} onClick={() => setConsulting(true)}>
+                  {t.staff.consultations.request}
+                </button>
+              )}
               {detail.status !== "resolved" && !resolving && (
                 <button type="button" className={styles.resolveButton} disabled={action.status === "busy"} onClick={() => setResolving(true)}>
                   {t.staff.actions.resolve}
                 </button>
               )}
             </div>
+          )}
+          {consulting && (
+            <form className={styles.consultForm} onSubmit={handleConsult} aria-label={t.staff.consultations.request}>
+              <label className={styles.composerLabel} htmlFor="consult-team">
+                {t.staff.consultations.team}
+              </label>
+              <select id="consult-team" className={styles.select} value={consultTeam} onChange={(event) => setConsultTeam(event.target.value as ConsultationTeam)}>
+                {CONSULTATION_TEAMS.map((team) => (
+                  <option key={team} value={team}>
+                    {t.staff.teams[team]}
+                  </option>
+                ))}
+              </select>
+              <label className={styles.composerLabel} htmlFor="consult-question">
+                {t.staff.consultations.question}
+              </label>
+              <textarea
+                id="consult-question"
+                className={styles.composerInput}
+                rows={3}
+                maxLength={5000}
+                value={consultQuestion}
+                onChange={(event) => setConsultQuestion(event.target.value)}
+              />
+              <div className={styles.composerActions}>
+                <button type="button" className={styles.secondaryButton} onClick={() => setConsulting(false)}>
+                  {t.staff.consultations.cancel}
+                </button>
+                <button type="submit" className={styles.primaryButton} disabled={!consultQuestion.trim() || action.status === "busy"}>
+                  {t.staff.consultations.submit}
+                </button>
+              </div>
+            </form>
           )}
           {action.status === "error" && (
             <p className={styles.errorText} role="alert">
@@ -299,16 +386,28 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
         </ol>
 
         {canReply && (
-          <form className={styles.composer} onSubmit={handleReply}>
+          <form className={styles.composer} onSubmit={handleReply} data-mode={composerMode}>
+            {/* "Reply to customer" and "Internal note" are visibly different actions (context §5.3, RULE-SUP-04). */}
+            <fieldset className={styles.modeSwitch}>
+              <legend className="visually-hidden">{t.staff.notes.modeLabel}</legend>
+              <label className={styles.modeOption} data-selected={composerMode === "reply" ? "true" : "false"}>
+                <input type="radio" name="composer-mode" value="reply" checked={composerMode === "reply"} onChange={() => setComposerMode("reply")} className="visually-hidden" />
+                {t.staff.notes.replyMode}
+              </label>
+              <label className={styles.modeOption} data-selected={composerMode === "note" ? "true" : "false"} data-note="true">
+                <input type="radio" name="composer-mode" value="note" checked={composerMode === "note"} onChange={() => setComposerMode("note")} className="visually-hidden" />
+                {t.staff.notes.noteMode}
+              </label>
+            </fieldset>
             <label htmlFor="staff-reply" className={styles.composerLabel}>
-              {t.staff.replyLabel}
+              {composerMode === "note" ? t.staff.notes.noteLabel : t.staff.replyLabel}
             </label>
             <textarea
               id="staff-reply"
               className={styles.composerInput}
               rows={3}
               maxLength={5000}
-              placeholder={t.staff.replyPlaceholder}
+              placeholder={composerMode === "note" ? t.staff.notes.notePlaceholder : t.staff.replyPlaceholder}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
             />
@@ -317,18 +416,65 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
                 {reply.message}
               </p>
             )}
-            <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} idPrefix="staff-attach" />
+            {composerMode === "reply" && (
+              <AttachmentComposer client={attachmentClient} onReadyChange={setAttachmentIds} clearToken={attachClearToken} idPrefix="staff-attach" />
+            )}
             <div className={styles.composerActions}>
-              <button type="submit" className={styles.primaryButton} disabled={!draft.trim() || reply.status === "busy"}>
-                {reply.status === "busy" ? t.staff.sending : t.staff.reply}
+              <button type="submit" className={composerMode === "note" ? styles.noteButton : styles.primaryButton} disabled={!draft.trim() || reply.status === "busy"}>
+                {reply.status === "busy" ? (composerMode === "note" ? t.staff.notes.saving : t.staff.sending) : composerMode === "note" ? t.staff.notes.save : t.staff.reply}
               </button>
             </div>
           </form>
         )}
       </section>
 
-      <CaseContext detail={detail} />
+      <CaseContext detail={detail} onAnswer={handleAnswer} busy={action.status === "busy"} />
     </>
+  );
+}
+
+function ConsultationCard({ consultation, onAnswer, busy }: { consultation: CaseConsultation; onAnswer: (c: CaseConsultation, answer: string) => void; busy: boolean }) {
+  const [answer, setAnswer] = useState("");
+  const c = t.staff.consultations;
+  return (
+    <li className={styles.consultation} data-status={consultation.status}>
+      <div className={styles.consultationHead}>
+        <strong>{t.staff.teams[consultation.team]}</strong>
+        <span className={styles.consultationStatus}>{consultation.status === "open" ? c.pending : c.answered}</span>
+      </div>
+      <p className={styles.consultationText}>{consultation.question}</p>
+      <p className={styles.consultationMeta}>
+        {fill(c.requestedBy, { agent: consultation.requestedByName ?? consultation.requestedById, time: formatMessageTime(consultation.requestedAt) })}
+      </p>
+      {consultation.status === "answered" && consultation.answer && (
+        <>
+          <p className={styles.consultationAnswer}>{consultation.answer}</p>
+          <p className={styles.consultationMeta}>
+            {fill(c.answeredBy, {
+              agent: consultation.answeredByName ?? consultation.answeredById ?? "",
+              time: consultation.answeredAt ? formatMessageTime(consultation.answeredAt) : "",
+            })}
+          </p>
+        </>
+      )}
+      {consultation.status === "open" && (
+        <form
+          className={styles.answerForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (answer.trim()) onAnswer(consultation, answer.trim());
+          }}
+        >
+          <label className="visually-hidden" htmlFor={`answer-${consultation.id}`}>
+            {c.answerLabel}
+          </label>
+          <textarea id={`answer-${consultation.id}`} className={styles.composerInput} rows={2} maxLength={5000} placeholder={c.answerLabel} value={answer} onChange={(event) => setAnswer(event.target.value)} />
+          <button type="submit" className={styles.secondaryButton} disabled={!answer.trim() || busy}>
+            {c.answerSubmit}
+          </button>
+        </form>
+      )}
+    </li>
   );
 }
 
@@ -369,6 +515,12 @@ function describeEvent(event: CaseEvent): string {
       const reason = str("reason") as ResolutionReason;
       return fill(t.staff.events.case_resolved, { reason: t.staff.reasons[reason] ?? reason });
     }
+    case "consultation_requested": {
+      const team = str("team") as ConsultationTeam;
+      return fill(t.staff.events.consultation_requested, { team: t.staff.teams[team] ?? team });
+    }
+    case "consultation_answered":
+      return fill(t.staff.events.consultation_answered, { agent: str("answeredByName") || event.actorId });
     case "status_changed": {
       const from = str("from") as keyof typeof t.staff.status;
       const to = str("to") as keyof typeof t.staff.status;
@@ -379,12 +531,29 @@ function describeEvent(event: CaseEvent): string {
   }
 }
 
-function CaseContext({ detail }: { detail: StaffCaseDetail }) {
+function CaseContext({ detail, onAnswer, busy }: { detail: StaffCaseDetail; onAnswer: (c: CaseConsultation, answer: string) => void; busy: boolean }) {
   const c = t.staff.context;
   const dash = c.none;
+  const openConsultations = detail.consultations.filter((x) => x.status === "open").length;
   return (
     <aside className={styles.context} aria-label={c.title}>
-      <h3 className={styles.contextTitle}>{c.customer}</h3>
+      <h3 className={styles.contextTitle}>{t.staff.consultations.title}</h3>
+      {openConsultations > 0 && (
+        <p className={styles.consultationPending} role="status">
+          {openConsultations === 1 ? t.staff.consultations.openOne : fill(t.staff.consultations.openMany, { n: String(openConsultations) })}
+        </p>
+      )}
+      {detail.consultations.length === 0 ? (
+        <p className={styles.consultationMeta}>{t.staff.consultations.none}</p>
+      ) : (
+        <ul className={styles.consultationList}>
+          {detail.consultations.map((consultation) => (
+            <ConsultationCard key={consultation.id} consultation={consultation} onAnswer={onAnswer} busy={busy} />
+          ))}
+        </ul>
+      )}
+
+      <h3 className={`${styles.contextTitle} ${styles.contextTitleSpaced}`}>{c.customer}</h3>
       <dl className={styles.facts}>
         <dt>{c.customerId}</dt>
         <dd>{detail.customerId}</dd>

@@ -33,6 +33,7 @@ const detail = {
       createdAt: new Date().toISOString(),
     },
   ],
+  consultations: [],
 };
 
 describe("StaffQueue", () => {
@@ -72,7 +73,7 @@ describe("StaffCaseView", () => {
 
     expect(await screen.findByText(/SUP-000001/)).toBeDefined();
     expect(screen.getByText("Meu saque não chegou")).toBeDefined();
-    expect(screen.getByText(/Nota interna/)).toBeDefined();
+    expect(screen.getByText(/Nota interna · visível só para a equipe/)).toBeDefined();
     expect(screen.getByText("Verificar com Finance antes de responder.")).toBeDefined();
     expect(screen.getByText(/integração com o Orbit ainda não foi construída/)).toBeDefined();
     expect(screen.getByText("Caso aberto pelo cliente")).toBeDefined();
@@ -145,6 +146,60 @@ describe("StaffCaseView", () => {
     expect(resolvePost?.body).toEqual({ reason: "answered", explanation: "A operação liquidou às 10:31." });
     expect(await screen.findByText("Resolvido · Dúvida respondida")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Resolver caso" })).toBeNull();
+  });
+
+  test("internal notes and consultations use their own endpoints and show the pending consultation (PH-3.2)", async () => {
+    let consultations: Array<Record<string, unknown>> = [];
+    const { requests } = mockFetch((request) => {
+      if (request.url.endsWith("/notes")) return { status: 201, body: message({ id: "n1", visibility: "internal", body: (request.body as { body: string }).body }) };
+      if (request.url.endsWith("/consultations")) {
+        const body = request.body as { team: string; question: string };
+        consultations = [
+          {
+            id: "c1",
+            caseId: detail.id,
+            team: body.team,
+            question: body.question,
+            status: "open",
+            requestedById: "staff-ana",
+            requestedByName: "Ana Ribeiro",
+            requestedAt: new Date().toISOString(),
+            answeredById: null,
+            answeredByName: null,
+            answeredAt: null,
+            answer: null,
+          },
+        ];
+        return { status: 201, body: consultations[0] };
+      }
+      if (request.url.endsWith("/answer")) {
+        consultations = [{ ...consultations[0], status: "answered", answer: (request.body as { answer: string }).answer, answeredByName: "Ana Ribeiro", answeredAt: new Date().toISOString() }];
+        return { body: consultations[0] };
+      }
+      return { body: { ...detail, consultations, status: consultations.some((c) => c.status === "open") ? "waiting_internal" : "in_progress" } };
+    });
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    await screen.findByText(/SUP-000001/);
+
+    fireEvent.click(screen.getByLabelText("Nota interna"));
+    fireEvent.change(screen.getByLabelText("Nota interna (só a equipe vê)"), { target: { value: "Checar com Finance." } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar nota" }));
+    await waitFor(() => expect(requests.some((r) => r.url === `/api/staff/cases/${detail.id}/notes`)).toBe(true));
+    expect(requests.find((r) => r.url.endsWith("/notes"))?.body).toEqual({ body: "Checar com Finance." });
+
+    fireEvent.click(screen.getByRole("button", { name: "Consultar equipe" }));
+    fireEvent.change(screen.getByLabelText("Equipe"), { target: { value: "security" } });
+    fireEvent.change(screen.getByLabelText("Pergunta para a equipe"), { target: { value: "Há alerta na conta?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar consulta" }));
+    await waitFor(() => expect(requests.find((r) => r.url.endsWith("/consultations"))?.body).toEqual({ team: "security", question: "Há alerta na conta?" }));
+    expect(await screen.findByText("1 consulta pendente")).toBeDefined();
+    expect(screen.getByText("Aguardando equipe interna")).toBeDefined();
+
+    fireEvent.change(screen.getByLabelText("Resposta da equipe"), { target: { value: "Sem alertas." } });
+    fireEvent.click(screen.getByRole("button", { name: "Responder consulta" }));
+    await waitFor(() => expect(requests.some((r) => r.url.endsWith("/answer"))).toBe(true));
+    expect(await screen.findByText("Sem alertas.")).toBeDefined();
+    await waitFor(() => expect(screen.queryByText("1 consulta pendente")).toBeNull());
   });
 
   test("a public reply is posted and then shown in the conversation", async () => {

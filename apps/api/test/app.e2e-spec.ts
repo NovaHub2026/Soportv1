@@ -91,6 +91,49 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(customerView.body.messages.at(-1).body).toContain('liquidada às 10:31');
   });
 
+  it('notes and consultations are staff-only and drive the waiting_internal status (PH-3.2)', async () => {
+    const server = app.getHttpServer();
+    const created = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-nina'))
+      .send({ category: 'bonuses_promotions', message: 'Bônus não creditado' })
+      .expect(201);
+    const id: string = created.body.id;
+
+    await request(server).post(`/api/staff/cases/${id}/notes`).set(asCustomer('cust-nina')).send({ body: 'tentativa' }).expect(403);
+    await request(server).post(`/api/staff/cases/${id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: '   ' }).expect(400);
+    const note = await request(server).post(`/api/staff/cases/${id}/notes`).set(asStaff('staff-ana', 'Ana')).send({ body: 'NOTA: checar regra do bônus' }).expect(201);
+    expect(note.body.visibility).toBe('internal');
+
+    await request(server).post(`/api/staff/cases/${id}/consultations`).set(asStaff('staff-ana', 'Ana')).send({ team: 'marketing', question: 'x' }).expect(400);
+    const consultation = await request(server)
+      .post(`/api/staff/cases/${id}/consultations`)
+      .set(asStaff('staff-ana', 'Ana'))
+      .send({ team: 'finance', question: 'O bônus da campanha X foi aplicado?' })
+      .expect(201);
+    expect(consultation.body).toMatchObject({ team: 'finance', status: 'open' });
+
+    const customerView = await request(server).get(`/api/support/cases/${id}`).set(asCustomer('cust-nina')).expect(200);
+    expect(customerView.body.status).toBe('waiting_internal');
+    expect(JSON.stringify(customerView.body)).not.toContain('NOTA: checar');
+    expect(JSON.stringify(customerView.body)).not.toContain('campanha X');
+
+    const answered = await request(server)
+      .post(`/api/staff/cases/${id}/consultations/${consultation.body.id}/answer`)
+      .set(asStaff('staff-bruno', 'Bruno'))
+      .send({ answer: 'Aplicado em 10/09; rollover pendente.' })
+      .expect(200);
+    expect(answered.body).toMatchObject({ status: 'answered', answeredByName: 'Bruno' });
+    await request(server)
+      .post(`/api/staff/cases/${id}/consultations/${consultation.body.id}/answer`)
+      .set(asStaff('staff-bruno', 'Bruno'))
+      .send({ answer: 'de novo' })
+      .expect(409);
+    const staffView = await request(server).get(`/api/staff/cases/${id}`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(staffView.body.status).toBe('in_progress');
+    expect(staffView.body.consultations[0].answer).toContain('rollover');
+  });
+
   it('runs the PH-1 journey: customer request → staff queue → take → reply → customer sees the reply', async () => {
     const server = app.getHttpServer();
 
