@@ -25,3 +25,7 @@ Environment: as in `PH-4.1-verification.md`.
 
 Implemented and locally verified: yes (except the container rehearsal as stated). Integrated: `main` (PH-8.3 commit). CI verified: run 34827685994 on `22cdb72` — both jobs **success** (`PH-8.3-verification.md`). Released: no — not authorized, and not possible without BL-001.
 Approved on 2026-09-14 by the Agent; **withdrawn** the same day (FND-0062) — ledger cycle 3 back to 1/3.
+
+## Re-approval (2026-09-14, after the Owner's «Reintenta»)
+Scenario (c) — `docker compose up` starts PostgreSQL, API and web; `/api/health` answers `postgres (server)`; the application works against the containers — **OBSERVED** on `a863593` with the Dockerfiles corrected by the out-of-band audit: see `PH-8.3-verification.md` "Rehearsal" (HTTP walk through the web: case round-trip, notification, customer isolation, recovery, JSON 404, headers, identity-neutral render; data persisted across a restart; web on 127.0.0.1 only, API unpublished). Scenario (b) now also ran locally (`PH-8.2-verification.md`). The browser smoke itself runs against its own servers on fixed ports, not against the containers; the rehearsal used a scripted HTTP walk, as the plan allowed.
+Re-approved on 2026-09-14 by the Agent (evidence-based, §6.3; not a human review). Ledger: cycle 3 → 2/3.

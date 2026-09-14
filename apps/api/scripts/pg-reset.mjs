@@ -5,7 +5,7 @@ import { Client } from 'pg';
 
 const url = process.env.SUPPORT_DATABASE_URL;
 if (!url) {
-  console.error('SUPPORT_DATABASE_URL is required, e.g. postgres://postgres:orbit@localhost:5433/orbit_test');
+  console.error('SUPPORT_DATABASE_URL is required, e.g. postgres://postgres:orbit@localhost:55433/orbit_test');
   process.exit(2);
 }
 const name = new URL(url).pathname.replace(/^\//, '');

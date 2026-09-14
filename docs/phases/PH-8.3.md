@@ -1,6 +1,6 @@
 # PH-8.3 — Deployment, runbooks and phase closure
 Type: SUBPHASE TECHNICAL PLAN
-Status: ACTIVE
+Status: APPROVED
 Parent: `PH-8.md`
 Feature context: cross-cutting (`../features/FEAT-CASE/CONTEXT.md`, `../features/FEAT-CHAT/CONTEXT.md`, `../features/FEAT-STAFF/CONTEXT.md`, `../features/FEAT-ORBIT/CONTEXT.md`, `../features/FEAT-NOTIFY/CONTEXT.md`, `../features/FEAT-ACCESS/CONTEXT.md`)
 
@@ -26,4 +26,4 @@ Acceptance evidence: `../evidence/PH-8.3-verification.md`; phase approval `../ev
 ## Verification, limitations and context updates
 Evidence: `../evidence/PH-8.3-verification.md`, `../evidence/PH-8-phase-approval.md`. Limitation: the compose rehearsal did not run on this host (no Docker engine) — it is the outstanding check in `RELEASE.md` and in the handoff.
 Context updated: `PH-8.md` (APPROVED), `ROADMAP.md` (ledger cycle 3 → 2/3), `CURRENT_STATE.md`, `SESSION_HANDOFF.md`, `CONTEXT_INDEX.md`, `CLAUDE.md`, `../decisions/DECISION_LOG.md`, `../BACKLOG.md`, `../runbooks/VERIFICATION.md`.
-Approved on 2026-09-14 by the Agent and **withdrawn** the same day by the cycle 3 out-of-band audit (FND-0062): the compose rehearsal is part of this subphase and has not run. Done when `docker compose -f docker/compose.yml up -d --build` succeeds on a host with a Docker engine and is recorded in `../evidence/PH-8.3-verification.md` (the Dockerfiles were corrected by the audit, FND-0058).
+Approved on 2026-09-14 by the Agent, withdrawn the same day by the cycle 3 out-of-band audit (FND-0062), and **re-approved** on 2026-09-14 after the compose rehearsal ran on `a863593` (`../evidence/PH-8.3-verification.md` "Rehearsal") — evidence-based, §6.3; not a human review.

@@ -2,7 +2,8 @@
 # fine because the port is published on 127.0.0.1 only (Cycle Audit 3).
 # Usage (Git Bash):
 #   docker compose -f docker/compose.test.yml up -d
-#   SUPPORT_DATABASE_URL=postgres://postgres:orbit@localhost:5433/orbit_test npm run test:pg -w api
+#   SUPPORT_DATABASE_URL=postgres://postgres:orbit@localhost:55433/orbit_test npm run test:pg -w api
+#   (set PG_TEST_PORT=<port> for both commands if 55433 is taken on the host)
 #   docker compose -f docker/compose.test.yml down -v
 services:
   postgres:
@@ -12,7 +13,9 @@ services:
       POSTGRES_PASSWORD: orbit
       POSTGRES_DB: orbit_test
     ports:
-      - "127.0.0.1:5433:5432"
+      # 55433 by default: 5433 is commonly held by a native PostgreSQL service (as on the Owner's host), and the
+      # suites must never reach a real database. PG_TEST_PORT overrides it.
+      - "127.0.0.1:${PG_TEST_PORT:-55433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d orbit_test"]
       interval: 2s

@@ -15,12 +15,12 @@ Near-term work is detailed; later phases are at outcome level and are refined ju
 | PH-5 | Staff workspace completeness and supervision: essential views, filters/search, saved replies, schedule/config, queue oversight, service metrics. | OBJ-SUP-03; RULE-SUP-02, -08 | `APPROVED` | PH-3 |
 | PH-6 | Notifications and availability: in-product notifications, email notifications linking back, outside-hours behavior. | OBJ-SUP-04; RULE-SUP-08 | `APPROVED` | PH-2 |
 | PH-7 | Access recovery and privacy hardening: "Não consigo acessar minha conta" route, roles/permissions review, shared-device sign-out, shared incidents. | OBJ-SUP-04; RULE-SUP-01, -04 | `APPROVED` | PH-3, PH-4 |
-| PH-8 | Production readiness: operating policies (retention, complaints), deployment, release runbook. The release itself needs Owner authorization (§1.1). | all | `ACTIVE` | PH-1..7, BL-002 |
+| PH-8 | Production readiness: operating policies (retention, complaints), deployment, release runbook. The release itself needs Owner authorization (§1.1). | all | `APPROVED` | PH-1..7, BL-002 |
 
 Future direction, not scheduled: help center, staff assistance, automated answers — `PROJECT_CONTEXT.md` §12 (OBJ-SUP-05, RULE-SUP-10). Continuity decisions in PH-1..3 must not preclude them.
 
 ## Active chain
-Phase: PH-8 `ACTIVE` again since 2026-09-14 — its approval was withdrawn by the cycle 3 out-of-band audit (`../audits/CYCLE-3-OOB.md`, FND-0062) because scenario (c), the container rehearsal, never ran; PH-8.1 and PH-8.2 `APPROVED` (`PH-8.1.md`, `PH-8.2.md`), PH-8.3 `ACTIVE` (`PH-8.3.md`) until the compose rehearsal runs on a host with a Docker engine. PH-1..PH-7 `APPROVED`. Internal demos: `v0.1.0-demo` (superseded), `v0.1.1-demo` (`../evidence/RELEASE-2026-09-14b.md`). Cycle Audits 1 and 2 CLOSED. The ledger table below is the only owner of the audit count.
+Phase: none active — PH-1..PH-8 `APPROVED` (PH-8 re-approved 2026-09-14 after the container rehearsal, `PH-8.md`, evidence `../evidence/PH-8-phase-approval.md`). Internal demos: `v0.1.0-demo` (superseded), `v0.1.1-demo` (`../evidence/RELEASE-2026-09-14b.md`). Cycle Audits 1 and 2 CLOSED; the cycle 3 out-of-band audit CLOSED (`../audits/CYCLE-3-OOB.md`). No phase is planned after PH-8: a production release needs the Owner (§1.1), Orbit's adapters (BL-001) and the operating policies (BL-002). The ledger table below is the only owner of the audit count.
 
 ## Audit ledger
 Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt: none.
@@ -29,4 +29,4 @@ Cadence: Cycle Audit after 3 first-time phase approvals (§6.4). Inherited debt:
 |---|---|---|---|---|
 | 1 | PH-1, PH-2, PH-3 | 2026-09-13 | `../audits/CYCLE-1.md` | 3/3, audit CLOSED 2026-09-14 |
 | 2 | PH-4, PH-5, PH-6 | 2026-09-14 | `../audits/CYCLE-2.md` | 3/3, audit CLOSED 2026-09-14 (remediation `../evidence/CYCLE-2-verification.md`) |
-| 3 | PH-7 | 2026-09-14 | `../audits/CYCLE-3-OOB.md` (out-of-band audit; does not reset the cycle) | 1/3 |
+| 3 | PH-7, PH-8 | 2026-09-14 | `../audits/CYCLE-3-OOB.md` (out-of-band audit; does not reset the cycle) | 2/3 |

@@ -19,7 +19,7 @@ Acceptance evidence: `../evidence/PH-8.2-verification.md`.
 
 ## Work performed and important decisions
 - `apps/api/src/database/database.ts`: `createDatabase(dataDir, url = SUPPORT_DATABASE_URL)` — `pg` pool + `drizzle-orm/node-postgres` + its migrator when the URL is set, PGlite otherwise; `Db = PgDatabase<PgQueryResultHKT, typeof schema>` (services untouched); the handle reports its `driver` and `/api/health` says `postgres (server)` or `pglite (embedded PostgreSQL)`.
-- `apps/api/scripts/pg-reset.mjs` (only `*_test` databases), `npm run test:pg -w api` (reset → unit suites without file parallelism → reset → e2e), `docker/compose.test.yml` (PostgreSQL 16 on 5433), CI job `verify-postgres` with a `postgres:16-alpine` service.
+- `apps/api/scripts/pg-reset.mjs` (only `*_test` databases), `npm run test:pg -w api` (reset → unit suites without file parallelism → reset → e2e), `docker/compose.test.yml` (PostgreSQL 16 on 55433), CI job `verify-postgres` with a `postgres:16-alpine` service.
 - Dependencies: `pg` 8.23, `@types/pg`. ADR-0003 revisit recorded in DEC-0032: PGlite stays the development and fast-test database; a PostgreSQL server is the deployment database and the second verification path.
 
 ## Verification, limitations and context updates

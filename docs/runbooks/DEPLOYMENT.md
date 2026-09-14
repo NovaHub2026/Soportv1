@@ -1,7 +1,7 @@
 # Deployment runbook
 Type: RUNBOOK
 Scope: `docker/api.Dockerfile`, `docker/web.Dockerfile`, `docker/compose.yml`, `.env.example`; the API's environment (`apps/api/src/main.ts`, `apps/api/src/database/database.ts`, jobs) and the web's `API_ORIGIN` rewrite
-Verified on: 2026-09-14 (PH-8.3 — see `../evidence/PH-8.3-verification.md` for what was rehearsed and where)
+Verified on: 2026-09-14 — compose rehearsal executed on `a863593` (`../evidence/PH-8.3-verification.md` "Rehearsal")
 
 ## What a deployment is made of
 | Component | Image / service | Listens | State |
@@ -45,7 +45,7 @@ When no Docker engine is available, `npm run build` then `node scripts/demo-loca
 ## Safe defaults (cycle 3 out-of-band audit, DEC-0034 a)
 - Nothing is reachable from another machine unless you change `docker/compose.yml`'s `127.0.0.1:` port binding — and with the simulated identity you must not.
 - The API announces every non-loopback bind; inside compose it binds `0.0.0.0` on the private network only.
-- Before this audit the files would not have worked: the web image copied a public directory that does not exist and read `API_ORIGIN` too late (FND-0058). They have still not been built on this host (no Docker engine).
+- Before this audit the files would not have worked: the web image copied a public directory that does not exist and read `API_ORIGIN` too late (FND-0058). They were built and rehearsed on this host on 2026-09-14 (`../evidence/PH-8.3-verification.md` "Rehearsal").
 
 ## Known limits of this shape
 - One API instance (event bus, limits and jobs are in-process). Scaling out needs a shared channel and a shared limit store — a later decision.
