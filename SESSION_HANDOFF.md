@@ -1,7 +1,7 @@
 # SESSION HANDOFF
 Type: SESSION HANDOFF
 Recorded on: 2026-09-14
-Checkpoint: branch `main`; the PH-4.3 commit (child of `4c06c5c`): not-found and outage flows in the smoke, not-integrated subjects in the staff section, PH-4.3 and PH-4 approved (ledger cycle 2: 1/3). No intended local delta after it.
+Checkpoint: branch `main`; `d9f359f` (PH-4.3: not-found and outage flows in the smoke, not-integrated subjects in the staff section; PH-4.3 and PH-4 approved, ledger cycle 2: 1/3) plus the CI-verdict commit that follows it. No intended local delta after it.
 Preservation: committed locally and pushed to `origin/main` at recording time — confirm with `git status -sb`
 
 ## Running now
@@ -16,7 +16,7 @@ None in progress. PH-4 is approved; PH-5 is next — plan `docs/phases/PH-5.md` 
 - The Owner instruction «Continua hasta el final sin parar» (2026-09-13) remains in force: continue autonomously into PH-4.
 
 ## Resume here
-1. `git status -sb`; `gh run list --limit 3` — record the PH-4.3 commit's CI verdict in `docs/evidence/PH-4.3-verification.md` if missing.
+1. `git status -sb`; `gh run list --limit 3` (`d9f359f` is green: run 34812963182; the CI-verdict commit's own run is documentation only).
 2. Validate `CURRENT_STATE.md`; plan `docs/phases/PH-5.md` (to be created) and start PH-5.1.
 
 ## Temporary environment notes

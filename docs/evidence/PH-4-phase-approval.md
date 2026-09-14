@@ -22,7 +22,7 @@ RULE-SUP-01: records are looked up inside the adapter for the calling customer o
 Contacts (`maskEmail`, `maskPhone`) and record destinations/provider references are masked inside `SimulatedOrbitRecords` before anything crosses the boundary; `RecordCard` and `OrbitCustomerSection` render adapter output only; the customer projection (DEC-0015) removes staff-only case fields; `case_created` stores kind, reference and whether a snapshot was captured, never record data. Role-gated unmasking is deferred to PH-7 (BL-016).
 
 ## Delivery states (§6.3)
-Implemented and locally verified: yes. Integrated: `main` (PH-4.3 commit). CI verified: recorded in `PH-4.3-verification.md`. Released: no.
+Implemented and locally verified: yes. Integrated: `main` as `d9f359f`. CI verified: run 34812963182 success (recorded in `PH-4.3-verification.md`). Released: no.
 
 ## Uses simulation
 Every demonstration uses the simulated identity provider and the simulated records adapter (DEC-0003). None of it demonstrates a connected Orbit capability (context §11, §14 item 10); the real adapters replace `SimulatedOrbitIdentity` / `SimulatedOrbitRecords` when Orbit exists (BL-001).

@@ -13,7 +13,7 @@ Environment: as in `PH-4.1-verification.md`. Sequential runs.
 | 3 | Scenario (b): with the API restarted in outage mode on the same data, staff see "Dados do Orbit indisponíveis: Orbit sem resposta." with "Tentar novamente", the host says "Registros indisponíveis no momento.", and the customer still opens SUP-000003 with the snapshot card | OBSERVED | browser smoke (`orbit-outage-staff`, `orbit-outage-customer`) | see "Smoke" |
 | 4 | Masking review: no surface renders anything the adapter did not already mask; the customer projection strips staff-only fields; the `case_created` event carries no record data | INSPECTED | reading `simulated-orbit-records.ts`, `RecordCard.tsx`, `OrbitCustomerSection.tsx`, `cases.service.ts` (`captureRecord`, `toCaseRecord`, `case_created` data), plus the e2e negatives of PH-4.1/PH-4.2 (`not.toContain('example.com')`, `'99999'`, `'Saque 250'` for a foreign customer) | consistent — see `PH-4-phase-approval.md` "Masking" |
 | 5 | Full gate and production builds on the phase candidate | EXECUTED | `npm run verify:full` | see "Final gate run" |
-| 6 | CI executes the gate on the pushed commit | NOT VERIFIED at recording time | `.github/workflows/ci.yml` | see "CI" |
+| 6 | CI executes the gate on the pushed commit | EXECUTED (post-integration) | `.github/workflows/ci.yml` | see "CI" |
 
 Not verified: network-level timeouts (no adapter produces `timeout` yet); a real Orbit adapter (none exists — DEC-0003).
 
@@ -24,4 +24,4 @@ Not verified: network-level timeouts (no adapter produces `timeout` yet); a real
 `npm run verify:full`, 2026-09-14, on the completed PH-4.3 tree (phase candidate): exit 0 — `check-context: 60 documents, 645 links (6 gitignored skipped), 8 phases, 17 subphases, active: none — OK` (ledger cycle 2: 1/3); build:shared, lint and typecheck exit 0; Vitest shared 11/11, api 49/49, web 53/53, api e2e 23/23; `npm run build` (shared, nest, next) exit 0.
 
 ## CI
-Pending push.
+Commit `d9f359f`: run 34812963182 — **success**, 2026-09-14T06:20:24Z. Claim 6 is therefore EXECUTED post-integration.
