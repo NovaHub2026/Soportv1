@@ -31,4 +31,5 @@ Retry (2026-09-14, after the Owner's «Reintenta», engine 29.8.0) on `a863593`,
 `npm run verify` exit 0 at commit time through `scripts/gate-commit.sh` (check-context OK — ledger cycle 3 at 2/3; lint/typecheck exit 0; Vitest shared 21/21, api 65/65, web 73/73, api e2e 34/34).
 
 ## CI
+Re-approval commit `d4fb89b` (rehearsal and local PostgreSQL run recorded): run 34849408489 — **success**, both jobs (`verify` + build, `api suites on PostgreSQL 16`).
 Commit `22cdb72`: run 34827685994 — job `verify` + build **success**, job `api suites on PostgreSQL 16` **success** (BL-019 verified under a real pool: the unit and e2e suites, incl. concurrent takes, concurrent retries and overlapping closures, pass on PostgreSQL 16). Previous commit `c09c569` (PH-8.2): run 34827035399 — job `verify` + build **success**, job `api suites on PostgreSQL 16` **failure** (the e2e files raced on the migrator; the harness was changed here and the root cause — no migration lock — was fixed by the cycle 3 out-of-band audit, FND-0066).
