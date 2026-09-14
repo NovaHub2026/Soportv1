@@ -336,4 +336,17 @@ describe("CaseConversation", () => {
     });
   });
 
+
+  test("PH-4.2: a case opened from a record shows its card with the snapshot, or the reason it could not be captured", async () => {
+    const snapshot = { kind: "withdrawal", reference: "WD-48213", title: "Saque 250 USDT", status: "Em processamento", occurredAt: new Date().toISOString(), amount: "250.00", currency: "USDT", facts: [] };
+    mockFetch(() => ({ body: { ...detail, record: { kind: "withdrawal", reference: "WD-48213", capturedAt: new Date().toISOString(), snapshot, lookupReason: null } } }));
+    const first = render(<CaseConversation identity={identity} caseId={detail.id} />);
+    expect((await screen.findByTestId("case-record")).textContent).toContain("Saque 250 USDT");
+    first.unmount();
+
+    mockFetch(() => ({ body: { ...detail, record: { kind: "withdrawal", reference: "WD-999", capturedAt: new Date().toISOString(), snapshot: null, lookupReason: "not_found" } } }));
+    render(<CaseConversation identity={identity} caseId={detail.id} />);
+    expect((await screen.findByTestId("case-record")).textContent).toContain("Registro não encontrado no Orbit");
+  });
+
 });

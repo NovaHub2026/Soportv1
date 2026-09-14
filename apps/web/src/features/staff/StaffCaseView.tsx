@@ -19,6 +19,7 @@ import {
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttachmentComposer } from "@/features/support/AttachmentComposer";
 import { AttachmentList } from "@/features/support/AttachmentList";
+import { RecordCard } from "@/features/support/RecordCard";
 import { StatusBadge } from "@/features/support/StatusBadge";
 import { dictionary as t, fill, formatMessageTime } from "@/i18n";
 import { ApiError, apiErrorCode, type AttachmentClient, newClientMessageId } from "@/lib/api";
@@ -314,6 +315,9 @@ export function StaffCaseView({ identity, caseId, onChanged, signal = null, live
             <p className={styles.errorText} role="alert">
               {take.message}
             </p>
+          )}
+          {detail.record && (
+            <RecordCard kind={detail.record.kind} reference={detail.record.reference} snapshot={detail.record.snapshot} lookupReason={detail.record.lookupReason} capturedAt={detail.record.capturedAt} detailed testId="staff-case-record" />
           )}
           {detail.lastStaffMessageAt && (
             <p className={styles.readState} data-read={customerReadLatest ? "true" : "false"}>

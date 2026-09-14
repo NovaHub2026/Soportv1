@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-CHAT
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `11f178a` plus the Cycle Audit 1 remediation (identity reset, refused sends, pending persistence, visibility-gated read receipts)
+Verified against: `0d8dcc9` plus the PH-4.2 change (contextual entry from a record, record cards)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/support/`, `apps/web/src/features/shell/`, `apps/web/src/lib/api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/i18n/`, `apps/web/next.config.ts`; API surface `/api/support/cases*` including `/:id/stream` (owned by FEAT-CASE)
 
@@ -23,7 +23,8 @@ Implemented (PH-1.3, refined in PH-1.4):
 - Resolution (PH-3.1): a resolved case shows a notice with the staff explanation in the conversation and the button "Ainda preciso de ajuda", which sends "Ainda preciso de ajuda." and reactivates the same case (§7.2); "Aguardando sua resposta" is shown while staff wait for the customer.
 - Closure (PH-3.4): a closed case replaces the composer with the closure notice and a form whose button "Preciso de mais ajuda" opens a linked continuation and navigates to it; a continuation shows "Continuação do caso SUP-…" with "Ver caso anterior".
 Reliability and privacy on the client (Cycle Audit 1, FND-0011/0012/0021): the panel is keyed by the simulated customer, so changing identity never leaves another customer's conversation on screen; a 401/403/404 on refresh clears the conversation and stops polling; the stream client stops on those statuses. A send refused with 409 `case_closed` moves the text into the follow-up form (same client id); other 4xx show "Recusada pelo servidor" with "Descartar" and are never auto-retried; failed messages persist in `sessionStorage` per customer and case and are retried after "Voltar" or a reload; mutations time out after 20 s. Read receipts are sent only while the panel is actually on screen (desktop, or mobile with the panel open); becoming visible marks unread replies. The home resyncs on every stream (re)connect. Customer responses no longer carry staff-only fields (DEC-0015) — the customer UI never needed them.
-Gaps (accepted target): attachments on the first message of a new case (BL-010); in-product notifications outside the conversation (PH-6); contextual entry from a record with a card ("Preciso de ajuda", PH-4); "Ainda preciso de ajuda" / linked follow-up from closed (PH-3); "Não consigo acessar minha conta" route (PH-7); Spanish locale (structure ready, content later).
+Contextual entry (PH-4.2, §4.2): the simulated host lists the customer's records ("Seus registros", labeled Simulação) with "Preciso de ajuda" per record; the request form shows the record card, preselects the topic from the record's kind and lets the customer remove the record ("Remover registro" — the question becomes general); when the record already has an active case the form offers "Continuar conversa" and disables sending until "É outro problema"; the conversation shows the card with the snapshot captured at opening, or "Registro não encontrado no Orbit…" / "O Orbit não respondeu…" when the boundary could not answer (RULE-SUP-07).
+Gaps (accepted target): attachments on the first message of a new case (BL-010); in-product notifications outside the conversation (PH-6); "Ainda preciso de ajuda" / linked follow-up from closed (PH-3); "Não consigo acessar minha conta" route (PH-7); Spanish locale (structure ready, content later).
 
 ## Dependencies and consumers
 Depends on: FEAT-CASE endpoints and contracts (`@orbit-support/shared`), FEAT-ORBIT identity (simulated header `x-simulated-customer-id`), Next rewrites `/api/*` → `API_ORIGIN`.
@@ -42,4 +43,4 @@ The browser only ever sends the current simulated customer's header; the API enf
 DEC-0006 (CSS Modules, rewrites, polling, Playwright smoke), DEC-0003 (simulated identity, labeled). Assumptions: Orbit will host the panel as a side panel on desktop and full screen on mobile (context §13.1 working default); the topbar picker disappears when a real session exists.
 
 ## Verification and change checklist
-Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs` (screenshots under `docs/evidence/screenshots/`); vocabulary change → dictionary test. Last scoped evidence: `docs/evidence/PH-3.4-verification.md`, `docs/evidence/CYCLE-1-verification.md`.
+Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs` (screenshots under `docs/evidence/screenshots/`); vocabulary change → dictionary test. Last scoped evidence: `docs/evidence/PH-4.2-verification.md`, `docs/evidence/CYCLE-1-verification.md`.

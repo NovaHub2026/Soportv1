@@ -73,6 +73,25 @@ export function OrbitCustomerSection({ identity, caseId }: OrbitCustomerSectionP
       {state.status === "ready" && state.context.customer.state === "available" && (
         <CustomerFacts summary={state.context.customer.data} fetchedAt={state.context.customer.fetchedAt} />
       )}
+      {state.status === "ready" && state.context.record && (
+        <div data-testid="orbit-record-current">
+          <h4 className={styles.contextTitle}>{o.record.current}</h4>
+          {state.context.record.state === "available" ? (
+            <dl className={styles.facts}>
+              <dt>{o.record.title}</dt>
+              <dd>
+                {state.context.record.data.title} · <strong>{state.context.record.data.status}</strong>
+              </dd>
+              <dt>{o.fetchedAt}</dt>
+              <dd>{formatMessageTime(state.context.record.fetchedAt)}</dd>
+            </dl>
+          ) : (
+            <p className={styles.unavailable} role="note">
+              {fill(o.record.unavailable, { reason: o.reasons[state.context.record.reason] })}
+            </p>
+          )}
+        </div>
+      )}
       <p className={styles.consultationMeta}>{o.recordsPending}</p>
     </section>
   );

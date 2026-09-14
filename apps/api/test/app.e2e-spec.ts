@@ -312,4 +312,40 @@ describe('HTTP surface (e2e, in-memory database, simulated identity)', () => {
     expect(health.body.orbitRecords).toBe('simulated');
   });
 
+
+  it('PH-4.2: customers list their own records with active cases flagged, open a case from one, and staff see snapshot and current state', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/support/records').set(asStaff('staff-ana', 'Ana')).expect(403);
+    const list = await request(server).get('/api/support/records').set(asCustomer('cust-alice')).expect(200);
+    expect(list.body.records.state).toBe('available');
+    expect(list.body.records.data.map((r: { reference: string }) => r.reference)).toEqual(['WD-48213', 'OP-901223', 'PIX-77110']);
+    expect(list.body.records.data[0]).toMatchObject({ kind: 'withdrawal', activeCaseId: null });
+    expect(list.text).not.toContain('example.com');
+    const nobody = await request(server).get('/api/support/records').set(asCustomer('cust-nobody')).expect(200);
+    expect(nobody.body.records).toMatchObject({ state: 'unavailable', reason: 'not_found' });
+
+    const created = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-alice'))
+      .send({ category: 'deposits_withdrawals', message: 'Saque não chegou', record: { kind: 'withdrawal', reference: 'WD-48213' } })
+      .expect(201);
+    expect(created.body.record).toMatchObject({ kind: 'withdrawal', reference: 'WD-48213', lookupReason: null, snapshot: { title: 'Saque 250 USDT' } });
+    const again = await request(server).get('/api/support/records').set(asCustomer('cust-alice')).expect(200);
+    expect(again.body.records.data[0]).toMatchObject({ reference: 'WD-48213', activeCaseId: created.body.id, activeCaseReference: created.body.reference });
+
+    await request(server).post('/api/support/cases').set(asCustomer('cust-alice')).send({ category: 'other', message: 'x', record: { kind: 'nope', reference: 'WD-48213' } }).expect(400);
+    const foreign = await request(server)
+      .post('/api/support/cases')
+      .set(asCustomer('cust-bob'))
+      .send({ category: 'other', message: 'Esse saque é meu?', record: { kind: 'withdrawal', reference: 'WD-48213' } })
+      .expect(201);
+    expect(foreign.body.record).toMatchObject({ snapshot: null, lookupReason: 'not_found' });
+    expect(foreign.text).not.toContain('Saque 250');
+
+    const context = await request(server).get(`/api/staff/cases/${created.body.id}/orbit`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(context.body.record).toMatchObject({ state: 'available', data: { reference: 'WD-48213', status: 'Em processamento' } });
+    const staffView = await request(server).get(`/api/staff/cases/${created.body.id}`).set(asStaff('staff-ana', 'Ana')).expect(200);
+    expect(staffView.body.record.snapshot.title).toBe('Saque 250 USDT');
+  });
+
 });

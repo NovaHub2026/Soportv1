@@ -394,6 +394,37 @@ try {
     await shot(staffPage, '17-staff-incident');
     await staffPage.close();
 
+    // Contextual entry from a record (PH-4.2, §4.2): "Preciso de ajuda" on a withdrawal in the host.
+    await desktop.getByRole('button', { name: 'Voltar' }).click();
+    await desktop.getByText('Conversas em andamento').waitFor();
+    await desktop.getByRole('button', { name: 'Preciso de ajuda: Saque 250 USDT' }).click();
+    await desktop.getByText('Como podemos ajudar?').waitFor();
+    await desktop.getByTestId('request-record').getByText('WD-48213').waitFor();
+    if (!(await desktop.getByLabel('Depósitos e saques').isChecked())) throw new Error('Topic was not preselected from the record');
+    await desktop.getByLabel('Conte o que está acontecendo').fill('Esse saque está em processamento há muito tempo.');
+    await desktop.getByRole('button', { name: 'Enviar' }).click();
+    await desktop.getByText(/Referência SUP-000003/).waitFor({ timeout: 10_000 });
+    await desktop.getByTestId('case-record').getByText('Saque 250 USDT').waitFor();
+    note('record-entry', '"Preciso de ajuda" on the simulated withdrawal opened a request with the record card, preselected "Depósitos e saques", and the new case SUP-000003 shows the card with the snapshot');
+    await shot(desktop, '18-customer-record-case');
+    const staffPage2 = await browser.newPage({ viewport: { width: 1440, height: 900 }, locale: 'pt-BR' });
+    await staffPage2.goto(`${WEB}/staff`);
+    await staffPage2.getByRole('tab', { name: 'Não atribuídos' }).click();
+    await staffPage2.getByRole('button', { name: /SUP-000003/ }).waitFor({ timeout: 10_000 });
+    await staffPage2.getByRole('button', { name: /SUP-000003/ }).click();
+    await staffPage2.getByTestId('staff-case-record').getByText('TX7f…9k2Q').waitFor({ timeout: 5000 });
+    await staffPage2.getByTestId('orbit-record-current').getByText('Em processamento').waitFor({ timeout: 5000 });
+    note('record-staff', 'staff see the withdrawal card with the masked destination captured at opening and the record\'s current state from the simulated Orbit');
+    await shot(staffPage2, '19-staff-record-case');
+    await staffPage2.close();
+    // Asking again about the same record suggests continuing SUP-000003 instead of opening a duplicate.
+    await desktop.getByRole('button', { name: 'Voltar' }).click();
+    await desktop.getByRole('button', { name: 'Preciso de ajuda: Saque 250 USDT' }).click();
+    await desktop.getByText(/já tem uma conversa em andamento \(SUP-000003\)/).waitFor({ timeout: 5000 });
+    await desktop.getByRole('button', { name: 'Continuar conversa' }).click();
+    await desktop.getByText(/Referência SUP-000003/).waitFor();
+    note('record-continue', 'asking for help about the same record again offered to continue SUP-000003, and "Continuar conversa" opened it');
+
     // Continuity: reload, history still there.
     await desktop.reload();
     await desktop.getByText('Conversas em andamento').waitFor();

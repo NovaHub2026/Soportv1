@@ -8,6 +8,7 @@ import { type StreamStatus, subscribeStream } from "@/lib/sse";
 import { AttachmentComposer } from "./AttachmentComposer";
 import { AttachmentList } from "./AttachmentList";
 import { ConnectionIndicator } from "./ConnectionIndicator";
+import { RecordCard } from "./RecordCard";
 import { StatusBadge } from "./StatusBadge";
 import styles from "./support.module.css";
 
@@ -321,6 +322,10 @@ export function CaseConversation({ identity, caseId, onOpenCase, visible = true 
           </p>
         )}
       </div>
+
+      {detail.record && (
+        <RecordCard kind={detail.record.kind} reference={detail.record.reference} snapshot={detail.record.snapshot} lookupReason={detail.record.lookupReason} capturedAt={detail.record.capturedAt} testId="case-record" />
+      )}
 
       <ol ref={logRef} className={styles.messageLog} aria-live="polite" aria-relevant="additions">
         {detail.messages.map((m) => (

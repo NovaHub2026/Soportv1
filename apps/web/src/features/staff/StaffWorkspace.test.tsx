@@ -363,4 +363,20 @@ describe("StaffCaseView", () => {
     expect(await screen.findByText("Olá, Alice!")).toBeDefined();
     expect(screen.getByText("Ana Ribeiro (você)")).toBeDefined();
   });
+
+  test("PH-4.2: staff see the record card with the snapshot facts and the record's current state from Orbit", async () => {
+    const snapshot = { kind: "withdrawal", reference: "WD-48213", title: "Saque 250 USDT", status: "Em processamento", occurredAt: new Date().toISOString(), amount: "250.00", currency: "USDT", facts: [{ label: "Destino", value: "TX7f…9k2Q" }] };
+    mockFetch((request) =>
+      request.url.endsWith("/orbit")
+        ? { body: { ...orbitAvailable, record: { state: "available", source: "simulated", fetchedAt: new Date().toISOString(), data: { ...snapshot, status: "Concluído" } } } }
+        : { body: { ...detail, record: { kind: "withdrawal", reference: "WD-48213", capturedAt: new Date().toISOString(), snapshot, lookupReason: null } } },
+    );
+    render(<StaffCaseView identity={ana} caseId={detail.id} onChanged={() => {}} />);
+    const card = await screen.findByTestId("staff-case-record");
+    expect(card.textContent).toContain("Em processamento");
+    expect(card.textContent).toContain("TX7f…9k2Q");
+    const current = await screen.findByTestId("orbit-record-current");
+    expect(current.textContent).toContain("Concluído");
+  });
+
 });

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { SupportPanel } from "@/features/support/SupportPanel";
-import { dictionary as t } from "@/i18n";
+import type { OrbitLookup, OrbitRecordListItem } from "@orbit-support/shared";
+import { useEffect, useState } from "react";
+import { type SupportEntry, SupportPanel } from "@/features/support/SupportPanel";
+import { dictionary as t, formatMessageTime } from "@/i18n";
+import { customerApi } from "@/lib/api";
 import { SIMULATED_CUSTOMERS, useSimulatedCustomer } from "@/lib/simulated-session";
 import { useMediaQuery } from "@/lib/use-media-query";
 
@@ -15,6 +17,28 @@ export function OrbitShell() {
   const [customer, selectCustomer] = useSimulatedCustomer();
   const [panelOpen, setPanelOpen] = useState(false);
   const desktop = useMediaQuery(DESKTOP_QUERY);
+  const [entry, setEntry] = useState<SupportEntry | null>(null);
+  const [records, setRecords] = useState<OrbitLookup<OrbitRecordListItem[]> | null>(null);
+
+  // The simulated "trading" area lists the customer's records so "Preciso de ajuda" can start from one (§4.2).
+  useEffect(() => {
+    const controller = new AbortController();
+    customerApi
+      .listRecords({ customerId: customer.id }, controller.signal)
+      .then(({ records: lookup }) => setRecords(lookup && (lookup.state === "available" || lookup.state === "unavailable") ? lookup : { state: "unavailable", reason: "unavailable", source: "simulated", fetchedAt: new Date().toISOString() }))
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.warn("shell: could not load records", error);
+          setRecords({ state: "unavailable", reason: "unavailable", source: "simulated", fetchedAt: new Date().toISOString() });
+        }
+      });
+    return () => controller.abort();
+  }, [customer.id, panelOpen]);
+
+  const askAbout = (record: OrbitRecordListItem) => {
+    setEntry((current) => ({ record, seq: (current?.seq ?? 0) + 1 }));
+    setPanelOpen(true);
+  };
 
   return (
     <div className={styles.shell} data-panel-open={panelOpen ? "true" : "false"}>
@@ -57,11 +81,44 @@ export function OrbitShell() {
           <h1 className={styles.tradingTitle}>{t.shell.tradingPlaceholder}</h1>
           <p className={styles.tradingHint}>{t.shell.tradingPlaceholderHint}</p>
           <p className={styles.simNote}>{t.app.simulationNote}</p>
+
+          <section className={styles.records} aria-label={t.support.records.title}>
+            <h2 className={styles.recordsTitle}>
+              {t.support.records.title} <span className={styles.simBadge}>{t.app.simulationBadge}</span>
+            </h2>
+            <p className={styles.tradingHint}>{t.support.records.hint}</p>
+            {records === null && <p className={styles.tradingHint}>{t.support.records.loading}</p>}
+            {records?.state === "unavailable" && (
+              <p className={styles.tradingHint} role="note">
+                {t.support.records.unavailable}
+              </p>
+            )}
+            {records?.state === "available" && records.data.length === 0 && <p className={styles.tradingHint}>{t.support.records.empty}</p>}
+            {records?.state === "available" && records.data.length > 0 && (
+              <ul className={styles.recordList}>
+                {records.data.map((record) => (
+                  <li key={`${record.kind}:${record.reference}`} className={styles.recordItem}>
+                    <div>
+                      <p className={styles.recordItemTitle}>
+                        {t.support.records.kinds[record.kind]} · {record.title}
+                      </p>
+                      <p className={styles.tradingHint}>
+                        {record.reference} · {record.status} · {formatMessageTime(record.occurredAt)}
+                      </p>
+                    </div>
+                    <button type="button" className={styles.helpButton} onClick={() => askAbout(record)} aria-label={`${t.support.records.help}: ${record.title}`}>
+                      {t.support.records.help}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </main>
 
         <aside id="support-panel" className={styles.panel} aria-label={t.support.title}>
           {/* Keyed by customer: changing who the browser acts as never leaves another customer's conversation on screen (FND-0011). */}
-          <SupportPanel key={customer.id} customer={customer} visible={desktop || panelOpen} onClose={() => setPanelOpen(false)} />
+          <SupportPanel key={customer.id} customer={customer} visible={desktop || panelOpen} entry={entry} onClose={() => setPanelOpen(false)} />
         </aside>
       </div>
     </div>

@@ -5,6 +5,8 @@ import {
   type CustomerCaseDetail,
   type CustomerCaseSummary,
   type FollowUpInput,
+  type OrbitLookup,
+  type OrbitRecordListItem,
   type PostMessageInput,
   SIMULATED_IDENTITY_HEADERS,
 } from "@orbit-support/shared";
@@ -106,6 +108,9 @@ export interface AttachmentClient {
 }
 
 export const customerApi = {
+  /** The customer's own Orbit records for contextual entry (PH-4.2); each says whether an active case already exists. */
+  listRecords: (identity: CustomerIdentity, signal?: AbortSignal) =>
+    apiRequest<{ records: OrbitLookup<OrbitRecordListItem[]> }>("/support/records", customerHeaders(identity), { signal }),
   listCases: (identity: CustomerIdentity, signal?: AbortSignal) =>
     apiRequest<CustomerCaseSummary[]>("/support/cases", customerHeaders(identity), { signal }),
   getCase: (identity: CustomerIdentity, caseId: string, signal?: AbortSignal) =>

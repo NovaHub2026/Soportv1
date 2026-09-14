@@ -57,6 +57,13 @@
       "when": 1789363669402,
       "tag": "0007_thick_fallen_one",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789365839798,
+      "tag": "0008_red_piledriver",
+      "breakpoints": true
     }
   ]
 }

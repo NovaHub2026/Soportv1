@@ -3,6 +3,19 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { NewRequestForm } from "./NewRequestForm";
 import { identity, message, mockFetch, summary } from "./test-utils";
 
+const withdrawal = {
+  kind: "withdrawal" as const,
+  reference: "WD-48213",
+  title: "Saque 250 USDT",
+  status: "Em processamento",
+  occurredAt: new Date().toISOString(),
+  amount: "250.00",
+  currency: "USDT",
+  facts: [{ label: "Destino", value: "TX7f…9k2Q" }],
+  activeCaseId: null as string | null,
+  activeCaseReference: null as string | null,
+};
+
 afterEach(() => vi.restoreAllMocks());
 
 describe("NewRequestForm", () => {
@@ -54,4 +67,41 @@ describe("NewRequestForm", () => {
     const ids = requests.map((r) => (r.body as { clientMessageId: string }).clientMessageId);
     expect(ids[0]).toBe(ids[1]);
   });
+
+  describe("contextual entry from a record (PH-4.2, §4.2)", () => {
+    test("shows the record card, preselects the topic and sends the record with the request; the card can be removed", async () => {
+      const created = { ...summary(), messages: [message()], record: null };
+      const { requests } = mockFetch((request) => (request.url === "/api/support/records" ? { body: { records: { state: "available", source: "simulated", fetchedAt: "", data: [withdrawal] } } } : { status: 201, body: created }));
+      const onCreated = vi.fn();
+      render(<NewRequestForm identity={identity} onCreated={onCreated} record={withdrawal} />);
+      expect(screen.getByTestId("request-record").textContent).toContain("Saque 250 USDT");
+      expect((screen.getByLabelText("Depósitos e saques") as HTMLInputElement).checked).toBe(true);
+
+      fireEvent.change(screen.getByLabelText("Conte o que está acontecendo"), { target: { value: "Ainda não chegou" } });
+      fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+      await waitFor(() => expect(onCreated).toHaveBeenCalled());
+      const post = requests.find((r) => r.method === "POST");
+      expect(post?.body).toMatchObject({ category: "deposits_withdrawals", record: { kind: "withdrawal", reference: "WD-48213" } });
+    });
+
+    test("offers to continue the active case that already exists for the record, unless it is a different issue", async () => {
+      const active = { ...withdrawal, activeCaseId: "11111111-1111-4111-8111-111111111111", activeCaseReference: "SUP-000001" };
+      mockFetch(() => ({ body: { records: { state: "available", source: "simulated", fetchedAt: "", data: [active] } } }));
+      const onOpenCase = vi.fn();
+      render(<NewRequestForm identity={identity} onCreated={() => {}} record={withdrawal} onOpenCase={onOpenCase} />);
+      expect(await screen.findByText(/já tem uma conversa em andamento \(SUP-000001\)/)).toBeDefined();
+      fireEvent.change(screen.getByLabelText("Conte o que está acontecendo"), { target: { value: "Outra coisa" } });
+      expect((screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(screen.getByRole("button", { name: "Continuar conversa" }));
+      expect(onOpenCase).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
+
+      fireEvent.click(screen.getByRole("button", { name: "É outro problema" }));
+      expect(screen.queryByText(/já tem uma conversa em andamento/)).toBeNull();
+      expect((screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement).disabled).toBe(false);
+      fireEvent.click(screen.getByRole("button", { name: "Remover registro" }));
+      expect(screen.queryByTestId("request-record")).toBeNull();
+      expect(screen.getByText(/pergunta será geral/)).toBeDefined();
+    });
+  });
+
 });

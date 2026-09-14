@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ORBIT_RECORD_KINDS, ORBIT_UNAVAILABLE_REASONS, type OrbitRecord } from "./orbit.js";
 
 // ---- Vocabulary (PROJECT_CONTEXT.md §4.1 topics, §7 lifecycle, §5.4 priority) ----
 
@@ -256,10 +257,19 @@ const messageBodySchema = text(z.string().trim().min(1, "message_required").max(
 const clientMessageIdSchema = text(z.string().trim().min(1).max(100));
 const attachmentIdsSchema = z.array(z.uuid()).max(ATTACHMENT_LIMITS.maxPerMessage, "too_many_attachments");
 
+/** The record a request is about (§4.2): kind + reference; ownership and the snapshot are resolved server-side. */
+export const caseRecordRefSchema = z.object({
+  kind: z.enum(ORBIT_RECORD_KINDS),
+  reference: text(z.string().trim().min(1).max(100)),
+});
+export type CaseRecordRef = z.infer<typeof caseRecordRefSchema>;
+
 export const createCaseSchema = z.object({
   category: z.enum(CASE_CATEGORIES),
   subject: text(z.string().trim().min(1).max(200)).optional(),
   message: messageBodySchema,
+  /** Contextual entry from a record ("Preciso de ajuda" on a withdrawal, a deposit, an operation). */
+  record: caseRecordRefSchema.optional(),
   /** Client-generated id so a retried submission does not create a second case (RULE-SUP-03). */
   clientMessageId: clientMessageIdSchema.optional(),
 });
@@ -318,8 +328,25 @@ export const caseSummarySchema = z.object({
   /** Shared incident this case is associated with, if any (§5.4). Staff-only: stripped from customer surfaces. */
   incidentId: z.string().nullable(),
   incidentTitle: z.string().nullable(),
+  /** The record this case is about, if it was opened from one (§4.2). The snapshot travels in the detail. */
+  recordKind: z.enum(ORBIT_RECORD_KINDS).nullable(),
+  recordReference: z.string().nullable(),
 });
 export type CaseSummary = z.infer<typeof caseSummarySchema>;
+
+/**
+ * The record card attached to a case: what the record looked like when the case was opened (§6.2 — the
+ * conditions at the time, distinct from the current status staff read live). `snapshot` is null when the
+ * adapter could not answer at that moment; `lookupReason` says why, so the case proceeds as an investigation,
+ * never with an assumed answer (RULE-SUP-07, §14 item 7).
+ */
+export interface CaseRecord {
+  kind: (typeof ORBIT_RECORD_KINDS)[number];
+  reference: string;
+  capturedAt: string;
+  snapshot: OrbitRecord | null;
+  lookupReason: (typeof ORBIT_UNAVAILABLE_REASONS)[number] | null;
+}
 
 /**
  * Fields that describe how staff work the case, never the customer's own matter. They are removed from every
@@ -358,11 +385,11 @@ export type CaseEvent = z.infer<typeof caseEventSchema>;
 export const customerCaseDetailSchema = customerCaseSummarySchema.extend({
   messages: z.array(caseMessageSchema),
 });
-export type CustomerCaseDetail = z.infer<typeof customerCaseDetailSchema>;
+export type CustomerCaseDetail = z.infer<typeof customerCaseDetailSchema> & { record: CaseRecord | null };
 
 export const staffCaseDetailSchema = caseSummarySchema.extend({
   messages: z.array(caseMessageSchema),
   events: z.array(caseEventSchema),
   consultations: z.array(caseConsultationSchema),
 });
-export type StaffCaseDetail = z.infer<typeof staffCaseDetailSchema>;
+export type StaffCaseDetail = z.infer<typeof staffCaseDetailSchema> & { record: CaseRecord | null };

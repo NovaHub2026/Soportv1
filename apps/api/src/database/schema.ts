@@ -69,6 +69,13 @@ export const supportCases = pgTable(
     incidentId: uuid('incident_id').references(() => incidents.id, { onDelete: 'set null' }),
     /** The customer's idempotency key for creating this case (root or follow-up): a retry never opens a second one (FND-0010). */
     clientMessageId: text('client_message_id'),
+    /** The Orbit record the case is about (PH-4.2, §4.2): kind + reference, and the snapshot captured at creation (§6.2). */
+    recordKind: text('record_kind'),
+    recordReference: text('record_reference'),
+    recordCapturedAt: tz('record_captured_at'),
+    recordSnapshot: jsonb('record_snapshot').$type<Record<string, unknown>>(),
+    /** Why the snapshot is null: the adapter could not answer when the case was opened (RULE-SUP-07). */
+    recordLookupReason: text('record_lookup_reason'),
   },
   (t) => [
     uniqueIndex('support_cases_reference_number_uq').on(t.referenceNumber),
@@ -77,6 +84,7 @@ export const supportCases = pgTable(
       .where(sql`${t.clientMessageId} is not null`),
     index('support_cases_customer_idx').on(t.customerId, t.lastMessageAt),
     index('support_cases_queue_idx').on(t.status, t.assignedAgentId, t.createdAt),
+    index('support_cases_record_idx').on(t.customerId, t.recordKind, t.recordReference),
   ],
 );
 

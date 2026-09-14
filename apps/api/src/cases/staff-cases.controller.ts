@@ -76,7 +76,8 @@ export class StaffCasesController {
   @Get(':id/orbit')
   async orbitContext(@Param('id', ParseUUIDPipe) id: string): Promise<OrbitCaseContext> {
     const row = await this.cases.requireCaseRow(id);
-    return { customer: await this.orbit.customerSummary(row.customerId) };
+    const [customer, record] = await Promise.all([this.orbit.customerSummary(row.customerId), this.cases.currentRecord(row)]);
+    return { customer, record };
   }
 
   @Post(':id/attachments')

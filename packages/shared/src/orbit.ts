@@ -44,9 +44,42 @@ export type OrbitLookup<T> =
   | (OrbitLookupMeta & { state: "available"; data: T })
   | (OrbitLookupMeta & { state: "unavailable"; reason: OrbitUnavailableReason });
 
-/** What staff get for a case: the customer's summary today; records follow in PH-4.2. */
+/** Record subjects served today (§6.1 rows the initial categories route). Others answer `not_integrated`. */
+export const ORBIT_RECORD_KINDS = ["operation", "pix_deposit", "withdrawal"] as const;
+export type OrbitRecordKind = (typeof ORBIT_RECORD_KINDS)[number];
+
+/** One line of context about a record, already masked by the adapter (destinations, references). */
+export interface OrbitRecordFact {
+  label: string;
+  value: string;
+}
+
+/**
+ * A record as the boundary presents it: enough for a customer to recognize it and for staff to investigate
+ * (§6.1), without prescribing Orbit's schema — the facts list is what the real adapter maps per subject.
+ */
+export interface OrbitRecord {
+  kind: OrbitRecordKind;
+  reference: string;
+  title: string;
+  status: string;
+  occurredAt: string;
+  amount: string | null;
+  currency: string | null;
+  facts: OrbitRecordFact[];
+}
+
+/** A record in the customer's own list, with the active case already attached to it, if any (§4.2). */
+export interface OrbitRecordListItem extends OrbitRecord {
+  activeCaseId: string | null;
+  activeCaseReference: string | null;
+}
+
+/** What staff get for a case: the customer's summary and, when the case is about a record, its current state. */
 export interface OrbitCaseContext {
   customer: OrbitLookup<OrbitCustomerSummary>;
+  /** Current lookup of the linked record (the case keeps the snapshot captured when it was opened — §6.2). */
+  record: OrbitLookup<OrbitRecord> | null;
 }
 
 /** `alice.souza@example.com` → `a***@e***.com`: recognizable, not reusable. */

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { OrbitRecordListItem } from "@orbit-support/shared";
+import { useEffect, useMemo, useState } from "react";
 import { dictionary as t } from "@/i18n";
 import type { CustomerIdentity } from "@/lib/api";
 import type { SimulatedCustomer } from "@/lib/simulated-session";
@@ -9,22 +10,35 @@ import { NewRequestForm } from "./NewRequestForm";
 import { SupportHome } from "./SupportHome";
 import styles from "./support.module.css";
 
-type View = { name: "home" } | { name: "new" } | { name: "case"; caseId: string };
+type View = { name: "home" } | { name: "new"; record?: OrbitRecordListItem | null } | { name: "case"; caseId: string };
+
+/** A "Preciso de ajuda" request from the host: the record plus a sequence so the same record can be asked twice. */
+export interface SupportEntry {
+  record: OrbitRecordListItem;
+  seq: number;
+}
 
 interface SupportPanelProps {
   customer: SimulatedCustomer;
   onClose?: () => void;
   /** Whether the panel is actually on screen (the mobile layout hides it while mounted). Drives read receipts (FND-0021). */
   visible?: boolean;
+  /** Contextual entry from a record in the host (context §4.2). */
+  entry?: SupportEntry | null;
 }
 
 /**
  * The customer "Suporte" experience (context §4): home with a prominent way to talk to a person, a short
  * new-request form, and the conversation of one case. Opening the panel creates nothing; sending does.
  */
-export function SupportPanel({ customer, onClose, visible = true }: SupportPanelProps) {
+export function SupportPanel({ customer, onClose, visible = true, entry = null }: SupportPanelProps) {
   const [view, setView] = useState<View>({ name: "home" });
   const identity = useMemo<CustomerIdentity>(() => ({ customerId: customer.id }), [customer.id]);
+
+  // "Preciso de ajuda" on a record opens the new-request form about it.
+  useEffect(() => {
+    if (entry) queueMicrotask(() => setView({ name: "new", record: entry.record }));
+  }, [entry]);
 
   return (
     <section className={styles.panel} data-testid="support-panel">
@@ -58,7 +72,13 @@ export function SupportPanel({ customer, onClose, visible = true }: SupportPanel
         />
       )}
       {view.name === "new" && (
-        <NewRequestForm identity={identity} onCreated={(created) => setView({ name: "case", caseId: created.id })} />
+        <NewRequestForm
+          key={view.record ? `${view.record.kind}:${view.record.reference}:${entry?.seq ?? 0}` : "general"}
+          identity={identity}
+          record={view.record ?? null}
+          onOpenCase={(caseId) => setView({ name: "case", caseId })}
+          onCreated={(created) => setView({ name: "case", caseId: created.id })}
+        />
       )}
       {view.name === "case" && (
         <CaseConversation key={view.caseId} identity={identity} caseId={view.caseId} visible={visible} onOpenCase={(caseId) => setView({ name: "case", caseId })} />

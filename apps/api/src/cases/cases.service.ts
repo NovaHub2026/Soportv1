@@ -6,6 +6,8 @@ import {
   type CaseConsultation,
   type CaseEvent,
   type CaseMessage,
+  type CaseRecord,
+  type CaseRecordRef,
   type CaseStatus,
   type CaseSummary,
   type CreateCaseInput,
@@ -20,6 +22,9 @@ import {
   type IncidentStatus,
   type MessageAuthorType,
   OPEN_CASE_STATUSES,
+  type OrbitRecord,
+  type OrbitRecordKind,
+  type OrbitUnavailableReason,
   type PostMessageInput,
   type PostNoteInput,
   type RequestConsultationInput,
@@ -49,6 +54,7 @@ import {
   supportCases,
 } from '../database/schema.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
+import { ORBIT_RECORDS, type OrbitRecordsPort } from '../identity/orbit-records.js';
 import { STAFF_DIRECTORY, type StaffDirectory } from '../identity/staff-directory.js';
 
 const OPEN = [...OPEN_CASE_STATUSES];
@@ -71,6 +77,7 @@ export class CasesService {
     private readonly events: CaseEventBus,
     private readonly attachments: AttachmentsService,
     @Inject(STAFF_DIRECTORY) private readonly staffDirectory: StaffDirectory,
+    @Inject(ORBIT_RECORDS) private readonly orbit: OrbitRecordsPort,
   ) {}
 
   // ---------- Customer ----------
@@ -84,6 +91,9 @@ export class CasesService {
       const existing = await this.findCaseByClientMessage(customer.id, input.clientMessageId);
       if (existing) return this.customerDetail(await this.assertRootCase(existing));
     }
+    // Contextual entry (§4.2): capture what the record looked like now; an unavailable answer still opens the
+    // case — as an investigation, with the reason on the card (RULE-SUP-07, §14 item 7).
+    const record = input.record ? await this.captureRecord(customer, input.record) : null;
     try {
       const { row, message } = await this.db.transaction(async (tx) => {
         const now = new Date();
@@ -94,6 +104,15 @@ export class CasesService {
             subject: input.subject ?? deriveSubject(input.message),
             category: input.category,
             clientMessageId: input.clientMessageId ?? null,
+            ...(record
+              ? {
+                  recordKind: record.kind,
+                  recordReference: record.reference,
+                  recordCapturedAt: new Date(record.capturedAt),
+                  recordSnapshot: (record.snapshot as unknown as Record<string, unknown> | null) ?? null,
+                  recordLookupReason: record.lookupReason,
+                }
+              : {}),
             createdAt: now,
             updatedAt: now,
             lastMessageAt: now,
@@ -116,7 +135,11 @@ export class CasesService {
           type: 'case_created',
           actorType: 'customer',
           actorId: customer.id,
-          data: { category: input.category, identitySource: customer.source },
+          data: {
+            category: input.category,
+            identitySource: customer.source,
+            ...(record ? { record: { kind: record.kind, reference: record.reference, snapshotCaptured: record.snapshot !== null, lookupReason: record.lookupReason } } : {}),
+          },
           createdAt: now,
         });
         return { row: created, message: first };
@@ -311,7 +334,42 @@ export class CasesService {
       this.summaryOf(row),
       this.loadConsultations(row.id),
     ]);
-    return { ...summary, messages, events, consultations };
+    return { ...summary, messages, events, consultations, record: toCaseRecord(row) };
+  }
+
+  // ---------- Records (PH-4.2, §4.2): the case remembers what it is about ----------
+
+  /** The customer's open case per record, so the UI can offer to continue it instead of opening a duplicate (§4.2). */
+  async activeCasesByRecord(customer: CustomerActor): Promise<Map<string, { id: string; reference: string }>> {
+    const rows = await this.db
+      .select({ id: supportCases.id, referenceNumber: supportCases.referenceNumber, kind: supportCases.recordKind, ref: supportCases.recordReference })
+      .from(supportCases)
+      .where(and(eq(supportCases.customerId, customer.id), inArray(supportCases.status, OPEN), ne(supportCases.recordKind, '')))
+      .orderBy(asc(supportCases.createdAt));
+    const map = new Map<string, { id: string; reference: string }>();
+    for (const row of rows) {
+      if (!row.kind || !row.ref) continue;
+      const key = `${row.kind}:${row.ref}`;
+      if (!map.has(key)) map.set(key, { id: row.id, reference: formatCaseReference(row.referenceNumber) });
+    }
+    return map;
+  }
+
+  /** Current Orbit state of the record a case is about, for the staff context (null when the case has none). */
+  async currentRecord(row: SupportCaseRow): Promise<ReturnType<OrbitRecordsPort['getRecord']> | null> {
+    if (!row.recordKind || !row.recordReference) return null;
+    return this.orbit.getRecord(row.customerId, row.recordKind as OrbitRecordKind, row.recordReference);
+  }
+
+  private async captureRecord(customer: CustomerActor, ref: CaseRecordRef): Promise<CaseRecord> {
+    const lookup = await this.orbit.getRecord(customer.id, ref.kind, ref.reference);
+    return {
+      kind: ref.kind,
+      reference: ref.reference,
+      capturedAt: lookup.fetchedAt,
+      snapshot: lookup.state === 'available' ? lookup.data : null,
+      lookupReason: lookup.state === 'available' ? null : lookup.reason,
+    };
   }
 
   // ---------- Internal collaboration (PH-3.2): never visible to customers (RULE-SUP-04) ----------
@@ -992,7 +1050,7 @@ export class CasesService {
   /** Customer detail: the customer projection of the summary plus the public conversation (RULE-SUP-04). */
   private async customerDetail(row: SupportCaseRow): Promise<CustomerCaseDetail> {
     const [messages, summary] = await Promise.all([this.loadMessages(row.id, true), this.summaryOf(row, 'customer')]);
-    return { ...toCustomerCaseSummary(summary), messages };
+    return { ...toCustomerCaseSummary(summary), messages, record: toCaseRecord(row) };
   }
 
   /** Summaries with viewer-dependent unread counts, the parent reference for follow-ups and the incident title. */
@@ -1162,6 +1220,19 @@ function toSummary(row: SupportCaseRow, unreadCount = 0, parentReference: string
     parentReference,
     incidentId: row.incidentId,
     incidentTitle,
+    recordKind: (row.recordKind as OrbitRecordKind | null) ?? null,
+    recordReference: row.recordReference,
+  };
+}
+
+function toCaseRecord(row: SupportCaseRow): CaseRecord | null {
+  if (!row.recordKind || !row.recordReference || !row.recordCapturedAt) return null;
+  return {
+    kind: row.recordKind as OrbitRecordKind,
+    reference: row.recordReference,
+    capturedAt: row.recordCapturedAt.toISOString(),
+    snapshot: (row.recordSnapshot as unknown as OrbitRecord | null) ?? null,
+    lookupReason: (row.recordLookupReason as OrbitUnavailableReason | null) ?? null,
   };
 }
 

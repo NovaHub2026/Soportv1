@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-STAFF
 Lifecycle: PARTIAL
 Freshness: CURRENT
-Verified against: `85dc567` plus the PH-4.1 change (Orbit customer summary in the context column)
+Verified against: `0d8dcc9` plus the PH-4.2 change (record card and current state)
 Verified on: 2026-09-14
 Scope: `apps/web/src/features/staff/`, `apps/web/src/lib/staff-api.ts`, `apps/web/src/lib/sse.ts`, `apps/web/src/app/staff/`, staff copy in `apps/web/src/i18n/pt-BR.ts`; API surface `/api/staff/cases*` including `/stream` (owned by FEAT-CASE)
 
@@ -18,6 +18,7 @@ Internal collaboration (PH-3.2): the composer has two visibly different modes �
 Ownership and attributes (PH-3.3): "Transferir" (picker of simulated agents) and "Devolver à fila" in the action bar — a 403 shows "Só o responsável ou um supervisor pode transferir este caso."; priority and category are editable selects in the context column; history shows "Transferido para … por …", "Devolvido à fila por …", "Prioridade: … → …", "Assunto: … → …".
 Closure (PH-3.4): "Encerrar caso" on resolved cases; continuations show "Continuação do caso SUP-…" with "Abrir caso anterior"; history shows "Encerrado pela equipe / após o prazo de acompanhamento" and "Continuação aberta: SUP-…".
 Shared incidents (PH-3.5): the context column's "Incidente compartilhado" section links to an open incident or creates one, sends a note to all linked cases, marks the incident resolved (with the hint that cases need individual confirmation) and unlinks; queue items carry an "Incidente" tag.
+Record cards (PH-4.2): a case opened from a record shows the card in the case header with the masked facts captured at opening; the Orbit section adds "Estado atual no Orbit" for that record (title · status, fetched time) or its unavailable reason — snapshot and current state are deliberately both visible (§6.2).
 Orbit context (PH-4.1): the context column's "Cliente no Orbit" section (labeled Simulação) shows username, account status, environment (real/demo), verification with the next action, language · country, registration, masked e-mail and phone and when it was fetched — or "Dados do Orbit indisponíveis: <motivo>." with "Tentar novamente"; a one-line note says records are not integrated yet (PH-4.2).
 Cycle Audit 1: the transfer picker and the identity picker read the shared `SIMULATED_STAFF_DIRECTORY` (the API validates transfer targets against the same list); "Resolver caso" with a pending consultation shows "Há consulta pendente com outra equipe…" (409 `consultations_open`); roles are labeled in pt-BR. Known limitation (FND-0023, BL-011): no view of waiting, resolved or closed cases — a resolved case is reachable only by id until PH-5.
 Gaps (accepted target): filters, search by reference / user id / email / operation refs, saved replies, supervision views, schedule/config, metrics (PH-5); Orbit record cards and masked identity summary (PH-4); role-based permissions beyond agent/supervisor/admin labels (PH-7); the context column is hidden below 1100 px (desktop-first).
@@ -38,4 +39,4 @@ Take conflicts (someone else took it) surface as an error line, never silently. 
 DEC-0007 (pt-BR staff copy by default; responsible shown by id until profiles exist). Assumption: agents work on desktop-class screens; a narrow layout keeps queue + conversation only.
 
 ## Verification and change checklist
-Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-4.1-verification.md`, `docs/evidence/CYCLE-1-verification.md`.
+Component change → `npm test -w web`, `npm run lint -w web`; layout/copy change → `npm run build` + `scripts/ui-smoke.mjs`. Last scoped evidence: `docs/evidence/PH-4.2-verification.md`, `docs/evidence/PH-4.1-verification.md`.

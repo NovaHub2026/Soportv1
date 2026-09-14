@@ -3,7 +3,7 @@ Type: FEATURE CONTEXT
 Feature ID: FEAT-ORBIT
 Lifecycle: PARTIAL (identity boundary and customer summary; record cards pending)
 Freshness: CURRENT
-Verified against: `85dc567` plus the PH-4.1 change (Orbit records port, simulated adapter, staff summary section)
+Verified against: `0d8dcc9` plus the PH-4.2 change (records through the port, contextual entry, record cards)
 Verified on: 2026-09-14
 Scope: `apps/api/src/identity/` (incl. `staff-directory.ts`, `orbit-records.ts`, `simulated-orbit-records.ts`), `packages/shared/src/identity.ts`, `packages/shared/src/orbit.ts`, `apps/web/src/lib/simulated-session.ts`, `apps/web/src/features/staff/OrbitCustomerSection.tsx`, identity headers in `apps/web/src/lib/api.ts` and `apps/web/src/lib/staff-api.ts`
 
@@ -21,7 +21,8 @@ Implemented (PH-1.2, hardened in PH-1.5):
 - Provider selection `resolveIdentityProviderName(env)`: only `simulated` exists; refuses to start with `NODE_ENV=production` (any casing) unless `SUPPORT_ALLOW_SIMULATED_IDENTITY=true` (DEC-0008). Simulated display names are unbounded — the real adapter must bound and sanitize them.
 - Web: simulated customer/staff pickers persisted in `localStorage`, always labeled **Simulação**; `/api/health` reports `identity: simulated`.
 - Records boundary (PH-4.1, DEC-0019): `OrbitRecordsPort.customerSummary(userId) → OrbitLookup<OrbitCustomerSummary>` — `available` with already-masked data or `unavailable` with a reason (`not_integrated`, `not_found`, `unavailable`, `timeout`), always with `source` and `fetchedAt`. `SimulatedOrbitRecords`: fixtures for the three simulated customers, `not_found` for others, outage mode `SUPPORT_SIMULATED_ORBIT=unavailable`. Served by `GET /api/staff/cases/:id/orbit`; rendered by `OrbitCustomerSection` in the staff context column with loading / available / unavailable + retry, labeled Simulação. Masking helpers `maskEmail` / `maskPhone` live in `packages/shared/src/orbit.ts`.
-Not implemented: record lookups and cards (operations, P2P, Pix deposits, withdrawals — PH-4.2; balances, bonuses, referral, product errors — visible as "not integrated" later), contextual entry from a record (PH-4.2), role-gated unmasking (PH-7), and the real Orbit session/records adapters (BL-001).
+- Records (PH-4.2, DEC-0020): `listRecords(userId)` and `getRecord(userId, kind, reference)` for `operation`, `pix_deposit`, `withdrawal` — a generic `OrbitRecord` (title, status, occurredAt, amount/currency, masked `facts[]`); ownership is part of the lookup (another customer's record → `not_found`). `GET /api/support/records` lists the customer's own records with the active case per record; a case created with `record` keeps a snapshot (`CaseRecord`) and the staff Orbit context adds the record's current state.
+Not implemented: P2P, balances, bonuses, referral and product-error subjects (to be shown as "not integrated" — PH-4.3), role-gated unmasking (PH-7), and the real Orbit session/records adapters (BL-001).
 
 ## Dependencies and consumers
 Depends on: nothing inside the repo (it is the outer boundary). Used by: every guarded controller (FEAT-CASE), FEAT-CHAT and FEAT-STAFF (headers), future FEAT-NOTIFY (contact resolution) and FEAT-ACCESS (recovery contact). Shared contract owner: `packages/shared/src/identity.ts` (`STAFF_ROLES`, `IDENTITY_SOURCES`, `SIMULATED_IDENTITY_HEADERS`, `SIMULATED_STAFF_DIRECTORY`).
@@ -39,4 +40,4 @@ No actor → 401 `identity_required`; wrong kind for the surface → 403 (`custo
 ADR-0002 (dedicated project with explicit boundary), DEC-0003 (Owner: no Orbit system exists), DEC-0008 (provider selection and production refusal). Assumption: Orbit will expose a session verification and read-only record APIs; if Orbit instead hosts this code, the port stays and the adapter changes (ADR-0002 revisit trigger).
 
 ## Verification and change checklist
-Any change here → `npm test -w api` and `npm run test:e2e -w api` (negatives included); header names → rebuild shared and run `npm test -w web`. Last scoped evidence: `docs/evidence/PH-4.1-verification.md`, `docs/evidence/CYCLE-1-verification.md`.
+Any change here → `npm test -w api` and `npm run test:e2e -w api` (negatives included); header names → rebuild shared and run `npm test -w web`. Last scoped evidence: `docs/evidence/PH-4.2-verification.md`, `docs/evidence/PH-4.1-verification.md`.

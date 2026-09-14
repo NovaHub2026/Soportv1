@@ -8,6 +8,8 @@ import { DatabaseModule, DB } from '../database/database.module.js';
 import { caseConsultations, caseMessages, supportCases } from '../database/schema.js';
 import { CaseEventBus } from '../events/case-event-bus.js';
 import type { CustomerActor, StaffActor } from '../identity/identity.types.js';
+import { ORBIT_RECORDS } from '../identity/orbit-records.js';
+import { SimulatedOrbitRecords } from '../identity/simulated-orbit-records.js';
 import { SimulatedStaffDirectory, STAFF_DIRECTORY } from '../identity/staff-directory.js';
 import { CasesService } from './cases.service.js';
 
@@ -26,7 +28,12 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
   beforeAll(async () => {
     moduleRef = await Test.createTestingModule({
       imports: [DatabaseModule.forRoot({ inMemory: true }), AttachmentsModule.forRoot({ inMemory: true })],
-      providers: [CasesService, CaseEventBus, { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory }],
+      providers: [
+        CasesService,
+        CaseEventBus,
+        { provide: STAFF_DIRECTORY, useClass: SimulatedStaffDirectory },
+        { provide: ORBIT_RECORDS, useValue: new SimulatedOrbitRecords({}) },
+      ],
     }).compile();
     await moduleRef.init();
     service = moduleRef.get(CasesService);
@@ -573,6 +580,39 @@ describe('CasesService (embedded PostgreSQL, in memory)', () => {
       const view = await service.getStaffCase(second.id);
       expect(view).toMatchObject({ status: 'waiting_internal', resolvedAt: null, resolutionReason: null });
       expect(view.events.some((e) => e.type === 'case_reopened' && e.data.to === 'waiting_internal')).toBe(true);
+    });
+  });
+
+
+  describe('records and contextual entry (PH-4.2, §4.2)', () => {
+    it('a case opened from a record keeps a snapshot of it, exposes it on both details and records it in history', async () => {
+      const created = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Meu saque não chegou', record: { kind: 'withdrawal', reference: 'WD-48213' } });
+      expect(created.recordKind).toBe('withdrawal');
+      expect(created.record).toMatchObject({ kind: 'withdrawal', reference: 'WD-48213', lookupReason: null });
+      expect(created.record?.snapshot).toMatchObject({ title: 'Saque 250 USDT', status: 'Em processamento' });
+      const staffView = await service.getStaffCase(created.id);
+      expect(staffView.record?.snapshot?.facts.some((f) => f.label === 'Destino' && f.value === 'TX7f…9k2Q')).toBe(true);
+      expect(staffView.events[0]).toMatchObject({ type: 'case_created', data: { record: { kind: 'withdrawal', reference: 'WD-48213', snapshotCaptured: true } } });
+      const [listed] = await service.listCustomerCases(alice);
+      expect(listed).toMatchObject({ recordKind: 'withdrawal', recordReference: 'WD-48213' });
+    });
+
+    it('a record the adapter cannot find still opens the case — as an investigation, with the reason on the card (RULE-SUP-07)', async () => {
+      const created = await service.createCase(bob, { category: 'operations', message: 'Cadê?', record: { kind: 'withdrawal', reference: 'WD-48213' } });
+      expect(created.record).toMatchObject({ kind: 'withdrawal', reference: 'WD-48213', snapshot: null, lookupReason: 'not_found' });
+      expect(JSON.stringify(created)).not.toContain('Saque 250'); // Alice's record never leaks to Bob (RULE-SUP-01)
+      expect(await service.currentRecord(await service.requireCaseRow(created.id))).toMatchObject({ state: 'unavailable', reason: 'not_found' });
+    });
+
+    it('the active case per record is reported so the panel can offer to continue it; resolved cases are not active', async () => {
+      const created = await service.createCase(alice, { category: 'deposits_withdrawals', message: 'Saque', record: { kind: 'withdrawal', reference: 'WD-48213' } });
+      await service.createCase(alice, { category: 'other', message: 'Sem registro' });
+      const active = await service.activeCasesByRecord(alice);
+      expect([...active.keys()]).toEqual(['withdrawal:WD-48213']);
+      expect(active.get('withdrawal:WD-48213')).toMatchObject({ id: created.id, reference: created.reference });
+      await service.resolve(ana, created.id, { reason: 'solved', explanation: 'Chegou' });
+      expect((await service.activeCasesByRecord(alice)).size).toBe(0);
+      expect((await service.currentRecord(await service.requireCaseRow(created.id)))).toMatchObject({ state: 'available', data: { reference: 'WD-48213' } });
     });
   });
 

@@ -28,7 +28,7 @@ Scenarios (context §14 items 1, 7): (a) staff open a case and see the customer'
 | ID | Block | Status |
 |---|---|---|
 | PH-4.1 | Orbit records boundary and customer summary: `OrbitRecordsPort`, simulated adapter with masking and outage mode, `GET /api/staff/cases/:id/orbit`, staff context column section with available/unavailable states — `PH-4.1.md`, approved 2026-09-14 | APPROVED |
-| PH-4.2 | Record cards and contextual entry: simulated records per customer, `case_records` snapshots, "Preciso de ajuda" from the shell, card in both conversations, correction and continue-existing-case suggestion | PLANNED |
+| PH-4.2 | Record cards and contextual entry: simulated records per customer, record snapshot on the case, "Preciso de ajuda" from the shell, card in both conversations, removal and continue-existing-case suggestion — `PH-4.2.md`, approved 2026-09-14 | APPROVED |
 | PH-4.3 | Unavailable and not-found flows end to end, masking review, browser smoke for scenarios (a)–(f), phase closure | PLANNED |
 
 ## Verification and operational readiness
